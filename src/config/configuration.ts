@@ -1,0 +1,329 @@
+import { DataSourceOptions } from 'typeorm';
+import { join } from 'path';
+import type { Configuration } from './config.types';
+
+/**
+ * 获取数据库配置
+ * @description 统一的数据库配置，供 NestJS 和 TypeORM CLI 使用
+ */
+export function getDatabaseConfig(env: NodeJS.ProcessEnv = process.env): DataSourceOptions {
+  const isProduction = env.NODE_ENV === 'production';
+  const isTest = env.NODE_ENV === 'test';
+
+  return {
+    type: 'mysql',
+    host: env.DB_HOST || 'localhost',
+    port: parseInt(env.DB_PORT || '3306', 10),
+    username: env.DB_USERNAME || 'root',
+    // 生产环境必须提供密码，开发环境允许空密码
+    password: isProduction
+      ? env.DB_PASSWORD! // 生产环境必须提供，由验证层保证
+      : env.DB_PASSWORD || '',
+    database: env.DB_DATABASE || 'home',
+
+    // 实体和迁移路径配置
+    entities: [join(__dirname, '..', '**', '*.entity.{ts,js}')],
+    migrations: [join(__dirname, '..', 'migrations', '*.{ts,js}')],
+    migrationsTableName: 'migrations',
+
+    // 同步配置：所有环境都禁用，使用migration管理数据库结构
+    synchronize: false,
+
+    // 测试环境特殊配置
+    dropSchema: isTest && env.DB_DROP_SCHEMA === 'true',
+
+    // 日志配置：生产环境根据配置，其他环境默认启用
+    logging: isProduction ? env.DB_LOGGING === 'true' : env.DB_LOGGING !== 'false',
+
+    // MySQL 特定配置
+    timezone: '+08:00',
+    charset: 'utf8mb4',
+
+    // 额外配置
+    extra: {
+      charset: 'utf8mb4_unicode_ci',
+      // 连接池配置
+      connectionLimit: parseInt(env.DB_CONNECTION_LIMIT || '10', 10),
+      // 连接超时（毫秒）
+      connectTimeout: parseInt(env.DB_CONNECTION_TIMEOUT || '60000', 10),
+      // 获取连接超时（毫秒）
+      acquireTimeout: parseInt(env.DB_ACQUIRE_TIMEOUT || '60000', 10),
+      // 查询超时（毫秒）
+      timeout: parseInt(env.DB_QUERY_TIMEOUT || '60000', 10),
+    },
+  };
+}
+
+/**
+ * 应用配置
+ * @description 所有配置项的中央管理，支持环境变量覆盖默认值
+ * @note 布尔值统一使用 === 'true' 判断，默认为 false
+ */
+export const configuration = (): Configuration => ({
+  /**
+   * 应用基础配置
+   */
+  app: {
+    /** 应用名称 */
+    name: process.env.APP_NAME || 'home-server',
+    /** 服务端口号 */
+    port: parseInt(process.env.PORT || '3000', 10),
+    /** 运行环境：development | test | production */
+    environment: (process.env.NODE_ENV as 'development' | 'test' | 'production') || 'development',
+    /** API 路径前缀，如 /api */
+    apiPrefix: process.env.API_PREFIX || 'api',
+    /** API 版本号 */
+    apiVersion: process.env.API_VERSION || '1',
+  },
+
+  /**
+   * 数据库配置
+   * @see database.config.ts 统一的数据库配置管理
+   */
+  database: getDatabaseConfig(process.env),
+
+  /**
+   * Redis 缓存配置
+   */
+  redis: {
+    /** Redis 服务器地址 */
+    host: process.env.REDIS_HOST || 'localhost',
+    /** Redis 端口号 */
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    /** 数据库索引（0-15） */
+    db: parseInt(process.env.REDIS_DB || '0', 10),
+    /** 连接密码（可选） */
+    password: process.env.REDIS_PASSWORD || undefined,
+    /** 键前缀，用于避免键冲突 */
+    keyPrefix: process.env.REDIS_KEY_PREFIX || 'home:',
+  },
+
+  /**
+   * JWT 认证配置
+   */
+  jwt: {
+    /** JWT 签名密钥（生产环境必须设置，开发环境使用默认值） */
+    secret:
+      process.env.NODE_ENV === 'production'
+        ? process.env.JWT_SECRET! // 生产环境必须提供，由验证层保证
+        : process.env.JWT_SECRET || 'dev-secret-key-change-this',
+    /** 访问令牌过期时间（支持 ms 格式，如 7d, 24h） */
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    /** 刷新令牌密钥（生产环境必须设置） */
+    refreshSecret:
+      process.env.NODE_ENV === 'production'
+        ? process.env.JWT_REFRESH_SECRET! // 生产环境必须提供，由验证层保证
+        : process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-this',
+    /** 刷新令牌过期时间 */
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
+  },
+
+  /**
+   * 日志配置
+   */
+  logging: {
+    /** 日志级别：debug | info | warn | error */
+    level: (process.env.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error') || 'debug',
+    /** 日志文件存储目录 */
+    dir: process.env.LOG_DIR || './logs',
+  },
+
+  /**
+   * Swagger 文档配置
+   */
+  swagger: {
+    /** 是否启用 Swagger（默认 true，生产环境建议关闭） */
+    enable: process.env.SWAGGER_ENABLE === 'true',
+    /** 文档标题 */
+    title: process.env.SWAGGER_TITLE || 'home API',
+    /** 文档描述 */
+    description:
+      process.env.SWAGGER_DESCRIPTION || 'home Backend Management System API Documentation',
+    /** API 版本号 */
+    version: process.env.SWAGGER_VERSION || '1.0.0',
+    /** 文档访问路径 */
+    path: process.env.SWAGGER_PATH || 'api-docs',
+  },
+
+  /**
+   * 跨域配置
+   */
+  cors: {
+    /** 允许的来源（* 表示所有，生产环境应指定具体域名） */
+    origin: process.env.CORS_ORIGIN || '*',
+    /** 是否发送 Cookie（默认 false） */
+    credentials: process.env.CORS_CREDENTIALS === 'true',
+  },
+
+  /**
+   * 限流配置
+   */
+  throttle: {
+    /** 时间窗口（秒） */
+    ttl: parseInt(process.env.THROTTLE_TTL || '60', 10),
+    /** 时间窗口内最大请求数 */
+    limit: parseInt(process.env.THROTTLE_LIMIT || '100', 10),
+  },
+
+  /**
+   * 文件上传配置
+   */
+  file: {
+    /** 存储方式：local（本地） | oss（阿里云） | minio（MinIO） */
+    storage: (process.env.FILE_STORAGE as 'local' | 'oss' | 'minio') || 'local',
+    /** 上传文件保存目录 */
+    uploadDir: process.env.FILE_UPLOAD_DIR || 'uploads',
+    /** 临时文件目录（用于分片上传） */
+    tempDir: process.env.FILE_TEMP_DIR || 'uploads/temp',
+    /** 文件访问基础 URL */
+    baseUrl: process.env.FILE_BASE_URL || '/uploads',
+    /** 最大文件大小（字节），默认 50MB */
+    maxSize: parseInt(process.env.FILE_MAX_SIZE || `${50 * 1024 * 1024}`, 10),
+    /** 允许的文件类型（扩展名列表） */
+    allowedTypes: (
+      process.env.FILE_ALLOWED_TYPES ||
+      '.jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip'
+    )
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+
+    /**
+     * 分片上传配置
+     */
+    chunk: {
+      /** 默认分片大小（字节），默认 5MB */
+      defaultSize: parseInt(process.env.FILE_CHUNK_SIZE || `${5 * 1024 * 1024}`, 10),
+      /** 分片信息过期时间（秒），默认 24 小时 */
+      expire: parseInt(process.env.FILE_CHUNK_EXPIRE || `${24 * 60 * 60}`, 10),
+    },
+
+    /**
+     * 图片处理配置
+     */
+    image: {
+      /** 是否压缩图片（默认 false） */
+      compress: process.env.FILE_IMAGE_COMPRESS === 'true',
+      /** 压缩质量（1-100），默认 80 */
+      quality: parseInt(process.env.FILE_IMAGE_QUALITY || '80', 10),
+      /** 最大宽度（像素），超过则缩放 */
+      maxWidth: parseInt(process.env.FILE_IMAGE_MAX_WIDTH || '1920', 10),
+
+      /**
+       * 缩略图配置
+       */
+      thumbnail: {
+        /** 是否生成缩略图（默认 false） */
+        enable: process.env.FILE_IMAGE_THUMBNAIL_ENABLE === 'true',
+        /** 缩略图宽度（像素） */
+        width: parseInt(process.env.FILE_IMAGE_THUMBNAIL_WIDTH || '320', 10),
+        /** 缩略图高度（像素） */
+        height: parseInt(process.env.FILE_IMAGE_THUMBNAIL_HEIGHT || '320', 10),
+      },
+    },
+
+    /**
+     * 外部存储服务配置
+     */
+    external: {
+      /**
+       * 阿里云 OSS 配置
+       */
+      oss: {
+        /** 是否启用（默认 false） */
+        enable: process.env.FILE_OSS_ENABLE === 'true',
+        /** OSS 区域 */
+        region: process.env.FILE_OSS_REGION,
+        /** 存储桶名称 */
+        bucket: process.env.FILE_OSS_BUCKET,
+        /** OSS 端点 */
+        endpoint: process.env.FILE_OSS_ENDPOINT,
+        /** 访问密钥 ID */
+        accessKeyId: process.env.FILE_OSS_ACCESS_KEY_ID,
+        /** 访问密钥 */
+        accessKeySecret: process.env.FILE_OSS_ACCESS_KEY_SECRET,
+        /** 是否使用 HTTPS（默认 true） */
+        secure: process.env.FILE_OSS_SECURE === 'true',
+        /** CDN 或自定义域名 */
+        baseUrl: process.env.FILE_OSS_BASE_URL,
+      },
+
+      /**
+       * MinIO 配置
+       */
+      minio: {
+        /** 是否启用（默认 false） */
+        enable: process.env.FILE_MINIO_ENABLE === 'true',
+        /** MinIO 服务端点 */
+        endPoint: process.env.FILE_MINIO_ENDPOINT,
+        /** 端口号（可选） */
+        port: process.env.FILE_MINIO_PORT ? parseInt(process.env.FILE_MINIO_PORT, 10) : undefined,
+        /** 是否使用 SSL（默认 true） */
+        useSSL: process.env.FILE_MINIO_USE_SSL === 'true',
+        /** 存储桶名称 */
+        bucket: process.env.FILE_MINIO_BUCKET,
+        /** 访问密钥 */
+        accessKey: process.env.FILE_MINIO_ACCESS_KEY,
+        /** 密钥 */
+        secretKey: process.env.FILE_MINIO_SECRET_KEY,
+        /** 访问基础 URL */
+        baseUrl: process.env.FILE_MINIO_BASE_URL,
+        /** 区域（可选） */
+        region: process.env.FILE_MINIO_REGION,
+      },
+    },
+  },
+
+  /**
+   * 通知配置
+   */
+  notification: {
+    /**
+     * 通知渠道配置
+     */
+    channels: {
+      /**
+       * Bark 推送（iOS 推送通知）
+       */
+      bark: {
+        /** 是否启用（默认 false） */
+        enable: process.env.NOTIFY_BARK_ENABLE === 'true',
+        /** Bark 服务地址 */
+        baseUrl: process.env.NOTIFY_BARK_BASE_URL,
+        /** 默认设备密钥 */
+        defaultKey: process.env.NOTIFY_BARK_DEFAULT_KEY,
+      },
+
+      /**
+       * 飞书机器人通知
+       */
+      feishu: {
+        /** 是否启用（默认 false） */
+        enable: process.env.NOTIFY_FEISHU_ENABLE === 'true',
+        /** 默认 Webhook 地址 */
+        defaultWebhook: process.env.NOTIFY_FEISHU_WEBHOOK,
+      },
+
+      /**
+       * 短信通知
+       */
+      sms: {
+        /** 是否启用（默认 false） */
+        enable: process.env.NOTIFY_SMS_ENABLE === 'true',
+        /** 短信服务商（aliyun | tencent） */
+        provider: process.env.NOTIFY_SMS_PROVIDER,
+        /** 短信签名 */
+        signName: process.env.NOTIFY_SMS_SIGN_NAME,
+        /** 短信模板 ID */
+        templateId: process.env.NOTIFY_SMS_TEMPLATE_ID,
+      },
+    },
+  },
+
+  /** 是否为开发环境 */
+  isDevelopment: process.env.NODE_ENV === 'development',
+  /** 是否为生产环境 */
+  isProduction: process.env.NODE_ENV === 'production',
+  /** 是否为测试环境 */
+  isTest: process.env.NODE_ENV === 'test',
+});

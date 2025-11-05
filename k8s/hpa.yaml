@@ -1,0 +1,50 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: home-server-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: home-server
+  minReplicas: 3  # 最少3个副本
+  maxReplicas: 10  # 最多10个副本
+  metrics:
+    # 基于CPU使用率自动扩缩容
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70  # CPU使用率超过70%时扩容
+
+    # 基于内存使用率自动扩缩容
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80  # 内存使用率超过80%时扩容
+
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 缩容前等待5分钟
+      policies:
+        - type: Percent
+          value: 50  # 每次最多缩容50%的Pod
+          periodSeconds: 60
+        - type: Pods
+          value: 1  # 每次最多缩容1个Pod
+          periodSeconds: 60
+      selectPolicy: Min  # 选择最小缩容策略
+    scaleUp:
+      stabilizationWindowSeconds: 0  # 扩容立即生效
+      policies:
+        - type: Percent
+          value: 100  # 每次最多扩容100%的Pod
+          periodSeconds: 30
+        - type: Pods
+          value: 2  # 每次最多扩容2个Pod
+          periodSeconds: 30
+      selectPolicy: Max  # 选择最大扩容策略

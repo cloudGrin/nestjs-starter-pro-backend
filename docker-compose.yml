@@ -1,0 +1,181 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # home Server 应用服务
+  # ==========================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: home-server
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+
+      # 数据库配置
+      DB_TYPE: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: ${DB_USERNAME:-home}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_DATABASE: ${DB_DATABASE:-home}
+      DB_SYNCHRONIZE: 'false'
+      DB_LOGGING: 'false'
+
+      # Redis配置
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+
+      # JWT配置
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required for production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required for production}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
+
+      # 日志配置
+      LOG_LEVEL: info
+      LOG_DIR: /app/logs
+
+      # API配置
+      API_PREFIX: api
+      API_VERSION: 1
+
+      # CORS配置（生产环境需要指定具体域名）
+      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required for production}
+      CORS_CREDENTIALS: ${CORS_CREDENTIALS:-false}
+
+      # 文件存储配置
+      FILE_STORAGE: local
+      FILE_UPLOAD_DIR: /app/uploads
+      FILE_MAX_SIZE: 52428800  # 50MB
+
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - home-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/healthz', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==========================================
+  # MySQL 数据库服务
+  # ==========================================
+  mysql:
+    image: mysql:8.0
+    container_name: home-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${DB_DATABASE:-home}
+      MYSQL_USER: ${DB_USERNAME:-home}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql  # 初始化SQL（可选）
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
+    networks:
+      - home-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # Redis 缓存服务
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: home-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required} --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - home-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # Prometheus 监控服务（可选）
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: home-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - home-network
+    restart: unless-stopped
+    profiles:
+      - monitoring  # 需要使用 --profile monitoring 启动
+
+  # ==========================================
+  # Grafana 可视化服务（可选）
+  # ==========================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: home-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - home-network
+    restart: unless-stopped
+    profiles:
+      - monitoring  # 需要使用 --profile monitoring 启动
+
+# ==========================================
+# 数据卷
+# ==========================================
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# ==========================================
+# 网络
+# ==========================================
+networks:
+  home-network:
+    driver: bridge

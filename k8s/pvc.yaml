@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: home-uploads-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany  # 多个Pod可以同时读写
+  storageClassName: standard  # 根据你的K8s集群调整
+  resources:
+    requests:
+      storage: 10Gi  # 请求10GB存储空间
+
+---
+# 如果需要使用NFS作为共享存储
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: home-uploads-pv
+# spec:
+#   capacity:
+#     storage: 10Gi
+#   accessModes:
+#     - ReadWriteMany
+#   nfs:
+#     server: nfs-server.example.com
+#     path: /exports/home-uploads
+#   mountOptions:
+#     - hard
+#     - nfsvers=4.1

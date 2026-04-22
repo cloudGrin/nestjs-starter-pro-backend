@@ -12,11 +12,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { DictTypeService } from '../services/dict-type.service';
 import { CreateDictTypeDto, UpdateDictTypeDto, QueryDictTypeDto } from '../dto/dict-type.dto';
-import {
-  ApiSuccessResponse,
-  ApiPaginatedResponse,
-  RequirePermissions,
-} from '~/core/decorators';
+import { ApiSuccessResponse, ApiPaginatedResponse, RequirePermissions } from '~/core/decorators';
 import { DictTypeEntity } from '../entities/dict-type.entity';
 
 @ApiTags('字典管理-字典类型')
@@ -42,6 +38,7 @@ export class DictTypeController {
   }
 
   @Get('enabled')
+  @RequirePermissions('dict:read')
   @ApiOperation({ summary: '获取所有启用的字典类型' })
   @ApiSuccessResponse(DictTypeEntity, true)
   async findEnabled() {
@@ -49,6 +46,7 @@ export class DictTypeController {
   }
 
   @Get('code/:code')
+  @RequirePermissions('dict:read')
   @ApiOperation({ summary: '根据编码获取字典类型' })
   @ApiParam({ name: 'code', description: '字典类型编码' })
   @ApiSuccessResponse(DictTypeEntity)
@@ -57,6 +55,7 @@ export class DictTypeController {
   }
 
   @Get(':id')
+  @RequirePermissions('dict:read')
   @ApiOperation({ summary: '获取字典类型详情' })
   @ApiParam({ name: 'id', description: '字典类型ID' })
   @ApiSuccessResponse(DictTypeEntity)

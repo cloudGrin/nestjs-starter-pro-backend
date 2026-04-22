@@ -4,7 +4,6 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
@@ -13,7 +12,6 @@ import { DictItemEntity, DictItemStatus } from '../entities/dict-item.entity';
 import { DictItemRepository } from '../repositories/dict-item.repository';
 import { DictTypeRepository } from '../repositories/dict-type.repository';
 import { CreateDictItemDto, QueryDictItemDto, BatchCreateDictItemDto } from '../dto/dict-item.dto';
-import { Cacheable } from '~/core/decorators';
 
 @Injectable()
 export class DictItemService extends BaseService<DictItemEntity> {
@@ -24,13 +22,11 @@ export class DictItemService extends BaseService<DictItemEntity> {
     private readonly dictTypeRepository: DictTypeRepository,
     logger: LoggerService,
     cache: CacheService,
-    eventEmitter: EventEmitter2,
   ) {
     super();
     this.repository = dictItemRepository;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter;
     this.logger.setContext(DictItemService.name);
   }
 
@@ -70,9 +66,6 @@ export class DictItemService extends BaseService<DictItemEntity> {
     });
 
     const saved = await this.dictItemRepository.save(dictItem);
-
-    // 发送事件
-    this.eventEmitter.emit('dict-item.created', { dictItem: saved });
 
     // 清除缓存
     await this.clearCache();
@@ -128,12 +121,6 @@ export class DictItemService extends BaseService<DictItemEntity> {
 
     const saved = await this.dictItemRepository.createBatch(dictItems);
 
-    // 发送事件
-    this.eventEmitter.emit('dict-item.batch-created', {
-      dictTypeId: dto.dictTypeId,
-      items: saved,
-    });
-
     // 清除缓存
     await this.clearCache();
 
@@ -170,9 +157,6 @@ export class DictItemService extends BaseService<DictItemEntity> {
     Object.assign(dictItem, dto);
     const updated = await this.dictItemRepository.save(dictItem);
 
-    // 发送事件
-    this.eventEmitter.emit('dict-item.updated', { dictItem: updated });
-
     // 清除缓存
     await this.clearCache();
 
@@ -194,9 +178,6 @@ export class DictItemService extends BaseService<DictItemEntity> {
     }
 
     await this.dictItemRepository.softDelete(id);
-
-    // 发送事件
-    this.eventEmitter.emit('dict-item.deleted', { dictItem });
 
     // 清除缓存
     await this.clearCache();
@@ -242,7 +223,6 @@ export class DictItemService extends BaseService<DictItemEntity> {
   /**
    * 根据字典类型ID获取启用的字典项
    */
-  @Cacheable({ prefix: 'dict:item:type-id', argIndexes: [0], ttl: 1800 })
   async findEnabledByTypeId(dictTypeId: number): Promise<DictItemEntity[]> {
     return this.dictItemRepository.findEnabledByTypeId(dictTypeId);
   }
@@ -250,7 +230,6 @@ export class DictItemService extends BaseService<DictItemEntity> {
   /**
    * 根据字典类型编码获取启用的字典项
    */
-  @Cacheable({ prefix: 'dict:item:type-code', argIndexes: [0], ttl: 1800 })
   async findEnabledByTypeCode(typeCode: string): Promise<DictItemEntity[]> {
     return this.dictItemRepository.findEnabledByTypeCode(typeCode);
   }
@@ -279,9 +258,6 @@ export class DictItemService extends BaseService<DictItemEntity> {
       dictItem.status === DictItemStatus.ENABLED ? DictItemStatus.DISABLED : DictItemStatus.ENABLED;
 
     const updated = await this.dictItemRepository.save(dictItem);
-
-    // 发送事件
-    this.eventEmitter.emit('dict-item.status-toggled', { dictItem: updated });
 
     // 清除缓存
     await this.clearCache();

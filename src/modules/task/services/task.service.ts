@@ -1,9 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CronJob } from 'cron';
 import { Like } from 'typeorm';
-import dayjs from 'dayjs';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
@@ -26,6 +24,7 @@ interface ExecuteOptions {
 @Injectable()
 export class TaskService extends BaseService<TaskDefinitionEntity> implements OnModuleInit {
   protected repository: TaskDefinitionRepository;
+  private readonly runningTaskIds = new Set<number>();
 
   constructor(
     private readonly taskRepository: TaskDefinitionRepository,
@@ -34,20 +33,15 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
     private readonly handlerRegistry: TaskHandlerRegistry,
     logger: LoggerService,
     cache: CacheService,
-    eventEmitter: EventEmitter2, // 🆕 注入 EventEmitter
   ) {
     super();
     this.repository = taskRepository;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter; // 🆕 设置 eventEmitter
     this.logger.setContext(TaskService.name);
   }
 
   async onModuleInit(): Promise<void> {
-    // 注意：所有 Handler 现在通过 @TaskHandler 装饰器自动注册
-    // TaskHandlerDiscoveryService 会自动扫描并注册所有标记的 Handler
-
     const tasks = await this.taskRepository.findAll({ where: { status: TaskStatus.ENABLED } });
     for (const task of tasks) {
       await this.registerTask(task);
@@ -148,14 +142,8 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
         case TaskType.CRON:
           this.registerCronTask(task);
           break;
-        case TaskType.INTERVAL:
-          this.registerIntervalTask(task);
-          break;
-        case TaskType.TIMEOUT:
-          this.registerTimeoutTask(task);
-          break;
         default:
-          this.logger?.warn(`Unsupported task type ${task.type} for ${task.code}`);
+          throw new Error('Only cron tasks are supported');
       }
     } catch (error) {
       this.logger?.error(
@@ -172,16 +160,6 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
   private async unregisterTask(code: string): Promise<void> {
     try {
       this.schedulerRegistry.deleteCronJob(code);
-    } catch (error) {
-      /* ignore */
-    }
-    try {
-      this.schedulerRegistry.deleteInterval(code);
-    } catch (error) {
-      /* ignore */
-    }
-    try {
-      this.schedulerRegistry.deleteTimeout(code);
     } catch (error) {
       /* ignore */
     }
@@ -202,36 +180,6 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
     this.taskRepository.update(task.id, { nextRunAt: nextRun }).catch(() => undefined);
   }
 
-  private registerIntervalTask(task: TaskDefinitionEntity): void {
-    const interval = this.parseInterval(task.schedule);
-    const callback = () => this.executeTask(task);
-    const timer = setInterval(callback, interval);
-    this.schedulerRegistry.addInterval(task.code, timer);
-    const nextRun = dayjs().add(interval, 'millisecond').toDate();
-    this.taskRepository.update(task.id, { nextRunAt: nextRun }).catch(() => undefined);
-  }
-
-  private registerTimeoutTask(task: TaskDefinitionEntity): void {
-    const timeout = this.parseInterval(task.schedule);
-    const callback = async () => {
-      await this.executeTask(task);
-      await this.unregisterTask(task.code);
-    };
-    const timer = setTimeout(callback, timeout);
-    this.schedulerRegistry.addTimeout(task.code, timer);
-    const nextRun = dayjs().add(timeout, 'millisecond').toDate();
-    this.taskRepository.update(task.id, { nextRunAt: nextRun }).catch(() => undefined);
-  }
-
-  private parseInterval(value?: string | null): number {
-    const fallback = 60 * 1000;
-    if (!value) {
-      return fallback;
-    }
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-  }
-
   /**
    * 🆕 执行任务（带重试机制）
    */
@@ -245,55 +193,66 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
       return;
     }
 
-    // 获取重试配置
-    const retryPolicy = freshTask.retryPolicy || {
-      enabled: false,
-      maxRetries: 0,
-      retryDelay: 60000,
-      backoffMultiplier: 2,
-    };
-
-    let lastError: Error | null = null;
-    const maxAttempts = retryPolicy.enabled ? retryPolicy.maxRetries + 1 : 1;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        // 如果是重试，等待一段时间（指数退避）
-        if (attempt > 1) {
-          const delay =
-            retryPolicy.retryDelay * Math.pow(retryPolicy.backoffMultiplier || 2, attempt - 2);
-          this.logger?.log(
-            `⏳ Retrying task ${freshTask.code} (attempt ${attempt}/${maxAttempts}) after ${delay}ms`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-
-        // 执行任务（原有逻辑）
-        await this.doExecuteTask(freshTask, options, attempt, maxAttempts);
-
-        // ✅ 成功，跳出重试循环
-        return;
-      } catch (error) {
-        lastError = error as Error;
-
-        if (attempt < maxAttempts) {
-          this.logger?.warn(
-            `⚠️ Task ${freshTask.code} failed on attempt ${attempt}/${maxAttempts}: ${lastError.message}`,
-          );
-        } else {
-          this.logger?.error(
-            `❌ Task ${freshTask.code} failed after ${attempt} attempts`,
-            lastError.stack,
-          );
-
-          // 🆕 发送告警（仅在所有重试都失败后）
-          await this.sendTaskFailureAlert(freshTask, lastError, attempt);
-        }
-      }
+    if (this.runningTaskIds.has(freshTask.id)) {
+      this.logger?.warn(`Task ${freshTask.code} is already running in this process, skip`);
+      return;
     }
 
-    // 所有重试都失败，抛出最后一个错误
-    throw lastError!;
+    this.runningTaskIds.add(freshTask.id);
+
+    try {
+      // 获取重试配置
+      const retryPolicy = freshTask.retryPolicy || {
+        enabled: false,
+        maxRetries: 0,
+        retryDelay: 60000,
+        backoffMultiplier: 2,
+      };
+
+      let lastError: Error | null = null;
+      const maxAttempts = retryPolicy.enabled ? retryPolicy.maxRetries + 1 : 1;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          // 如果是重试，等待一段时间（指数退避）
+          if (attempt > 1) {
+            const delay =
+              retryPolicy.retryDelay * Math.pow(retryPolicy.backoffMultiplier || 2, attempt - 2);
+            this.logger?.log(
+              `⏳ Retrying task ${freshTask.code} (attempt ${attempt}/${maxAttempts}) after ${delay}ms`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+
+          // 执行任务（原有逻辑）
+          await this.doExecuteTask(freshTask, options, attempt, maxAttempts);
+
+          // ✅ 成功，跳出重试循环
+          return;
+        } catch (error) {
+          lastError = error as Error;
+
+          if (attempt < maxAttempts) {
+            this.logger?.warn(
+              `⚠️ Task ${freshTask.code} failed on attempt ${attempt}/${maxAttempts}: ${lastError.message}`,
+            );
+          } else {
+            this.logger?.error(
+              `❌ Task ${freshTask.code} failed after ${attempt} attempts`,
+              lastError.stack,
+            );
+
+            // 🆕 发送告警（仅在所有重试都失败后）
+            await this.sendTaskFailureAlert(freshTask, lastError, attempt);
+          }
+        }
+      }
+
+      // 所有重试都失败，抛出最后一个错误
+      throw lastError!;
+    } finally {
+      this.runningTaskIds.delete(freshTask.id);
+    }
   }
 
   /**
@@ -305,33 +264,10 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
     attempt: number,
     maxAttempts: number,
   ): Promise<void> {
-    // 使用分布式锁防止任务重复执行
-    const lockKey = `task:execution:${freshTask.id}`;
-    const lockTimeout = Math.max(freshTask.timeout || 3600000, 60000); // 锁超时时间至少60秒
-    const lockId = await this.cache.acquireLock(lockKey, lockTimeout);
-
-    if (!lockId) {
-      this.logger?.warn(`Task ${freshTask.code} is already running, skip execution`);
-      return;
-    }
-
     const now = new Date();
     let log: TaskLogEntity | null = null;
 
     try {
-      // 双重检查：查询是否有正在运行的任务日志
-      const runningLogs = await this.taskLogRepository.find({
-        where: {
-          taskId: freshTask.id,
-          status: TaskLogStatus.RUNNING,
-        },
-      });
-
-      if (runningLogs.length > 0) {
-        this.logger?.warn(`Task ${freshTask.code} already has running execution, skip`);
-        return;
-      }
-
       // 记录任务开始
       const logMessage = options.manual
         ? 'Manual trigger'
@@ -355,11 +291,18 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
 
       // 添加超时控制
       const timeout = freshTask.timeout || 3600000; // 默认1小时
+      let timeoutId: NodeJS.Timeout | undefined;
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Task execution timeout')), timeout);
+        timeoutId = setTimeout(() => reject(new Error('Task execution timeout')), timeout);
       });
 
-      await Promise.race([Promise.resolve(handler(payload)), timeoutPromise]);
+      try {
+        await Promise.race([Promise.resolve(handler(payload)), timeoutPromise]);
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
 
       // ✅ 任务执行成功
       await this.taskLogRepository.update(log.id, {
@@ -390,9 +333,6 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
       });
 
       throw error; // 重新抛出错误，让外层的重试逻辑处理
-    } finally {
-      // 释放分布式锁
-      await this.cache.releaseLock(lockKey, lockId);
     }
   }
 
@@ -403,11 +343,6 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
           const job = this.schedulerRegistry.getCronJob(task.code);
           return job?.nextDate()?.toJSDate() ?? undefined;
         }
-        case TaskType.INTERVAL: {
-          const interval = this.parseInterval(task.schedule);
-          return dayjs().add(interval, 'millisecond').toDate();
-        }
-        case TaskType.TIMEOUT:
         default:
           return undefined;
       }
@@ -452,49 +387,7 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
       // 构建告警消息
       const message = this.buildAlertMessage(task, error, attemptCount);
 
-      // 发送到不同渠道
-      for (const channel of alertConfig.channels) {
-        switch (channel) {
-          case 'log':
-            this.logger?.error(`[Task Alert] ${message}`);
-            break;
-
-          case 'notification':
-            // 发送站内通知给管理员
-            this.eventEmitter.emit('task.failed', {
-              taskId: task.id,
-              taskCode: task.code,
-              taskName: task.name,
-              error: error.message,
-              attemptCount,
-              timestamp: new Date().toISOString(),
-            });
-            break;
-
-          case 'feishu':
-          case 'email':
-          case 'sms':
-            // 发送外部通知（通过通知模块）
-            this.eventEmitter.emit('notification.send', {
-              channel,
-              title: '⚠️ 任务执行失败告警',
-              content: message,
-              severity: 'HIGH',
-              metadata: {
-                taskId: task.id,
-                taskCode: task.code,
-                taskName: task.name,
-                error: error.message,
-                attemptCount,
-              },
-            });
-            break;
-        }
-      }
-
-      this.logger?.log(
-        `✅ Sent task failure alert for ${task.code} via ${alertConfig.channels.join(', ')}`,
-      );
+      this.logger?.error(`[Task Alert] ${message}`);
     } catch (alertError) {
       // 告警失败不应该影响主流程
       this.logger?.error(
@@ -512,7 +405,7 @@ export class TaskService extends BaseService<TaskDefinitionEntity> implements On
     error: Error,
     attemptCount: number,
   ): string {
-    const timestamp = dayjs().format('YYYY-MM-DD HH:mm:ss');
+    const timestamp = new Date().toISOString();
 
     return `
 ⚠️ 任务执行失败告警

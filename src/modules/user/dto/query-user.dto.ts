@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsEnum, IsEmail, IsInt, Min } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsEmail } from 'class-validator';
 import { PaginationDto } from '~/common/dto/pagination.dto';
 import { UserStatus, UserGender } from '~/common/enums/user.enum';
 
@@ -54,11 +54,4 @@ export class QueryUserDto extends PaginationDto {
   })
   @IsOptional()
   roleId?: number;
-
-  // 已移除department功能
-  // @ApiPropertyOptional({ description: '部门ID', type: Number })
-  // @IsOptional()
-  // @IsInt()
-  // @Min(1)
-  // departmentId?: number;
 }

@@ -83,22 +83,6 @@ export const configuration = (): Configuration => ({
   database: getDatabaseConfig(process.env),
 
   /**
-   * Redis 缓存配置
-   */
-  redis: {
-    /** Redis 服务器地址 */
-    host: process.env.REDIS_HOST || 'localhost',
-    /** Redis 端口号 */
-    port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    /** 数据库索引（0-15） */
-    db: parseInt(process.env.REDIS_DB || '0', 10),
-    /** 连接密码（可选） */
-    password: process.env.REDIS_PASSWORD || undefined,
-    /** 键前缀，用于避免键冲突 */
-    keyPrefix: process.env.REDIS_KEY_PREFIX || 'home:',
-  },
-
-  /**
    * JWT 认证配置
    */
   jwt: {
@@ -169,8 +153,8 @@ export const configuration = (): Configuration => ({
    * 文件上传配置
    */
   file: {
-    /** 存储方式：local（本地） | oss（阿里云） | minio（MinIO） */
-    storage: (process.env.FILE_STORAGE as 'local' | 'oss' | 'minio') || 'local',
+    /** 存储方式：local（本地） | oss（阿里云） */
+    storage: (process.env.FILE_STORAGE as 'local' | 'oss') || 'local',
     /** 上传文件保存目录 */
     uploadDir: process.env.FILE_UPLOAD_DIR || 'uploads',
     /** 临时文件目录（用于分片上传） */
@@ -247,30 +231,6 @@ export const configuration = (): Configuration => ({
         /** CDN 或自定义域名 */
         baseUrl: process.env.FILE_OSS_BASE_URL,
       },
-
-      /**
-       * MinIO 配置
-       */
-      minio: {
-        /** 是否启用（默认 false） */
-        enable: process.env.FILE_MINIO_ENABLE === 'true',
-        /** MinIO 服务端点 */
-        endPoint: process.env.FILE_MINIO_ENDPOINT,
-        /** 端口号（可选） */
-        port: process.env.FILE_MINIO_PORT ? parseInt(process.env.FILE_MINIO_PORT, 10) : undefined,
-        /** 是否使用 SSL（默认 true） */
-        useSSL: process.env.FILE_MINIO_USE_SSL === 'true',
-        /** 存储桶名称 */
-        bucket: process.env.FILE_MINIO_BUCKET,
-        /** 访问密钥 */
-        accessKey: process.env.FILE_MINIO_ACCESS_KEY,
-        /** 密钥 */
-        secretKey: process.env.FILE_MINIO_SECRET_KEY,
-        /** 访问基础 URL */
-        baseUrl: process.env.FILE_MINIO_BASE_URL,
-        /** 区域（可选） */
-        region: process.env.FILE_MINIO_REGION,
-      },
     },
   },
 
@@ -302,20 +262,6 @@ export const configuration = (): Configuration => ({
         enable: process.env.NOTIFY_FEISHU_ENABLE === 'true',
         /** 默认 Webhook 地址 */
         defaultWebhook: process.env.NOTIFY_FEISHU_WEBHOOK,
-      },
-
-      /**
-       * 短信通知
-       */
-      sms: {
-        /** 是否启用（默认 false） */
-        enable: process.env.NOTIFY_SMS_ENABLE === 'true',
-        /** 短信服务商（aliyun | tencent） */
-        provider: process.env.NOTIFY_SMS_PROVIDER,
-        /** 短信签名 */
-        signName: process.env.NOTIFY_SMS_SIGN_NAME,
-        /** 短信模板 ID */
-        templateId: process.env.NOTIFY_SMS_TEMPLATE_ID,
       },
     },
   },

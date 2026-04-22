@@ -6,10 +6,6 @@ import { IsArray, IsBoolean, IsEnum, IsInt, IsOptional, Min } from 'class-valida
  */
 export enum AlertChannel {
   LOG = 'log',
-  NOTIFICATION = 'notification',
-  FEISHU = 'feishu',
-  EMAIL = 'email',
-  SMS = 'sms',
 }
 
 /**
@@ -25,7 +21,7 @@ export class AlertConfigDto {
     enum: AlertChannel,
     isArray: true,
     default: [AlertChannel.LOG],
-    example: ['log', 'notification'],
+    example: ['log'],
   })
   @IsArray()
   @IsEnum(AlertChannel, { each: true })

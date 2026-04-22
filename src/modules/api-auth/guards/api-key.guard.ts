@@ -19,13 +19,13 @@ export class ApiKeyGuard extends AuthGuard('api-key') {
     }
 
     // 检查权限范围
-    const requiredScopes = this.reflector.getAllAndOverride<string[]>(
-      API_KEY_SCOPES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const requiredScopes = this.reflector.getAllAndOverride<string[]>(API_KEY_SCOPES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (!requiredScopes || requiredScopes.length === 0) {
-      return true; // 没有特定的scope要求
+      throw new UnauthorizedException('接口未配置API访问权限');
     }
 
     const request = context.switchToHttp().getRequest();
@@ -36,14 +36,12 @@ export class ApiKeyGuard extends AuthGuard('api-key') {
     }
 
     // 检查是否有所需的scope
-    const hasScope = requiredScopes.some(scope =>
-      app.scopes.includes(scope) || app.scopes.includes('*')
+    const hasScope = requiredScopes.some(
+      (scope) => app.scopes.includes(scope) || app.scopes.includes('*'),
     );
 
     if (!hasScope) {
-      throw new UnauthorizedException(
-        `需要以下权限之一: ${requiredScopes.join(', ')}`
-      );
+      throw new UnauthorizedException(`需要以下权限之一: ${requiredScopes.join(', ')}`);
     }
 
     return true;

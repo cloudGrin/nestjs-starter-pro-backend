@@ -111,7 +111,6 @@ export class PermissionRepository extends BaseRepository<PermissionEntity> {
     'api-auth': 'API认证',
     'open-api': '开放API',
     health: '健康检查',
-    excel: 'Excel功能',
   };
 
   /**

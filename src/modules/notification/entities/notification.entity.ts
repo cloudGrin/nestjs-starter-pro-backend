@@ -17,7 +17,6 @@ export enum NotificationChannel {
   INTERNAL = 'internal',
   BARK = 'bark',
   FEISHU = 'feishu',
-  SMS = 'sms',
 }
 
 export enum NotificationPriority {

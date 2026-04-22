@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FileService } from './file.service';
 import { FileRepository } from '../repositories/file.repository';
 import { LoggerService } from '~/shared/logger/logger.service';
@@ -16,7 +15,6 @@ describe('FileService', () => {
   let storageFactory: jest.Mocked<FileStorageFactory>;
   let cache: jest.Mocked<CacheService>;
   let logger: jest.Mocked<LoggerService>;
-  let eventEmitter: jest.Mocked<EventEmitter2>;
 
   // Mock文件对象
   const createMockFile = (overrides?: Partial<Express.Multer.File>): Express.Multer.File => ({
@@ -96,10 +94,6 @@ describe('FileService', () => {
       debug: jest.fn(),
     };
 
-    const mockEventEmitter = {
-      emit: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FileService,
@@ -108,7 +102,6 @@ describe('FileService', () => {
         { provide: FileStorageFactory, useValue: mockStorageFactory },
         { provide: CacheService, useValue: mockCache },
         { provide: LoggerService, useValue: mockLogger },
-        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
 
@@ -118,7 +111,6 @@ describe('FileService', () => {
     storageFactory = module.get(FileStorageFactory);
     cache = module.get(CacheService);
     logger = module.get(LoggerService);
-    eventEmitter = module.get(EventEmitter2);
   });
 
   afterEach(() => {
@@ -154,7 +146,6 @@ describe('FileService', () => {
 
       expect(result).toBeDefined();
       expect(repository.createAndSave).toHaveBeenCalled();
-      expect(eventEmitter.emit).toHaveBeenCalledWith('file.uploaded', { file: createdEntity });
     });
 
     it('当没有提供文件时应该抛出异常', async () => {
@@ -179,16 +170,7 @@ describe('FileService', () => {
     });
 
     it('应该拒绝危险的文件扩展名', async () => {
-      const dangerousFiles = [
-        '.exe',
-        '.bat',
-        '.cmd',
-        '.sh',
-        '.ps1',
-        '.vbs',
-        '.js',
-        '.jar',
-      ];
+      const dangerousFiles = ['.exe', '.bat', '.cmd', '.sh', '.ps1', '.vbs', '.js', '.jar'];
 
       for (const ext of dangerousFiles) {
         const file = createMockFile({
@@ -280,7 +262,10 @@ describe('FileService', () => {
 
       repository.findByIdOrFail.mockResolvedValue(mockFile);
       // Mock BaseService.remove method
-      const baseRemoveSpy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(service)), 'remove');
+      const baseRemoveSpy = jest.spyOn(
+        Object.getPrototypeOf(Object.getPrototypeOf(service)),
+        'remove',
+      );
       baseRemoveSpy.mockResolvedValue(undefined);
 
       await service.remove(1);
@@ -301,7 +286,10 @@ describe('FileService', () => {
       } as FileEntity;
 
       repository.findByIdOrFail.mockResolvedValue(mockFile);
-      const baseRemoveSpy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(service)), 'remove');
+      const baseRemoveSpy = jest.spyOn(
+        Object.getPrototypeOf(Object.getPrototypeOf(service)),
+        'remove',
+      );
       baseRemoveSpy.mockResolvedValue(undefined);
 
       await service.remove(1);
@@ -429,7 +417,10 @@ describe('FileService', () => {
       expect(found.id).toBe(1);
 
       // 3. 删除文件
-      const baseRemoveSpy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(service)), 'remove');
+      const baseRemoveSpy = jest.spyOn(
+        Object.getPrototypeOf(Object.getPrototypeOf(service)),
+        'remove',
+      );
       baseRemoveSpy.mockResolvedValue(undefined);
 
       await service.remove(1);

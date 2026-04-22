@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DeepPartial } from 'typeorm';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
@@ -34,13 +33,11 @@ export class NotificationService extends BaseService<NotificationEntity> {
     private readonly channelManager: NotificationChannelManager,
     logger: LoggerService,
     cache: CacheService,
-    eventEmitter: EventEmitter2,
   ) {
     super();
     this.repository = notificationRepository;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter;
     this.logger.setContext(NotificationService.name);
   }
 
@@ -117,9 +114,6 @@ export class NotificationService extends BaseService<NotificationEntity> {
     }
 
     await this.clearCache();
-    this.eventEmitter.emit('notification.created', {
-      notifications,
-    } as NotificationEventPayload);
 
     this.logger?.log(
       `Created ${notifications.length} notifications by sender ${senderId ?? 'system'}`,
@@ -170,7 +164,6 @@ export class NotificationService extends BaseService<NotificationEntity> {
       throw BusinessException.notFound('通知', id);
     }
     await this.clearCache(userId);
-    this.eventEmitter.emit('notification.read', { id, userId });
     this.logger?.debug(`[Notification] User ${userId} mark notification ${id} as read`);
   }
 
@@ -180,7 +173,6 @@ export class NotificationService extends BaseService<NotificationEntity> {
   async markAllAsRead(userId: number): Promise<number> {
     const affected = await this.notificationRepository.markAllAsRead(userId);
     await this.clearCache(userId);
-    this.eventEmitter.emit('notification.readAll', { userId, affected });
     this.logger?.log(`[Notification] User ${userId} mark ${affected} notifications as read`);
     return affected;
   }

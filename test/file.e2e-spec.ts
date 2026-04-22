@@ -31,7 +31,7 @@ import {
 describe('文件管理模块 (e2e)', () => {
   let app: INestApplication;
   let credentials: TestCredentials;
-  let uploadedFileIds: number[] = [];
+  const uploadedFileIds: number[] = [];
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -72,18 +72,9 @@ describe('文件管理模块 (e2e)', () => {
         .field('isPublic', 'true');
 
       // 如果没有权限，跳过测试
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
-      }
-
-      // 调试：打印响应信息
-      if (response.status !== HttpStatus.CREATED && response.status !== HttpStatus.OK) {
-        console.log('文件上传失败，响应状态:', response.status);
-        console.log('响应体:', JSON.stringify(response.body, null, 2));
       }
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
@@ -105,10 +96,7 @@ describe('文件管理模块 (e2e)', () => {
         .post('/files/upload')
         .attach('file', testBuffer, 'malicious.exe');
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -121,17 +109,10 @@ describe('文件管理模块 (e2e)', () => {
         '/files/upload',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
-
-      // 调试：打印响应信息
-      console.log('空文件上传，响应状态:', response.status);
-      console.log('响应体:', JSON.stringify(response.body, null, 2));
 
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
     });
@@ -145,10 +126,7 @@ describe('文件管理模块 (e2e)', () => {
         .attach('file', testBuffer, 'test-image.jpg')
         .field('module', 'avatar');
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -174,10 +152,7 @@ describe('文件管理模块 (e2e)', () => {
     it('应该返回文件列表', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken).get('/files');
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -193,10 +168,7 @@ describe('文件管理模块 (e2e)', () => {
         '/files?page=1&limit=5',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -211,10 +183,7 @@ describe('文件管理模块 (e2e)', () => {
         '/files?module=test',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -236,10 +205,7 @@ describe('文件管理模块 (e2e)', () => {
         '/files?status=available',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -259,10 +225,7 @@ describe('文件管理模块 (e2e)', () => {
         '/files?storage=local',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -313,10 +276,7 @@ describe('文件管理模块 (e2e)', () => {
         `/files/${testFileId}`,
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -334,10 +294,7 @@ describe('文件管理模块 (e2e)', () => {
         '/files/999999',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -383,10 +340,7 @@ describe('文件管理模块 (e2e)', () => {
         `/files/${testFileId}/signed-url`,
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足或存储策略不支持');
         return;
       }
@@ -408,10 +362,7 @@ describe('文件管理模块 (e2e)', () => {
         `/files/${testFileId}/signed-url?expiresIn=7200`,
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足或存储策略不支持');
         return;
       }
@@ -482,10 +433,7 @@ describe('文件管理模块 (e2e)', () => {
         '/files/999999',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -509,10 +457,7 @@ describe('文件管理模块 (e2e)', () => {
         .post('/files/upload')
         .attach('file', testBuffer, longFilename);
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -535,10 +480,7 @@ describe('文件管理模块 (e2e)', () => {
         .post('/files/upload')
         .attach('file', testBuffer, specialFilename);
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -558,10 +500,7 @@ describe('文件管理模块 (e2e)', () => {
         .post('/files/upload')
         .attach('file', testBuffer, chineseFilename);
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -671,14 +610,14 @@ describe('文件管理模块 (e2e)', () => {
       const endTime = Date.now();
       const duration = endTime - startTime;
 
-      if (
-        response.status !== HttpStatus.FORBIDDEN &&
-        response.status !== HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status !== HttpStatus.FORBIDDEN && response.status !== HttpStatus.UNAUTHORIZED) {
         // 小文件上传应该在1秒内完成
         expect(duration).toBeLessThan(1000);
 
-        if ([HttpStatus.CREATED, HttpStatus.OK].includes(response.status) && response.body.data?.id) {
+        if (
+          [HttpStatus.CREATED, HttpStatus.OK].includes(response.status) &&
+          response.body.data?.id
+        ) {
           uploadedFileIds.push(response.body.data.id);
         }
       }
@@ -692,10 +631,7 @@ describe('文件管理模块 (e2e)', () => {
       const endTime = Date.now();
       const duration = endTime - startTime;
 
-      if (
-        response.status !== HttpStatus.FORBIDDEN &&
-        response.status !== HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status !== HttpStatus.FORBIDDEN && response.status !== HttpStatus.UNAUTHORIZED) {
         // 列表查询应该在1秒内完成
         expect(duration).toBeLessThan(1000);
       }

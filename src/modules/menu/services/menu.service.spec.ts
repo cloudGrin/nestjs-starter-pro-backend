@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MenuService } from './menu.service';
 import { MenuRepository } from '../repositories/menu.repository';
 import { LoggerService } from '~/shared/logger/logger.service';
@@ -18,7 +17,6 @@ describe('MenuService', () => {
   let menuRepo: jest.Mocked<MenuRepository>;
   let logger: jest.Mocked<LoggerService>;
   let cache: jest.Mocked<CacheService>;
-  let eventEmitter: jest.Mocked<EventEmitter2>;
 
   // Mock工厂函数
   const createMockMenu = (overrides?: Partial<MenuEntity>): MenuEntity => {
@@ -85,12 +83,6 @@ describe('MenuService', () => {
             clearMenuCache: jest.fn(),
           },
         },
-        {
-          provide: EventEmitter2,
-          useValue: {
-            emit: jest.fn(),
-          },
-        },
       ],
     }).compile();
 
@@ -98,7 +90,6 @@ describe('MenuService', () => {
     menuRepo = module.get(MenuRepository) as jest.Mocked<MenuRepository>;
     logger = module.get(LoggerService) as jest.Mocked<LoggerService>;
     cache = module.get(CacheService) as jest.Mocked<CacheService>;
-    eventEmitter = module.get(EventEmitter2) as jest.Mocked<EventEmitter2>;
   });
 
   afterEach(() => {
@@ -127,9 +118,6 @@ describe('MenuService', () => {
       expect(result).toEqual(mockMenu);
       expect(menuRepo.create).toHaveBeenCalledWith(mockCreateDto);
       expect(menuRepo.save).toHaveBeenCalledWith(mockMenu);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('menu.created', {
-        menu: mockMenu,
-      });
       expect(logger.log).toHaveBeenCalledWith(`创建菜单: ${mockMenu.name}`);
     });
 
@@ -157,9 +145,7 @@ describe('MenuService', () => {
 
       menuRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.create(createDtoWithParent)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.create(createDtoWithParent)).rejects.toThrow(NotFoundException);
       await expect(service.create(createDtoWithParent)).rejects.toThrow(
         `父菜单 ID ${parentId} 不存在`,
       );
@@ -186,26 +172,15 @@ describe('MenuService', () => {
       const result = await service.update(menuId, mockUpdateDto);
 
       expect(result).toEqual(updatedMenu);
-      expect(menuRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining(mockUpdateDto),
-      );
-      expect(eventEmitter.emit).toHaveBeenCalledWith('menu.updated', {
-        menu: updatedMenu,
-      });
-      expect(logger.log).toHaveBeenCalledWith(
-        `更新菜单: ${updatedMenu.name} (ID: ${menuId})`,
-      );
+      expect(menuRepo.save).toHaveBeenCalledWith(expect.objectContaining(mockUpdateDto));
+      expect(logger.log).toHaveBeenCalledWith(`更新菜单: ${updatedMenu.name} (ID: ${menuId})`);
     });
 
     it('当菜单不存在时应该抛出NotFoundException', async () => {
       menuRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.update(menuId, mockUpdateDto)).rejects.toThrow(
-        NotFoundException,
-      );
-      await expect(service.update(menuId, mockUpdateDto)).rejects.toThrow(
-        '菜单不存在',
-      );
+      await expect(service.update(menuId, mockUpdateDto)).rejects.toThrow(NotFoundException);
+      await expect(service.update(menuId, mockUpdateDto)).rejects.toThrow('菜单不存在');
     });
 
     it('父菜单不能设置为自己', async () => {
@@ -214,12 +189,12 @@ describe('MenuService', () => {
 
       menuRepo.findOne.mockResolvedValue(existingMenu);
 
-      await expect(
-        service.update(menuId, updateWithSelfParent),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.update(menuId, updateWithSelfParent),
-      ).rejects.toThrow('父菜单不能是自己');
+      await expect(service.update(menuId, updateWithSelfParent)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.update(menuId, updateWithSelfParent)).rejects.toThrow(
+        '父菜单不能是自己',
+      );
     });
 
     it('当指定的父菜单不存在时应该抛出NotFoundException', async () => {
@@ -230,13 +205,9 @@ describe('MenuService', () => {
         .mockResolvedValueOnce(existingMenu) // findById查找要更新的菜单
         .mockResolvedValueOnce(null); // 检查父菜单是否存在
 
-      await expect(service.update(menuId, updateWithParent)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.update(menuId, updateWithParent)).rejects.toThrow(NotFoundException);
 
-      menuRepo.findOne
-        .mockResolvedValueOnce(existingMenu)
-        .mockResolvedValueOnce(null);
+      menuRepo.findOne.mockResolvedValueOnce(existingMenu).mockResolvedValueOnce(null);
 
       await expect(service.update(menuId, updateWithParent)).rejects.toThrow(
         `父菜单 ID ${updateWithParent.parentId} 不存在`,
@@ -253,9 +224,7 @@ describe('MenuService', () => {
         ...updateWithParent,
       });
 
-      menuRepo.findOne
-        .mockResolvedValueOnce(existingMenu)
-        .mockResolvedValueOnce(parentMenu);
+      menuRepo.findOne.mockResolvedValueOnce(existingMenu).mockResolvedValueOnce(parentMenu);
       menuRepo.save.mockResolvedValue(updatedMenu);
 
       const result = await service.update(menuId, updateWithParent);
@@ -275,12 +244,7 @@ describe('MenuService', () => {
       await service.delete(menuId);
 
       expect(menuRepo.softDelete).toHaveBeenCalledWith(menuId);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('menu.deleted', {
-        menu: mockMenu,
-      });
-      expect(logger.log).toHaveBeenCalledWith(
-        `删除菜单: ${mockMenu.name} (ID: ${menuId})`,
-      );
+      expect(logger.log).toHaveBeenCalledWith(`删除菜单: ${mockMenu.name} (ID: ${menuId})`);
     });
 
     it('当菜单不存在时应该抛出NotFoundException', async () => {
@@ -297,12 +261,8 @@ describe('MenuService', () => {
       menuRepo.findOne.mockResolvedValue(mockMenu);
       menuRepo.findByParentId.mockResolvedValue([childMenu]);
 
-      await expect(service.delete(menuId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.delete(menuId)).rejects.toThrow(
-        '存在子菜单，无法删除',
-      );
+      await expect(service.delete(menuId)).rejects.toThrow(BadRequestException);
+      await expect(service.delete(menuId)).rejects.toThrow('存在子菜单，无法删除');
     });
   });
 
@@ -325,9 +285,7 @@ describe('MenuService', () => {
     it('当菜单不存在时应该抛出NotFoundException', async () => {
       menuRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.findById(menuId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findById(menuId)).rejects.toThrow(NotFoundException);
       await expect(service.findById(menuId)).rejects.toThrow('菜单不存在');
     });
   });

@@ -1,12 +1,10 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CacheClearService } from '~/shared/cache/cache-clear.service';
-import { Cacheable } from '~/core/decorators';
 import { TreeUtil } from '~/common/utils/tree.util';
 import { MenuEntity } from '../entities/menu.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
@@ -24,13 +22,11 @@ export class MenuService extends BaseService<MenuEntity> {
     logger: LoggerService,
     cache: CacheService,
     private readonly cacheClear: CacheClearService,
-    eventEmitter: EventEmitter2,
   ) {
     super();
     this.repository = menuRepo;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter;
     this.logger.setContext(MenuService.name);
   }
 
@@ -59,8 +55,6 @@ export class MenuService extends BaseService<MenuEntity> {
     const saved = await this.menuRepo.save(entity);
     this.logger.debug(`菜单保存成功 id=${saved.id}, name=${saved.name}`);
 
-    this.eventEmitter.emit('menu.created', { menu: saved });
-    this.logger.debug(`已触发菜单创建事件 menuId=${saved.id}`);
     await this.clearCache();
     // 使用统一的缓存清理服务，确保所有相关缓存都被清理
     await this.cacheClear.clearMenuCache();
@@ -111,8 +105,6 @@ export class MenuService extends BaseService<MenuEntity> {
     const updated = await this.menuRepo.save(entity);
     this.logger.debug(`菜单更新保存成功 id=${updated.id}`);
 
-    this.eventEmitter.emit('menu.updated', { menu: updated });
-    this.logger.debug(`已触发菜单更新事件 menuId=${updated.id}`);
     await this.clearCache();
     // 使用统一的缓存清理服务，确保所有相关缓存都被清理
     await this.cacheClear.clearMenuCache();
@@ -141,8 +133,6 @@ export class MenuService extends BaseService<MenuEntity> {
     await this.menuRepo.softDelete(id);
     this.logger.debug(`菜单软删除完成 id=${id}`);
 
-    this.eventEmitter.emit('menu.deleted', { menu: entity });
-    this.logger.debug(`已触发菜单删除事件 menuId=${id}`);
     await this.clearCache();
     // 使用统一的缓存清理服务，确保所有相关缓存都被清理
     await this.cacheClear.clearMenuCache();
@@ -154,7 +144,6 @@ export class MenuService extends BaseService<MenuEntity> {
   /**
    * 查询菜单详情
    */
-  @Cacheable({ prefix: 'menu:id', argIndexes: [0], ttl: 1800 })
   async findById(id: number): Promise<MenuEntity> {
     this.logger.debug(`查询菜单详情 id=${id}`);
 
@@ -187,7 +176,6 @@ export class MenuService extends BaseService<MenuEntity> {
   /**
    * 获取菜单树
    */
-  @Cacheable({ prefix: 'menu:tree', ttl: 1800 })
   async getMenuTree(): Promise<any[]> {
     this.logger.debug('查询菜单树');
     const menus = await this.menuRepo.find({
@@ -294,7 +282,6 @@ export class MenuService extends BaseService<MenuEntity> {
   /**
    * 获取用户菜单(基于角色)
    */
-  @Cacheable({ prefix: 'menu:user', argIndexes: [0], ttl: 1800 })
   async getUserMenusByRoles(userId: number, roleCodes: string[]): Promise<any[]> {
     this.logger.debug(
       `根据角色获取用户菜单 userId=${userId}, roleCodes=${JSON.stringify(roleCodes)}`,
@@ -424,7 +411,9 @@ export class MenuService extends BaseService<MenuEntity> {
           .getOne();
 
         if (!parent) {
-          this.logger.debug(`移动菜单失败，父菜单不存在 id=${id}, targetParentId=${targetParentId}`);
+          this.logger.debug(
+            `移动菜单失败，父菜单不存在 id=${id}, targetParentId=${targetParentId}`,
+          );
           throw new NotFoundException(`父菜单 ID ${targetParentId} 不存在`);
         }
 
@@ -456,12 +445,6 @@ export class MenuService extends BaseService<MenuEntity> {
       // 清理缓存（事务提交后会自动执行）
       await this.clearCache();
       await this.cacheClear.clearMenuCache();
-
-      // 触发事件
-      this.eventEmitter.emit('menu.moved', { menu: saved, oldParentId });
-      this.logger.debug(
-        `已触发菜单移动事件 menuId=${id}, oldParentId=${oldParentId ?? '无'}, newParentId=${saved.parentId ?? '无'}`,
-      );
 
       this.logger.log(`移动菜单: ${menu.name} (ID: ${id}) 到父节点 ${targetParentId}`);
 
@@ -532,10 +515,6 @@ export class MenuService extends BaseService<MenuEntity> {
     await this.clearCache();
     // 使用统一的缓存清理服务，确保所有相关缓存都被清理
     await this.cacheClear.clearMenuCache();
-    this.eventEmitter.emit('menu.batch-updated', { menuIds, isActive });
-    this.logger.debug(
-      `批量更新菜单状态完成，已触发事件 menuCount=${menuIds.length}, isActive=${isActive}`,
-    );
 
     this.logger.log(`批量${isActive ? '启用' : '禁用'} ${menuIds.length} 个菜单`);
   }

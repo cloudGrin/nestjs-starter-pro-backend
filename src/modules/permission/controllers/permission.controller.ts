@@ -10,11 +10,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
-import {
-  ApiSuccessResponse,
-  ApiPaginatedResponse,
-  RequirePermissions,
-} from '~/core/decorators';
+import { ApiSuccessResponse, ApiPaginatedResponse, RequirePermissions } from '~/core/decorators';
 import { PermissionService } from '../services/permission.service';
 import { PermissionScannerService } from '../services/permission-scanner.service';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';

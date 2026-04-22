@@ -63,9 +63,9 @@ export class HealthService {
     const dbCheck = await this.checkDatabase();
     checks.database = dbCheck;
 
-    // 2. 检查 Redis 连接
-    const redisCheck = await this.checkRedis();
-    checks.redis = redisCheck;
+    // 2. 检查进程内缓存
+    const cacheCheck = await this.checkCache();
+    checks.cache = cacheCheck;
 
     // 3. 综合判断是否就绪
     const allHealthy = Object.values(checks).every((check) => check.status === 'up');
@@ -110,9 +110,9 @@ export class HealthService {
   }
 
   /**
-   * 检查 Redis 连接
+   * 检查进程内缓存
    */
-  private async checkRedis(): Promise<{
+  private async checkCache(): Promise<{
     status: 'up' | 'down';
     message?: string;
     responseTime?: number;
@@ -136,23 +136,23 @@ export class HealthService {
       if (retrieved === testValue) {
         return {
           status: 'up',
-          message: 'Redis connection is healthy',
+          message: 'Memory cache is healthy',
           responseTime,
         };
       } else {
         return {
           status: 'down',
-          message: 'Redis read/write test failed',
+          message: 'Memory cache read/write test failed',
           responseTime,
         };
       }
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      this.logger?.error('Redis health check failed', (error as Error).stack);
+      this.logger?.error('Memory cache health check failed', (error as Error).stack);
 
       return {
         status: 'down',
-        message: `Redis connection failed: ${(error as Error).message}`,
+        message: `Memory cache failed: ${(error as Error).message}`,
         responseTime,
       };
     }

@@ -36,9 +36,7 @@ describe('字典管理模块 (e2e)', () => {
     // 清理测试数据
     for (const itemId of createdItemIds) {
       try {
-        await authenticatedRequest(app, credentials.accessToken).delete(
-          `/dict-items/${itemId}`,
-        );
+        await authenticatedRequest(app, credentials.accessToken).delete(`/dict-items/${itemId}`);
       } catch (error) {
         // 忽略清理错误
       }
@@ -66,10 +64,7 @@ describe('字典管理模块 (e2e)', () => {
           isEnabled: true,
         });
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -83,12 +78,10 @@ describe('字典管理模块 (e2e)', () => {
     });
 
     it('拒绝未认证的创建请求', async () => {
-      const response = await authenticatedRequest(app, 'invalid-token')
-        .post('/dict-types')
-        .send({
-          code: 'test',
-          name: '测试',
-        });
+      const response = await authenticatedRequest(app, 'invalid-token').post('/dict-types').send({
+        code: 'test',
+        name: '测试',
+      });
 
       expect(response.status).toBe(HttpStatus.UNAUTHORIZED);
     });
@@ -98,10 +91,7 @@ describe('字典管理模块 (e2e)', () => {
     it('应该返回字典类型列表', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken).get('/dict-types');
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -117,10 +107,7 @@ describe('字典管理模块 (e2e)', () => {
         '/dict-types?page=1&limit=5',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -166,10 +153,7 @@ describe('字典管理模块 (e2e)', () => {
         `/dict-types/${testTypeId}`,
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -185,10 +169,7 @@ describe('字典管理模块 (e2e)', () => {
         '/dict-types/999999',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -224,10 +205,7 @@ describe('字典管理模块 (e2e)', () => {
           description: '更新后的描述',
         });
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -260,10 +238,7 @@ describe('字典管理模块 (e2e)', () => {
         `/dict-types/${typeId}`,
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         createdTypeIds.push(typeId); // 添加以便后续清理
         return;

@@ -1,20 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  ConflictException,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PermissionService } from './permission.service';
 import { PermissionRepository } from '../repositories/permission.repository';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { PermissionEntity, PermissionType } from '../entities/permission.entity';
-import {
-  CreatePermissionDto,
-  UpdatePermissionDto,
-  QueryPermissionDto,
-} from '../dto';
+import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 import { faker } from '@faker-js/faker';
 
 describe('PermissionService', () => {
@@ -22,12 +13,9 @@ describe('PermissionService', () => {
   let permissionRepo: jest.Mocked<PermissionRepository>;
   let logger: jest.Mocked<LoggerService>;
   let cache: jest.Mocked<CacheService>;
-  let eventEmitter: jest.Mocked<EventEmitter2>;
 
   // Mock 数据工厂
-  const createMockPermission = (
-    overrides?: Partial<PermissionEntity>,
-  ): PermissionEntity => {
+  const createMockPermission = (overrides?: Partial<PermissionEntity>): PermissionEntity => {
     const permission = new PermissionEntity();
     permission.id = faker.number.int({ min: 1, max: 1000 });
     permission.code = faker.string.alphanumeric(10);
@@ -38,9 +26,6 @@ describe('PermissionService', () => {
     permission.isActive = true;
     permission.isSystem = false;
     permission.sort = faker.number.int({ min: 0, max: 100 });
-    permission.parentId = undefined;
-    permission.parent = undefined;
-    permission.children = [];
     permission.createdAt = new Date();
     permission.updatedAt = new Date();
     return Object.assign(permission, overrides);
@@ -53,6 +38,7 @@ describe('PermissionService', () => {
       findOne: jest.fn(),
       find: jest.fn(),
       softDelete: jest.fn(),
+      delete: jest.fn(),
       isCodeExist: jest.fn(),
       findWithQuery: jest.fn(),
       getPermissionTree: jest.fn(),
@@ -75,17 +61,12 @@ describe('PermissionService', () => {
       delByPattern: jest.fn(),
     };
 
-    const mockEventEmitter = {
-      emit: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PermissionService,
         { provide: PermissionRepository, useValue: mockPermissionRepo },
         { provide: LoggerService, useValue: mockLogger },
         { provide: CacheService, useValue: mockCache },
-        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
 
@@ -93,7 +74,6 @@ describe('PermissionService', () => {
     permissionRepo = module.get(PermissionRepository);
     logger = module.get(LoggerService);
     cache = module.get(CacheService);
-    eventEmitter = module.get(EventEmitter2);
   });
 
   afterEach(() => {
@@ -128,9 +108,6 @@ describe('PermissionService', () => {
       expect(permissionRepo.isCodeExist).toHaveBeenCalledWith(mockCreateDto.code);
       expect(permissionRepo.create).toHaveBeenCalledWith(mockCreateDto);
       expect(permissionRepo.save).toHaveBeenCalledWith(mockPermission);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('permission.created', {
-        permission: mockPermission,
-      });
       expect(cache.delByPattern).toHaveBeenCalled();
       expect(logger.log).toHaveBeenCalledWith(
         expect.stringContaining(`创建权限: ${mockPermission.name}`),
@@ -145,46 +122,6 @@ describe('PermissionService', () => {
       await expect(service.create(mockCreateDto)).rejects.toThrow(ConflictException);
       await expect(service.create(mockCreateDto)).rejects.toThrow(
         `权限编码 ${mockCreateDto.code} 已存在`,
-      );
-
-      expect(permissionRepo.create).not.toHaveBeenCalled();
-    });
-
-    it('应该成功创建带父权限的权限', async () => {
-      // Arrange
-      const dtoWithParent = { ...mockCreateDto, parentId: 1 };
-      const parentPermission = createMockPermission({ id: 1 });
-      const mockPermission = createMockPermission({
-        ...dtoWithParent,
-        parentId: 1,
-      });
-
-      permissionRepo.isCodeExist.mockResolvedValue(false);
-      permissionRepo.findOne.mockResolvedValue(parentPermission);
-      permissionRepo.create.mockReturnValue(mockPermission);
-      permissionRepo.save.mockResolvedValue(mockPermission);
-
-      // Act
-      const result = await service.create(dtoWithParent);
-
-      // Assert
-      expect(result).toEqual(mockPermission);
-      expect(permissionRepo.findOne).toHaveBeenCalledWith({
-        where: { id: dtoWithParent.parentId },
-      });
-    });
-
-    it('当父权限不存在时应该抛出NotFoundException', async () => {
-      // Arrange
-      const dtoWithParent = { ...mockCreateDto, parentId: 999 };
-
-      permissionRepo.isCodeExist.mockResolvedValue(false);
-      permissionRepo.findOne.mockResolvedValue(null);
-
-      // Act & Assert
-      await expect(service.create(dtoWithParent)).rejects.toThrow(NotFoundException);
-      await expect(service.create(dtoWithParent)).rejects.toThrow(
-        `父权限 ID ${dtoWithParent.parentId} 不存在`,
       );
 
       expect(permissionRepo.create).not.toHaveBeenCalled();
@@ -216,12 +153,8 @@ describe('PermissionService', () => {
       expect(result).toEqual(updatedPermission);
       expect(permissionRepo.findOne).toHaveBeenCalledWith({
         where: { id: permissionId },
-        relations: ['parent', 'children'],
       });
       expect(permissionRepo.save).toHaveBeenCalled();
-      expect(eventEmitter.emit).toHaveBeenCalledWith('permission.updated', {
-        permission: updatedPermission,
-      });
       expect(cache.delByPattern).toHaveBeenCalled();
     });
 
@@ -230,12 +163,8 @@ describe('PermissionService', () => {
       permissionRepo.findOne.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.update(permissionId, mockUpdateDto)).rejects.toThrow(
-        NotFoundException,
-      );
-      await expect(service.update(permissionId, mockUpdateDto)).rejects.toThrow(
-        '权限不存在',
-      );
+      await expect(service.update(permissionId, mockUpdateDto)).rejects.toThrow(NotFoundException);
+      await expect(service.update(permissionId, mockUpdateDto)).rejects.toThrow('权限不存在');
     });
 
     it('更新权限编码时检查是否与其他权限冲突', async () => {
@@ -256,48 +185,6 @@ describe('PermissionService', () => {
 
       expect(permissionRepo.isCodeExist).toHaveBeenCalledWith('new:code', permissionId);
     });
-
-    it('父权限不能设置为自己', async () => {
-      // Arrange
-      const mockPermission = createMockPermission({ id: permissionId });
-      const updateWithSelfParent = { parentId: permissionId };
-
-      permissionRepo.findOne.mockResolvedValue(mockPermission);
-
-      // Act & Assert
-      await expect(service.update(permissionId, updateWithSelfParent)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.update(permissionId, updateWithSelfParent)).rejects.toThrow(
-        '父权限不能是自己',
-      );
-    });
-
-    it('当指定的父权限不存在时应该抛出NotFoundException', async () => {
-      // Arrange
-      const mockPermission = createMockPermission({ id: permissionId });
-      const updateWithParent = { parentId: 999 };
-
-      // 第一次调用：findById 内部调用 findOne 查找要更新的权限
-      // 第二次调用：update 方法中检查父权限时调用 findOne
-      permissionRepo.findOne
-        .mockResolvedValueOnce(mockPermission) // findById 查找要更新的权限
-        .mockResolvedValueOnce(null); // 检查父权限是否存在
-
-      // Act & Assert
-      await expect(service.update(permissionId, updateWithParent)).rejects.toThrow(
-        NotFoundException,
-      );
-
-      // 重置 mock 以便第二次断言
-      permissionRepo.findOne
-        .mockResolvedValueOnce(mockPermission)
-        .mockResolvedValueOnce(null);
-
-      await expect(service.update(permissionId, updateWithParent)).rejects.toThrow(
-        `父权限 ID ${updateWithParent.parentId} 不存在`,
-      );
-    });
   });
 
   describe('delete', () => {
@@ -311,8 +198,7 @@ describe('PermissionService', () => {
       });
 
       permissionRepo.findOne.mockResolvedValue(mockPermission);
-      permissionRepo.find.mockResolvedValue([]); // 没有子权限
-      permissionRepo.softDelete.mockResolvedValue(undefined as any);
+      permissionRepo.delete.mockResolvedValue(undefined as any);
 
       // Act
       await service.delete(permissionId);
@@ -320,15 +206,9 @@ describe('PermissionService', () => {
       // Assert
       expect(permissionRepo.findOne).toHaveBeenCalledWith({
         where: { id: permissionId },
-        relations: ['parent', 'children'],
       });
-      expect(permissionRepo.find).toHaveBeenCalledWith({
-        where: { parentId: permissionId },
-      });
-      expect(permissionRepo.softDelete).toHaveBeenCalledWith(permissionId);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('permission.deleted', {
-        permission: mockPermission,
-      });
+      expect(permissionRepo.delete).toHaveBeenCalledWith(permissionId);
+      expect(permissionRepo.softDelete).not.toHaveBeenCalled();
       expect(cache.delByPattern).toHaveBeenCalled();
     });
 
@@ -341,6 +221,7 @@ describe('PermissionService', () => {
       await expect(service.delete(permissionId)).rejects.toThrow('权限不存在');
 
       expect(permissionRepo.softDelete).not.toHaveBeenCalled();
+      expect(permissionRepo.delete).not.toHaveBeenCalled();
     });
 
     it('系统内置权限不能删除', async () => {
@@ -354,31 +235,10 @@ describe('PermissionService', () => {
 
       // Act & Assert
       await expect(service.delete(permissionId)).rejects.toThrow(BadRequestException);
-      await expect(service.delete(permissionId)).rejects.toThrow(
-        '系统内置权限不能删除',
-      );
+      await expect(service.delete(permissionId)).rejects.toThrow('系统内置权限不能删除');
 
       expect(permissionRepo.softDelete).not.toHaveBeenCalled();
-    });
-
-    it('存在子权限时不能删除', async () => {
-      // Arrange
-      const mockPermission = createMockPermission({
-        id: permissionId,
-        isSystem: false,
-      });
-      const childPermission = createMockPermission({ parentId: permissionId });
-
-      permissionRepo.findOne.mockResolvedValue(mockPermission);
-      permissionRepo.find.mockResolvedValue([childPermission]); // 有子权限
-
-      // Act & Assert
-      await expect(service.delete(permissionId)).rejects.toThrow(BadRequestException);
-      await expect(service.delete(permissionId)).rejects.toThrow(
-        '存在子权限，无法删除',
-      );
-
-      expect(permissionRepo.softDelete).not.toHaveBeenCalled();
+      expect(permissionRepo.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -397,7 +257,6 @@ describe('PermissionService', () => {
       expect(result).toEqual(mockPermission);
       expect(permissionRepo.findOne).toHaveBeenCalledWith({
         where: { id: permissionId },
-        relations: ['parent', 'children'],
       });
     });
 
@@ -482,10 +341,7 @@ describe('PermissionService', () => {
     it('应该根据模块返回权限列表', async () => {
       // Arrange
       const module = 'user';
-      const mockPermissions = [
-        createMockPermission({ module }),
-        createMockPermission({ module }),
-      ];
+      const mockPermissions = [createMockPermission({ module }), createMockPermission({ module })];
 
       permissionRepo.findByModule.mockResolvedValue(mockPermissions);
 

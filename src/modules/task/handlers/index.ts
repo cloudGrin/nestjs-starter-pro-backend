@@ -6,5 +6,3 @@
  */
 
 export * from './cleanup-logs.handler';
-export * from './data-backup.handler';
-export * from './send-email.handler';

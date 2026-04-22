@@ -8,8 +8,6 @@ export const ROLES_KEY = 'roles';
 export enum RoleMode {
   AND = 'and', // 需要所有角色
   OR = 'or', // 需要其中一个角色
-  ALL = 'and', // 同 AND
-  ANY = 'or', // 同 OR
 }
 
 /**
@@ -17,7 +15,7 @@ export enum RoleMode {
  * @param roles 角色编码列表
  * @param mode 角色模式（AND: 全部满足, OR: 满足其一）
  */
-export const Roles = (roles: string[], mode: RoleMode = RoleMode.ANY) => {
+export const Roles = (roles: string[], mode: RoleMode = RoleMode.OR) => {
   return applyDecorators(
     SetMetadata(ROLES_KEY, { roles, mode }),
     UseGuards(JwtAuthGuard, RolesGuard),
@@ -31,14 +29,14 @@ export const Roles = (roles: string[], mode: RoleMode = RoleMode.ANY) => {
  * 需要所有角色
  */
 export const RequireAllRoles = (...roles: string[]) => {
-  return Roles(roles, RoleMode.ALL);
+  return Roles(roles, RoleMode.AND);
 };
 
 /**
  * 需要任意一个角色
  */
 export const RequireAnyRole = (...roles: string[]) => {
-  return Roles(roles, RoleMode.ANY);
+  return Roles(roles, RoleMode.OR);
 };
 
 /**

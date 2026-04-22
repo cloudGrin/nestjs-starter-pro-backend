@@ -1,20 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ApiAuthService } from './api-auth.service';
 import { ApiAppEntity } from '../entities/api-app.entity';
 import { ApiKeyEntity } from '../entities/api-key.entity';
 import { ApiCallLogEntity } from '../entities/api-call-log.entity';
+import { ApiAppRepository } from '../repositories/api-app.repository';
+import { ApiKeyRepository } from '../repositories/api-key.repository';
+import { ApiCallLogRepository } from '../repositories/api-call-log.repository';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto, ApiKeyEnvironment } from '../dto/create-api-key.dto';
 
 describe('ApiAuthService', () => {
   let service: ApiAuthService;
-  let appRepository: jest.Mocked<Repository<ApiAppEntity>>;
-  let keyRepository: jest.Mocked<Repository<ApiKeyEntity>>;
-  let logRepository: jest.Mocked<Repository<ApiCallLogEntity>>;
+  let appRepository: jest.Mocked<ApiAppRepository>;
+  let keyRepository: jest.Mocked<ApiKeyRepository>;
+  let logRepository: jest.Mocked<ApiCallLogRepository>;
   let cacheService: jest.Mocked<CacheService>;
 
   // Mock 数据工厂
@@ -51,20 +52,24 @@ describe('ApiAuthService', () => {
 
   beforeEach(async () => {
     const mockAppRepository = {
-      findOne: jest.fn(),
+      findById: jest.fn(),
+      isNameExist: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
+      softDelete: jest.fn(),
       update: jest.fn(),
-      count: jest.fn(),
+      updateCallStats: jest.fn(),
     };
 
     const mockKeyRepository = {
-      findOne: jest.fn(),
+      findById: jest.fn(),
+      findByAppId: jest.fn(),
+      findActiveKeysByAppId: jest.fn(),
+      findByKeyHash: jest.fn(),
+      updateUsageStats: jest.fn(),
+      revokeKey: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
-      update: jest.fn(),
-      count: jest.fn(),
-      find: jest.fn(),
     };
 
     const mockLogRepository = {
@@ -84,18 +89,9 @@ describe('ApiAuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ApiAuthService,
-        {
-          provide: getRepositoryToken(ApiAppEntity),
-          useValue: mockAppRepository,
-        },
-        {
-          provide: getRepositoryToken(ApiKeyEntity),
-          useValue: mockKeyRepository,
-        },
-        {
-          provide: getRepositoryToken(ApiCallLogEntity),
-          useValue: mockLogRepository,
-        },
+        { provide: ApiAppRepository, useValue: mockAppRepository },
+        { provide: ApiKeyRepository, useValue: mockKeyRepository },
+        { provide: ApiCallLogRepository, useValue: mockLogRepository },
         {
           provide: CacheService,
           useValue: mockCacheService,
@@ -104,9 +100,9 @@ describe('ApiAuthService', () => {
     }).compile();
 
     service = module.get<ApiAuthService>(ApiAuthService);
-    appRepository = module.get(getRepositoryToken(ApiAppEntity));
-    keyRepository = module.get(getRepositoryToken(ApiKeyEntity));
-    logRepository = module.get(getRepositoryToken(ApiCallLogEntity));
+    appRepository = module.get(ApiAppRepository);
+    keyRepository = module.get(ApiKeyRepository);
+    logRepository = module.get(ApiCallLogRepository);
     cacheService = module.get(CacheService);
   });
 
@@ -128,16 +124,14 @@ describe('ApiAuthService', () => {
 
       const mockApp = createMockApp({ name: dto.name });
 
-      appRepository.findOne.mockResolvedValue(null); // 应用名不存在
+      appRepository.isNameExist.mockResolvedValue(false);
       appRepository.create.mockReturnValue(mockApp);
       appRepository.save.mockResolvedValue(mockApp);
 
       const result = await service.createApp(dto);
 
       expect(result).toEqual(mockApp);
-      expect(appRepository.findOne).toHaveBeenCalledWith({
-        where: { name: dto.name },
-      });
+      expect(appRepository.isNameExist).toHaveBeenCalledWith(dto.name);
       expect(appRepository.save).toHaveBeenCalledWith(mockApp);
     });
 
@@ -147,11 +141,9 @@ describe('ApiAuthService', () => {
       };
 
       const existingApp = createMockApp({ name: dto.name });
-      appRepository.findOne.mockResolvedValue(existingApp);
+      appRepository.isNameExist.mockResolvedValue(true);
 
-      await expect(service.createApp(dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.createApp(dto)).rejects.toThrow(BadRequestException);
       expect(appRepository.save).not.toHaveBeenCalled();
     });
   });
@@ -167,17 +159,18 @@ describe('ApiAuthService', () => {
       const mockApp = createMockApp();
       const mockKey = createMockKey({ rawKey: 'sk_live_testkey123' });
 
-      appRepository.findOne.mockResolvedValue(mockApp);
-      keyRepository.count.mockResolvedValue(2); // 当前有2个密钥
+      appRepository.findById.mockResolvedValue(mockApp);
+      keyRepository.findActiveKeysByAppId.mockResolvedValue([
+        createMockKey(),
+        createMockKey({ id: 2 }),
+      ]);
       keyRepository.create.mockReturnValue(mockKey);
       keyRepository.save.mockResolvedValue(mockKey);
 
       const result = await service.generateApiKey(dto);
 
       expect(result.rawKey).toBe('sk_live_testkey123');
-      expect(keyRepository.count).toHaveBeenCalledWith({
-        where: { appId: dto.appId, isActive: true },
-      });
+      expect(keyRepository.findActiveKeysByAppId).toHaveBeenCalledWith(dto.appId);
     });
 
     it('应该在应用不存在时抛出异常', async () => {
@@ -187,11 +180,9 @@ describe('ApiAuthService', () => {
         environment: ApiKeyEnvironment.TEST,
       };
 
-      appRepository.findOne.mockResolvedValue(null);
+      appRepository.findById.mockResolvedValue(null);
 
-      await expect(service.generateApiKey(dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.generateApiKey(dto)).rejects.toThrow(BadRequestException);
       expect(keyRepository.save).not.toHaveBeenCalled();
     });
 
@@ -203,13 +194,39 @@ describe('ApiAuthService', () => {
       };
 
       const mockApp = createMockApp();
-      appRepository.findOne.mockResolvedValue(mockApp);
-      keyRepository.count.mockResolvedValue(5); // 已有5个密钥
+      appRepository.findById.mockResolvedValue(mockApp);
+      keyRepository.findActiveKeysByAppId.mockResolvedValue([
+        createMockKey({ id: 1 }),
+        createMockKey({ id: 2 }),
+        createMockKey({ id: 3 }),
+        createMockKey({ id: 4 }),
+        createMockKey({ id: 5 }),
+      ]);
 
-      await expect(service.generateApiKey(dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.generateApiKey(dto)).rejects.toThrow(BadRequestException);
       expect(keyRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteApp', () => {
+    it('应该禁用应用并撤销相关密钥', async () => {
+      const appId = 1;
+      const mockApp = createMockApp({ id: appId, isActive: true });
+      const keys = [createMockKey({ id: 11 }), createMockKey({ id: 12 })];
+
+      appRepository.findById.mockResolvedValue(mockApp);
+      appRepository.update.mockResolvedValue({ ...mockApp, isActive: false });
+      keyRepository.findByAppId.mockResolvedValue(keys);
+      keyRepository.revokeKey.mockResolvedValue(undefined);
+
+      await service.deleteApp(appId);
+
+      expect(appRepository.update).toHaveBeenCalledWith(appId, { isActive: false });
+      expect(appRepository.softDelete).not.toHaveBeenCalled();
+      expect(keyRepository.revokeKey).toHaveBeenCalledTimes(2);
+      expect(keyRepository.revokeKey).toHaveBeenCalledWith(11);
+      expect(keyRepository.revokeKey).toHaveBeenCalledWith(12);
+      expect(cacheService.del).toHaveBeenCalledWith('api_key:mock-hash');
     });
   });
 
@@ -217,36 +234,34 @@ describe('ApiAuthService', () => {
     it('应该从缓存返回有效的应用', async () => {
       const apiKey = 'sk_live_testkey123';
       const mockApp = createMockApp();
+      const keyHash = ApiKeyEntity.hashKey(apiKey);
 
       cacheService.get.mockResolvedValue(mockApp);
 
       const result = await service.validateApiKey(apiKey);
 
       expect(result).toEqual(mockApp);
-      expect(cacheService.get).toHaveBeenCalledWith(`api_key:${apiKey}`);
-      expect(keyRepository.findOne).not.toHaveBeenCalled();
+      expect(cacheService.get).toHaveBeenCalledWith(`api_key:${keyHash}`);
+      expect(keyRepository.findByKeyHash).not.toHaveBeenCalled();
     });
 
     it('应该验证数据库中的密钥并缓存结果', async () => {
       const apiKey = 'sk_live_testkey123';
       const mockApp = createMockApp();
       const mockKey = createMockKey({ app: mockApp });
+      const keyHash = ApiKeyEntity.hashKey(apiKey);
 
       cacheService.get.mockResolvedValue(null); // 缓存未命中
-      keyRepository.findOne.mockResolvedValue(mockKey);
+      keyRepository.findByKeyHash.mockResolvedValue(mockKey);
       cacheService.set.mockResolvedValue(undefined);
-      keyRepository.update.mockResolvedValue(undefined as any);
+      keyRepository.updateUsageStats.mockResolvedValue(undefined);
 
       const result = await service.validateApiKey(apiKey);
 
       expect(result).toEqual(mockApp);
-      expect(keyRepository.findOne).toHaveBeenCalled();
-      expect(cacheService.set).toHaveBeenCalledWith(
-        `api_key:${apiKey}`,
-        mockApp,
-        300,
-      );
-      expect(keyRepository.update).toHaveBeenCalled();
+      expect(keyRepository.findByKeyHash).toHaveBeenCalledWith(keyHash);
+      expect(cacheService.set).toHaveBeenCalledWith(`api_key:${keyHash}`, mockApp, 300);
+      expect(keyRepository.updateUsageStats).toHaveBeenCalledWith(mockKey.id);
     });
 
     it('应该拒绝过期的密钥', async () => {
@@ -258,7 +273,7 @@ describe('ApiAuthService', () => {
       });
 
       cacheService.get.mockResolvedValue(null);
-      keyRepository.findOne.mockResolvedValue(mockKey);
+      keyRepository.findByKeyHash.mockResolvedValue(mockKey);
 
       const result = await service.validateApiKey(apiKey);
 
@@ -272,7 +287,7 @@ describe('ApiAuthService', () => {
       const mockKey = createMockKey({ app: mockApp });
 
       cacheService.get.mockResolvedValue(null);
-      keyRepository.findOne.mockResolvedValue(mockKey);
+      keyRepository.findByKeyHash.mockResolvedValue(mockKey);
 
       const result = await service.validateApiKey(apiKey);
 
@@ -283,7 +298,7 @@ describe('ApiAuthService', () => {
       const apiKey = 'sk_live_invalidkey';
 
       cacheService.get.mockResolvedValue(null);
-      keyRepository.findOne.mockResolvedValue(null);
+      keyRepository.findByKeyHash.mockResolvedValue(null);
 
       const result = await service.validateApiKey(apiKey);
 
@@ -299,7 +314,7 @@ describe('ApiAuthService', () => {
         rateLimitPerDay: 10000,
       });
 
-      appRepository.findOne.mockResolvedValue(mockApp);
+      appRepository.findById.mockResolvedValue(mockApp);
       cacheService.increment
         .mockResolvedValueOnce(10) // 小时计数
         .mockResolvedValueOnce(100); // 日计数
@@ -314,15 +329,13 @@ describe('ApiAuthService', () => {
       const appId = 1;
       const mockApp = createMockApp({ rateLimitPerHour: 1000 });
 
-      appRepository.findOne.mockResolvedValue(mockApp);
+      appRepository.findById.mockResolvedValue(mockApp);
       cacheService.increment
         .mockResolvedValueOnce(1001) // 超过小时限制
         .mockResolvedValueOnce(100);
       cacheService.decrement.mockResolvedValue(1000);
 
-      await expect(service.checkRateLimit(appId)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.checkRateLimit(appId)).rejects.toThrow(UnauthorizedException);
       expect(cacheService.decrement).toHaveBeenCalledTimes(2); // 回滚计数
     });
 
@@ -330,22 +343,20 @@ describe('ApiAuthService', () => {
       const appId = 1;
       const mockApp = createMockApp({ rateLimitPerDay: 10000 });
 
-      appRepository.findOne.mockResolvedValue(mockApp);
+      appRepository.findById.mockResolvedValue(mockApp);
       cacheService.increment
         .mockResolvedValueOnce(500) // 小时内
         .mockResolvedValueOnce(10001); // 超过日限制
       cacheService.decrement.mockResolvedValue(10000);
 
-      await expect(service.checkRateLimit(appId)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.checkRateLimit(appId)).rejects.toThrow(UnauthorizedException);
       expect(cacheService.decrement).toHaveBeenCalledTimes(1); // 只回滚日计数
     });
 
     it('应该在应用不存在时返回false', async () => {
       const appId = 999;
 
-      appRepository.findOne.mockResolvedValue(null);
+      appRepository.findById.mockResolvedValue(null);
 
       const result = await service.checkRateLimit(appId);
 
@@ -369,7 +380,7 @@ describe('ApiAuthService', () => {
       const mockLog = new ApiCallLogEntity();
       logRepository.create.mockReturnValue(mockLog);
       logRepository.save.mockResolvedValue(mockLog);
-      appRepository.update.mockResolvedValue(undefined as any);
+      appRepository.updateCallStats.mockResolvedValue(undefined);
 
       await service.recordApiCall(appId, details);
 
@@ -384,18 +395,16 @@ describe('ApiAuthService', () => {
   describe('revokeApiKey', () => {
     it('应该成功撤销API密钥', async () => {
       const keyId = 1;
-      const mockKey = createMockKey({ rawKey: 'sk_live_testkey' });
+      const mockKey = createMockKey({ keyHash: 'hashed-key' });
 
-      keyRepository.update.mockResolvedValue(undefined as any);
-      keyRepository.findOne.mockResolvedValue(mockKey);
+      keyRepository.findById.mockResolvedValue(mockKey);
+      keyRepository.revokeKey.mockResolvedValue(undefined);
       cacheService.del.mockResolvedValue(undefined);
 
       await service.revokeApiKey(keyId);
 
-      expect(keyRepository.update).toHaveBeenCalledWith(keyId, {
-        isActive: false,
-      });
-      expect(cacheService.del).toHaveBeenCalled();
+      expect(keyRepository.revokeKey).toHaveBeenCalledWith(keyId);
+      expect(cacheService.del).toHaveBeenCalledWith(`api_key:${mockKey.keyHash}`);
     });
   });
 
@@ -404,15 +413,12 @@ describe('ApiAuthService', () => {
       const appId = 1;
       const mockKeys = [createMockKey(), createMockKey({ id: 2 })];
 
-      keyRepository.find.mockResolvedValue(mockKeys);
+      keyRepository.findByAppId.mockResolvedValue(mockKeys);
 
       const result = await service.getAppKeys(appId);
 
       expect(result).toEqual(mockKeys);
-      expect(keyRepository.find).toHaveBeenCalledWith({
-        where: { appId },
-        order: { createdAt: 'DESC' },
-      });
+      expect(keyRepository.findByAppId).toHaveBeenCalledWith(appId);
     });
   });
 });

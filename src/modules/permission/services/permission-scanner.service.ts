@@ -342,8 +342,6 @@ export class PermissionScannerService implements OnModuleInit {
       user: '用户',
       role: '角色',
       permission: '权限',
-      dept: '部门',
-      department: '部门',
       menu: '菜单',
       dict: '字典',
       config: '配置',

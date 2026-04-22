@@ -4,7 +4,6 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
@@ -28,13 +27,11 @@ export class SystemConfigService extends BaseService<SystemConfigEntity> {
     private readonly configRepository: SystemConfigRepository,
     logger: LoggerService,
     cache: CacheService,
-    eventEmitter: EventEmitter2,
   ) {
     super();
     this.repository = configRepository;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter;
     this.logger.setContext(SystemConfigService.name);
   }
 
@@ -59,9 +56,6 @@ export class SystemConfigService extends BaseService<SystemConfigEntity> {
     });
 
     const saved = await this.configRepository.save(config);
-
-    // 发送事件
-    this.eventEmitter.emit('system-config.created', { config: saved });
 
     // 清除缓存
     await this.clearConfigCache();
@@ -103,9 +97,6 @@ export class SystemConfigService extends BaseService<SystemConfigEntity> {
     Object.assign(config, dto);
     const updated = await this.configRepository.save(config);
 
-    // 发送事件
-    this.eventEmitter.emit('system-config.updated', { config: updated });
-
     // 清除缓存
     await this.clearConfigCache(config.configKey);
 
@@ -130,9 +121,6 @@ export class SystemConfigService extends BaseService<SystemConfigEntity> {
     }
 
     await this.configRepository.softDelete(id);
-
-    // 发送事件
-    this.eventEmitter.emit('system-config.deleted', { config });
 
     // 清除缓存
     await this.clearConfigCache(config.configKey);
@@ -201,13 +189,6 @@ export class SystemConfigService extends BaseService<SystemConfigEntity> {
     config.configValue = value;
     const updated = await this.configRepository.save(config);
 
-    // 发送事件
-    this.eventEmitter.emit('system-config.value-updated', {
-      config: updated,
-      oldValue: config.configValue,
-      newValue: value,
-    });
-
     // 清除缓存
     await this.clearConfigCache(configKey);
 
@@ -235,9 +216,6 @@ export class SystemConfigService extends BaseService<SystemConfigEntity> {
     }
 
     await this.configRepository.save(configs as any);
-
-    // 发送事件
-    this.eventEmitter.emit('system-config.batch-updated', { configs });
 
     // 清除所有缓存
     await this.clearConfigCache();
@@ -306,9 +284,6 @@ export class SystemConfigService extends BaseService<SystemConfigEntity> {
 
     config.isEnabled = !config.isEnabled;
     const updated = await this.configRepository.save(config);
-
-    // 发送事件
-    this.eventEmitter.emit('system-config.toggled', { config: updated });
 
     // 清除缓存
     await this.clearConfigCache(config.configKey);

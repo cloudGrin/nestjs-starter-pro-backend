@@ -53,6 +53,7 @@ export class SystemConfigController {
   }
 
   @Get('enabled')
+  @RequirePermissions('config:read')
   @ApiOperation({ summary: '获取所有启用的配置' })
   @ApiSuccessResponse(SystemConfigEntity, true)
   async findEnabled() {
@@ -60,6 +61,7 @@ export class SystemConfigController {
   }
 
   @Get('map')
+  @RequirePermissions('config:read')
   @ApiOperation({ summary: '获取配置映射（键值对）' })
   async getConfigMap(@Query('keys') keys?: string) {
     const keyArray = keys ? keys.split(',') : undefined;
@@ -67,6 +69,7 @@ export class SystemConfigController {
   }
 
   @Get('key/:key')
+  @RequirePermissions('config:read')
   @ApiOperation({ summary: '根据键名获取配置' })
   @ApiParam({ name: 'key', description: '配置键名' })
   @ApiSuccessResponse(SystemConfigEntity)
@@ -75,6 +78,7 @@ export class SystemConfigController {
   }
 
   @Get('value/:key')
+  @RequirePermissions('config:read')
   @ApiOperation({ summary: '获取配置值' })
   @ApiParam({ name: 'key', description: '配置键名' })
   async getValue(@Param('key') key: string) {
@@ -83,6 +87,7 @@ export class SystemConfigController {
   }
 
   @Get(':id')
+  @RequirePermissions('config:read')
   @ApiOperation({ summary: '获取配置详情' })
   @ApiParam({ name: 'id', description: '配置ID' })
   @ApiSuccessResponse(SystemConfigEntity)

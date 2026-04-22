@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, VERSION_NEUTRAL, Version } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '~/core/decorators';
 import { HealthService } from '../services/health.service';
@@ -10,13 +10,14 @@ export class HealthController {
 
   /**
    * 基础健康检查端点
-   * 用于 Kubernetes liveness probe 或负载均衡器心跳检查
+   * 用于负载均衡器或进程心跳检查
    *
    * 仅检查服务进程是否运行，不检查依赖服务
    * 响应快速（< 10ms）
    */
   @Get('healthz')
   @Public()
+  @Version(VERSION_NEUTRAL)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '健康检查（Liveness Probe）',
@@ -28,9 +29,9 @@ export class HealthController {
 
   /**
    * 就绪检查端点
-   * 用于 Kubernetes readiness probe 或负载均衡器上线检查
+   * 用于负载均衡器上线检查
    *
-   * 检查服务及其依赖（数据库、Redis等）是否就绪
+   * 检查服务及其依赖（数据库、进程内缓存等）是否就绪
    * 响应较慢（可能 100ms+）
    *
    * 返回 200: 服务就绪，可以接收流量
@@ -38,9 +39,10 @@ export class HealthController {
    */
   @Get('readyz')
   @Public()
+  @Version(VERSION_NEUTRAL)
   @ApiOperation({
     summary: '就绪检查（Readiness Probe）',
-    description: '检查服务及其依赖是否就绪，包括数据库、Redis等',
+    description: '检查服务及其依赖是否就绪，包括数据库和进程内缓存',
   })
   async readyz() {
     const result = await this.healthService.checkReadiness();

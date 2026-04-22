@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { promises as fsPromises } from 'fs';
 import { join, resolve } from 'path';
 import { createHash } from 'crypto';
@@ -8,7 +7,6 @@ import dayjs from 'dayjs';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
-import { Cacheable } from '~/core/decorators';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileUtil } from '~/common/utils';
 import { FileEntity, FileStatus, FileStorageType } from '../entities/file.entity';
@@ -84,13 +82,11 @@ export class FileService extends BaseService<FileEntity> {
     private readonly storageFactory: FileStorageFactory,
     logger: LoggerService,
     cache: CacheService,
-    eventEmitter: EventEmitter2,
   ) {
     super();
     this.repository = fileRepository;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter;
     this.logger.setContext(FileService.name);
 
     this.storageType = this.configService.get<FileStorageType>(
@@ -213,7 +209,6 @@ export class FileService extends BaseService<FileEntity> {
     });
 
     await this.clearCache();
-    this.eventEmitter.emit('file.uploaded', { file: entity });
 
     return entity;
   }
@@ -299,9 +294,8 @@ export class FileService extends BaseService<FileEntity> {
   }
 
   /**
-   * 根据ID查询文件（带缓存）
+   * 根据ID查询文件
    */
-  @Cacheable({ prefix: 'file:id', argIndexes: [0], ttl: 3600 })
   async findById(id: number): Promise<FileEntity> {
     return this.repository.findByIdOrFail(id);
   }
@@ -493,8 +487,6 @@ export class FileService extends BaseService<FileEntity> {
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-powerpoint',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       // 文本
@@ -732,7 +724,6 @@ export class FileService extends BaseService<FileEntity> {
     });
 
     await this.clearCache();
-    this.eventEmitter.emit('file.uploaded', { file: entity });
 
     return entity;
   }

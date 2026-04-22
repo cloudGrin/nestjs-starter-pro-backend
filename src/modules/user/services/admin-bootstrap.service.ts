@@ -1,0 +1,101 @@
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { randomInt } from 'crypto';
+import { Repository } from 'typeorm';
+import { UserStatus } from '~/common/enums/user.enum';
+import { LoggerService } from '~/shared/logger/logger.service';
+import { RoleCategory, RoleEntity } from '~/modules/role/entities/role.entity';
+import { UserEntity } from '../entities/user.entity';
+
+@Injectable()
+export class AdminBootstrapService implements OnApplicationBootstrap {
+  private static readonly ADMIN_USERNAME = 'admin';
+  private static readonly ADMIN_EMAIL = 'admin@local.home';
+
+  constructor(
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(RoleEntity)
+    private readonly roleRepository: Repository<RoleEntity>,
+    private readonly logger: LoggerService,
+  ) {
+    this.logger.setContext(AdminBootstrapService.name);
+  }
+
+  async onApplicationBootstrap(): Promise<void> {
+    const userCount = await this.userRepository.count({ withDeleted: true });
+
+    if (userCount > 0) {
+      return;
+    }
+
+    const role = await this.ensureSuperAdminRole();
+    const password = this.generatePassword();
+    const admin = this.userRepository.create({
+      username: AdminBootstrapService.ADMIN_USERNAME,
+      email: AdminBootstrapService.ADMIN_EMAIL,
+      password,
+      realName: '系统管理员',
+      status: UserStatus.ACTIVE,
+      roles: [role],
+    });
+
+    await this.userRepository.save(admin);
+    this.logInitialAdmin(password);
+  }
+
+  private async ensureSuperAdminRole(): Promise<RoleEntity> {
+    const existing = await this.roleRepository.findOne({
+      where: { code: 'super_admin' },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const role = this.roleRepository.create({
+      code: 'super_admin',
+      name: '超级管理员',
+      description: '系统初始化创建的超级管理员角色',
+      category: RoleCategory.SYSTEM,
+      sort: 0,
+      isActive: true,
+      isSystem: true,
+    });
+
+    return this.roleRepository.save(role);
+  }
+
+  private generatePassword(length = 20): string {
+    const groups = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789'];
+    const specials = '@$!%*?&_-';
+    const allChars = groups.join('') + specials;
+    const chars = [...groups.map((group) => this.pick(group))];
+
+    while (chars.length < length) {
+      chars.push(this.pick(allChars));
+    }
+
+    return this.shuffle(chars).join('');
+  }
+
+  private pick(chars: string): string {
+    return chars[randomInt(chars.length)];
+  }
+
+  private shuffle(chars: string[]): string[] {
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+
+    return chars;
+  }
+
+  private logInitialAdmin(password: string): void {
+    this.logger.warn('Initial admin account created');
+    this.logger.warn(`username: ${AdminBootstrapService.ADMIN_USERNAME}`);
+    this.logger.warn(`password: ${password}`);
+    this.logger.warn('This password is shown only once. Change it after login.');
+  }
+}

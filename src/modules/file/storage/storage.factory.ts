@@ -5,7 +5,6 @@ import { FileStorageType } from '../entities/file.entity';
 import { FileStorageStrategy } from './file-storage.interface';
 import { LocalStorageStrategy } from './local-storage.strategy';
 import { OssStorageStrategy } from './oss-storage.strategy';
-import { MinioStorageStrategy } from './minio-storage.strategy';
 
 @Injectable()
 export class FileStorageFactory {
@@ -13,7 +12,6 @@ export class FileStorageFactory {
     private readonly configService: ConfigService,
     private readonly localStorageStrategy: LocalStorageStrategy,
     private readonly ossStorageStrategy: OssStorageStrategy,
-    private readonly minioStorageStrategy: MinioStorageStrategy,
   ) {}
 
   /**
@@ -31,11 +29,6 @@ export class FileStorageFactory {
           throw BusinessException.validationFailed('OSS 存储未启用，请检查配置');
         }
         return this.ossStorageStrategy;
-      case FileStorageType.MINIO:
-        if (!this.minioStorageStrategy.isEnabled()) {
-          throw BusinessException.validationFailed('MinIO 存储未启用，请检查配置');
-        }
-        return this.minioStorageStrategy;
       default:
         return this.localStorageStrategy;
     }

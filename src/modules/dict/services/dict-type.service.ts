@@ -4,7 +4,6 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
@@ -12,7 +11,6 @@ import { PaginationResult } from '~/core/base/base.repository';
 import { DictTypeEntity, DictSource } from '../entities/dict-type.entity';
 import { DictTypeRepository } from '../repositories/dict-type.repository';
 import { CreateDictTypeDto, QueryDictTypeDto } from '../dto/dict-type.dto';
-import { Cacheable } from '~/core/decorators';
 
 @Injectable()
 export class DictTypeService extends BaseService<DictTypeEntity> {
@@ -22,13 +20,11 @@ export class DictTypeService extends BaseService<DictTypeEntity> {
     private readonly dictTypeRepository: DictTypeRepository,
     logger: LoggerService,
     cache: CacheService,
-    eventEmitter: EventEmitter2,
   ) {
     super();
     this.repository = dictTypeRepository;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter;
     this.logger.setContext(DictTypeService.name);
   }
 
@@ -51,9 +47,6 @@ export class DictTypeService extends BaseService<DictTypeEntity> {
     });
 
     const saved = await this.dictTypeRepository.save(dictType);
-
-    // 发送事件
-    this.eventEmitter.emit('dict-type.created', { dictType: saved });
 
     // 清除缓存
     await this.clearCache();
@@ -91,9 +84,6 @@ export class DictTypeService extends BaseService<DictTypeEntity> {
     Object.assign(dictType, dto);
     const updated = await this.dictTypeRepository.save(dictType);
 
-    // 发送事件
-    this.eventEmitter.emit('dict-type.updated', { dictType: updated });
-
     // 清除缓存
     await this.clearCache();
 
@@ -127,9 +117,6 @@ export class DictTypeService extends BaseService<DictTypeEntity> {
 
     await this.dictTypeRepository.softDelete(id);
 
-    // 发送事件
-    this.eventEmitter.emit('dict-type.deleted', { dictType });
-
     // 清除缓存
     await this.clearCache();
 
@@ -139,7 +126,6 @@ export class DictTypeService extends BaseService<DictTypeEntity> {
   /**
    * 获取字典类型详情
    */
-  @Cacheable({ prefix: 'dict:type:id', argIndexes: [0], ttl: 1800 })
   async findById(id: number): Promise<DictTypeEntity> {
     const dictType = await this.dictTypeRepository.findOne({
       where: { id },
@@ -156,7 +142,6 @@ export class DictTypeService extends BaseService<DictTypeEntity> {
   /**
    * 根据编码获取字典类型
    */
-  @Cacheable({ prefix: 'dict:type:code', argIndexes: [0], ttl: 1800 })
   async findByCode(code: string): Promise<DictTypeEntity | null> {
     return this.dictTypeRepository.findByCode(code);
   }
@@ -183,7 +168,6 @@ export class DictTypeService extends BaseService<DictTypeEntity> {
   /**
    * 获取所有启用的字典类型
    */
-  @Cacheable({ prefix: 'dict:type:enabled', ttl: 1800 })
   async findEnabled(): Promise<DictTypeEntity[]> {
     return this.dictTypeRepository.findEnabled();
   }
@@ -200,9 +184,6 @@ export class DictTypeService extends BaseService<DictTypeEntity> {
 
     dictType.isEnabled = !dictType.isEnabled;
     const updated = await this.dictTypeRepository.save(dictType);
-
-    // 发送事件
-    this.eventEmitter.emit('dict-type.toggled', { dictType: updated });
 
     // 清除缓存
     await this.clearCache();

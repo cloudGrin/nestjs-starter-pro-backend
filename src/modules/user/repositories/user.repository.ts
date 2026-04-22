@@ -119,16 +119,13 @@ export class UserRepository extends BaseRepository<UserEntity> {
       status,
       gender,
       roleId,
-      // departmentId, // 已移除department功能
       page = 1,
       limit = 10,
       sort,
       order,
     } = query;
 
-    const qb = this.repository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.roles', 'role');
+    const qb = this.repository.createQueryBuilder('user').leftJoinAndSelect('user.roles', 'role');
 
     if (username) {
       qb.andWhere('user.username LIKE :username', { username: `%${username}%` });
@@ -157,11 +154,6 @@ export class UserRepository extends BaseRepository<UserEntity> {
     if (roleId) {
       qb.andWhere('role.id = :roleId', { roleId });
     }
-
-    // 已移除department功能
-    // if (departmentId) {
-    //   qb.andWhere('user.departmentId = :departmentId', { departmentId });
-    // }
 
     if (sort) {
       qb.orderBy(`user.${sort}`, order || 'ASC');

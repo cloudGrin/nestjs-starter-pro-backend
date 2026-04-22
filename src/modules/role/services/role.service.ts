@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
@@ -29,13 +28,11 @@ export class RoleService extends BaseService<RoleEntity> {
     private readonly menuRepository: Repository<MenuEntity>,
     logger: LoggerService,
     cache: CacheService,
-    eventEmitter: EventEmitter2,
   ) {
     super();
     this.repository = roleRepository;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter;
     this.logger.setContext(RoleService.name);
   }
 
@@ -85,10 +82,6 @@ export class RoleService extends BaseService<RoleEntity> {
 
     const savedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色保存成功 id=${savedRole.id}, code=${savedRole.code}`);
-
-    // 发送角色创建事件
-    this.eventEmitter.emit('role.created', { role: savedRole });
-    this.logger.debug(`已触发角色创建事件 roleId=${savedRole.id}`);
 
     // 清除缓存
     await this.clearCache();
@@ -160,10 +153,6 @@ export class RoleService extends BaseService<RoleEntity> {
     const updatedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色更新保存成功 roleId=${updatedRole.id}`);
 
-    // 发送角色更新事件
-    this.eventEmitter.emit('role.updated', { role: updatedRole });
-    this.logger.debug(`已触发角色更新事件 roleId=${updatedRole.id}`);
-
     // 清除相关缓存（包括拥有该角色的用户权限缓存）
     await this.clearCache();
     await this.clearUserPermissionCache();
@@ -203,10 +192,6 @@ export class RoleService extends BaseService<RoleEntity> {
     }
 
     await this.roleRepository.softDelete(id);
-
-    // 发送角色删除事件
-    this.eventEmitter.emit('role.deleted', { role });
-    this.logger.debug(`已触发角色删除事件 roleId=${id}`);
 
     // 清除缓存
     await this.clearCache();
@@ -320,12 +305,6 @@ export class RoleService extends BaseService<RoleEntity> {
     role.permissions = permissions;
     const updatedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色权限保存成功 roleId=${roleId}`);
-
-    // 发送权限分配事件
-    this.eventEmitter.emit('role.permissions-assigned', { role: updatedRole, permissionIds });
-    this.logger.debug(
-      `已触发角色权限分配事件 roleId=${roleId}, permissionIds=${JSON.stringify(permissionIds)}`,
-    );
 
     // 清除用户权限缓存
     await this.clearUserPermissionCache();
@@ -442,12 +421,6 @@ export class RoleService extends BaseService<RoleEntity> {
     const updatedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色菜单保存成功 roleId=${roleId}`);
 
-    // 发送菜单分配事件
-    this.eventEmitter.emit('role.menus-assigned', { role: updatedRole, menuIds });
-    this.logger.debug(
-      `已触发角色菜单分配事件 roleId=${roleId}, menuIds=${JSON.stringify(menuIds)}`,
-    );
-
     // 清除缓存
     await this.clearCache();
     await this.clearUserMenuCache();
@@ -505,12 +478,6 @@ export class RoleService extends BaseService<RoleEntity> {
 
     const updatedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色菜单移除后保存成功 roleId=${roleId}`);
-
-    // 发送菜单移除事件
-    this.eventEmitter.emit('role.menus-revoked', { role: updatedRole, menuIds });
-    this.logger.debug(
-      `已触发角色菜单移除事件 roleId=${roleId}, menuIds=${JSON.stringify(menuIds)}`,
-    );
 
     // 清除缓存
     await this.clearCache();

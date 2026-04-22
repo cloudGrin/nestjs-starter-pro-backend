@@ -5,7 +5,6 @@ import {
   NotificationDeliveryResult,
 } from '../entities/notification.entity';
 import { UserRepository } from '~/modules/user/repositories/user.repository';
-import { NotificationConnectionRegistry } from '../registry/notification-connection.registry';
 import { NotificationChannelAdapter } from './notification-channel.interface';
 import { NOTIFICATION_CHANNEL_ADAPTERS } from './notification-channel.tokens';
 
@@ -21,7 +20,6 @@ export class NotificationChannelManager {
     @Inject(NOTIFICATION_CHANNEL_ADAPTERS)
     private readonly adapters: NotificationChannelAdapter[],
     private readonly userRepository: UserRepository,
-    private readonly connectionRegistry: NotificationConnectionRegistry,
   ) {}
 
   async dispatch(
@@ -47,15 +45,11 @@ export class NotificationChannelManager {
         continue;
       }
 
-      // 仅在强制推送或用户不在线时触发站外渠道
-      const shouldSendExternal =
-        options.forceExternal ||
-        (notification.sendExternalWhenOffline &&
-          !this.connectionRegistry.has(notification.recipientId));
+      const shouldSendExternal = options.forceExternal || notification.sendExternalWhenOffline;
 
       if (!shouldSendExternal) {
         this.logger.verbose(
-          `[NotificationChannel] Skip external channels for notification ${notification.id} (recipient online)`,
+          `[NotificationChannel] Skip external channels for notification ${notification.id} (external delivery not requested)`,
         );
         continue;
       }

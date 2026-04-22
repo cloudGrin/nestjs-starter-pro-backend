@@ -1,15 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  UnauthorizedException,
-  HttpException,
-  HttpStatus,
-  ConflictException,
-} from '@nestjs/common';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { UnauthorizedException, ConflictException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserService } from '~/modules/user/services/user.service';
 import { UserRepository } from '~/modules/user/repositories/user.repository';
@@ -17,6 +9,7 @@ import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { RefreshTokenEntity } from '../entities/refresh-token.entity';
+import { RefreshTokenRepository } from '../repositories/refresh-token.repository';
 import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
@@ -28,10 +21,9 @@ describe('AuthService', () => {
   let service: AuthService;
   let userService: jest.Mocked<UserService>;
   let userRepository: jest.Mocked<UserRepository>;
-  let refreshTokenRepository: jest.Mocked<Repository<RefreshTokenEntity>>;
+  let refreshTokenRepository: jest.Mocked<RefreshTokenRepository>;
   let jwtService: jest.Mocked<JwtService>;
   let configService: jest.Mocked<ConfigService>;
-  let eventEmitter: jest.Mocked<EventEmitter2>;
   let logger: jest.Mocked<LoggerService>;
   let cacheService: jest.Mocked<CacheService>;
 
@@ -62,9 +54,7 @@ describe('AuthService', () => {
     return Object.assign(user, overrides);
   };
 
-  const createMockRefreshToken = (
-    overrides?: Partial<RefreshTokenEntity>,
-  ): RefreshTokenEntity => {
+  const createMockRefreshToken = (overrides?: Partial<RefreshTokenEntity>): RefreshTokenEntity => {
     const token = new RefreshTokenEntity();
     token.id = faker.number.int({ min: 1, max: 1000 });
     token.userId = faker.number.int({ min: 1, max: 1000 });
@@ -99,6 +89,10 @@ describe('AuthService', () => {
 
     const mockRefreshTokenRepository = {
       findOne: jest.fn(),
+      findByToken: jest.fn(),
+      revokeToken: jest.fn(),
+      revokeAllByUserId: jest.fn(),
+      cleanupExpiredTokens: jest.fn(),
       save: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
@@ -123,10 +117,6 @@ describe('AuthService', () => {
       }),
     };
 
-    const mockEventEmitter = {
-      emit: jest.fn(),
-    };
-
     const mockLogger = {
       setContext: jest.fn(),
       log: jest.fn(),
@@ -147,13 +137,9 @@ describe('AuthService', () => {
         AuthService,
         { provide: UserService, useValue: mockUserService },
         { provide: UserRepository, useValue: mockUserRepository },
-        {
-          provide: getRepositoryToken(RefreshTokenEntity),
-          useValue: mockRefreshTokenRepository,
-        },
+        { provide: RefreshTokenRepository, useValue: mockRefreshTokenRepository },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
-        { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: LoggerService, useValue: mockLogger },
         { provide: CacheService, useValue: mockCacheService },
       ],
@@ -162,10 +148,9 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
     userService = module.get(UserService);
     userRepository = module.get(UserRepository);
-    refreshTokenRepository = module.get(getRepositoryToken(RefreshTokenEntity));
+    refreshTokenRepository = module.get(RefreshTokenRepository);
     jwtService = module.get(JwtService);
     configService = module.get(ConfigService);
-    eventEmitter = module.get(EventEmitter2);
     logger = module.get(LoggerService);
     cacheService = module.get(CacheService);
   });
@@ -216,13 +201,6 @@ describe('AuthService', () => {
       expect(mockUser.validatePassword).toHaveBeenCalledWith(mockLoginDto.password);
       expect(mockUser.resetLoginAttempts).toHaveBeenCalled();
       expect(userRepository.updateLoginInfo).toHaveBeenCalledWith(mockUser.id, mockIp);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'auth.login',
-        expect.objectContaining({
-          userId: mockUser.id,
-          username: mockUser.username,
-        }),
-      );
     });
 
     it('当用户不存在时应该抛出UnauthorizedException', async () => {
@@ -235,14 +213,6 @@ describe('AuthService', () => {
       );
       await expect(service.login(mockLoginDto, mockIp, mockUserAgent)).rejects.toThrow(
         '用户名或密码错误',
-      );
-
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'auth.login.failed',
-        expect.objectContaining({
-          account: mockLoginDto.account,
-          reason: '用户不存在',
-        }),
       );
     });
 
@@ -366,22 +336,13 @@ describe('AuthService', () => {
       expect(result.tokens).toHaveProperty('accessToken', mockAccessToken);
       expect(result.tokens).toHaveProperty('refreshToken', mockRefreshToken);
 
-      expect(userRepository.isUsernameExist).toHaveBeenCalledWith(
-        mockRegisterDto.username,
-      );
+      expect(userRepository.isUsernameExist).toHaveBeenCalledWith(mockRegisterDto.username);
       expect(userRepository.isEmailExist).toHaveBeenCalledWith(mockRegisterDto.email);
       expect(userService.createUser).toHaveBeenCalledWith(
         expect.objectContaining({
           username: mockRegisterDto.username,
           email: mockRegisterDto.email,
           status: UserStatus.ACTIVE,
-        }),
-      );
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'auth.register',
-        expect.objectContaining({
-          userId: mockUser.id,
-          email: mockUser.email,
         }),
       );
     });
@@ -391,9 +352,7 @@ describe('AuthService', () => {
       userRepository.isUsernameExist.mockResolvedValue(true);
 
       // Act & Assert
-      await expect(service.register(mockRegisterDto)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(service.register(mockRegisterDto)).rejects.toThrow(ConflictException);
       await expect(service.register(mockRegisterDto)).rejects.toThrow('用户名已存在');
 
       expect(userService.createUser).not.toHaveBeenCalled();
@@ -405,9 +364,7 @@ describe('AuthService', () => {
       userRepository.isEmailExist.mockResolvedValue(true);
 
       // Act & Assert
-      await expect(service.register(mockRegisterDto)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(service.register(mockRegisterDto)).rejects.toThrow(ConflictException);
       await expect(service.register(mockRegisterDto)).rejects.toThrow('邮箱已被注册');
 
       expect(userService.createUser).not.toHaveBeenCalled();
@@ -440,7 +397,7 @@ describe('AuthService', () => {
       (mockRefreshToken.isValid as jest.Mock).mockReturnValue(true);
 
       jwtService.verifyAsync.mockResolvedValue(mockPayload);
-      refreshTokenRepository.findOne.mockResolvedValue(mockRefreshToken);
+      refreshTokenRepository.findByToken.mockResolvedValue(mockRefreshToken);
       jwtService.signAsync.mockResolvedValue(mockNewAccessToken);
 
       // Act
@@ -453,10 +410,7 @@ describe('AuthService', () => {
       expect(result).toHaveProperty('sessionId');
 
       expect(jwtService.verifyAsync).toHaveBeenCalled();
-      expect(refreshTokenRepository.findOne).toHaveBeenCalledWith({
-        where: { token: mockRefreshTokenString },
-        relations: ['user'],
-      });
+      expect(refreshTokenRepository.findByToken).toHaveBeenCalledWith(mockRefreshTokenString);
     });
 
     it('当刷新令牌即将过期时应该旋转令牌（<7天）', async () => {
@@ -480,7 +434,7 @@ describe('AuthService', () => {
       (mockRefreshToken.isValid as jest.Mock).mockReturnValue(true);
 
       jwtService.verifyAsync.mockResolvedValue(mockPayload);
-      refreshTokenRepository.findOne.mockResolvedValue(mockRefreshToken);
+      refreshTokenRepository.findByToken.mockResolvedValue(mockRefreshToken);
       jwtService.signAsync
         .mockResolvedValueOnce(mockNewAccessToken)
         .mockResolvedValueOnce(mockNewRefreshToken);
@@ -511,16 +465,13 @@ describe('AuthService', () => {
       await expect(service.refreshToken(mockRefreshTokenDto)).rejects.toThrow(
         UnauthorizedException,
       );
-      await expect(service.refreshToken(mockRefreshTokenDto)).rejects.toThrow(
-        '无效的刷新令牌',
-      );
+      await expect(service.refreshToken(mockRefreshTokenDto)).rejects.toThrow('无效的刷新令牌');
 
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to refresh token'),
         expect.anything(),
       );
     });
-
   });
 
   describe('logout', () => {
@@ -536,46 +487,26 @@ describe('AuthService', () => {
         token: mockRefreshTokenString,
       });
 
-      refreshTokenRepository.findOne.mockResolvedValue(mockRefreshToken);
-      refreshTokenRepository.save.mockResolvedValue(mockRefreshToken);
+      refreshTokenRepository.revokeToken.mockResolvedValue(undefined);
 
       // Act
       await service.logout(mockUserId, mockSessionId, mockRefreshTokenString);
 
       // Assert
-      expect(refreshTokenRepository.findOne).toHaveBeenCalledWith({
-        where: { token: mockRefreshTokenString, userId: mockUserId },
-      });
-      expect(refreshTokenRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ isRevoked: true }),
-      );
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'auth.logout',
-        expect.objectContaining({
-          userId: mockUserId,
-          sessionId: mockSessionId,
-        }),
-      );
+      expect(refreshTokenRepository.revokeToken).toHaveBeenCalledWith(mockRefreshTokenString);
+      expect(cacheService.del).toHaveBeenCalledWith(`user:permissions:${mockUserId}`);
     });
 
     it('应该成功登出所有会话', async () => {
       // Arrange
-      refreshTokenRepository.update.mockResolvedValue(undefined as any);
+      refreshTokenRepository.revokeAllByUserId.mockResolvedValue(undefined);
 
       // Act
       await service.logout(mockUserId); // 不传 sessionId 和 refreshToken
 
       // Assert
-      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
-        { userId: mockUserId, isRevoked: false },
-        { isRevoked: true },
-      );
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'auth.logout',
-        expect.objectContaining({
-          userId: mockUserId,
-        }),
-      );
+      expect(refreshTokenRepository.revokeAllByUserId).toHaveBeenCalledWith(mockUserId);
+      expect(cacheService.del).toHaveBeenCalledWith(`user:permissions:${mockUserId}`);
     });
   });
 });

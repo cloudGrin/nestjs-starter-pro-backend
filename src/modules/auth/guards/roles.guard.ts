@@ -38,7 +38,7 @@ export class RolesGuard implements CanActivate {
 
     let hasRole = false;
 
-    if (mode === RoleMode.ALL) {
+    if (mode === RoleMode.AND) {
       // 用户必须拥有所有指定的角色
       hasRole = roles.every((role) => user.roles.includes(role));
     } else {

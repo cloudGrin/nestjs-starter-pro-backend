@@ -16,6 +16,7 @@ import { ApiAuthService } from '../services/api-auth.service';
 import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 import { AuthenticatedRequest } from '../types/request.types';
+import { RequirePermissions } from '~/core/decorators';
 
 @ApiTags('API应用管理')
 @ApiBearerAuth()
@@ -25,6 +26,7 @@ export class ApiAppController {
   constructor(private readonly apiAuthService: ApiAuthService) {}
 
   @Get()
+  @RequirePermissions('api-app:read')
   @ApiOperation({ summary: '获取API应用列表' })
   async getApps(@Query('page') page = 1, @Query('limit') limit = 10) {
     const skip = (page - 1) * limit;
@@ -32,12 +34,14 @@ export class ApiAppController {
   }
 
   @Get(':appId')
+  @RequirePermissions('api-app:read')
   @ApiOperation({ summary: '获取API应用详情' })
   async getApp(@Param('appId') appId: number) {
     return this.apiAuthService.getApp(appId);
   }
 
   @Post()
+  @RequirePermissions('api-app:create')
   @ApiOperation({ summary: '创建API应用' })
   async createApp(@Body() dto: CreateApiAppDto, @Req() req: AuthenticatedRequest) {
     // 设置所有者
@@ -49,12 +53,14 @@ export class ApiAppController {
   }
 
   @Put(':appId')
+  @RequirePermissions('api-app:update')
   @ApiOperation({ summary: '更新API应用' })
   async updateApp(@Param('appId') appId: number, @Body() dto: Partial<CreateApiAppDto>) {
     return this.apiAuthService.updateApp(appId, dto);
   }
 
   @Delete(':appId')
+  @RequirePermissions('api-app:delete')
   @ApiOperation({ summary: '删除API应用' })
   async deleteApp(@Param('appId') appId: number) {
     await this.apiAuthService.deleteApp(appId);
@@ -62,11 +68,9 @@ export class ApiAppController {
   }
 
   @Post(':appId/keys')
+  @RequirePermissions('api-app:key:create')
   @ApiOperation({ summary: '生成API密钥' })
-  async generateKey(
-    @Param('appId') appId: number,
-    @Body() dto: CreateApiKeyDto,
-  ) {
+  async generateKey(@Param('appId') appId: number, @Body() dto: CreateApiKeyDto) {
     const key = await this.apiAuthService.generateApiKey({
       ...dto,
       appId,
@@ -87,12 +91,13 @@ export class ApiAppController {
   }
 
   @Get(':appId/keys')
+  @RequirePermissions('api-app:key:read')
   @ApiOperation({ summary: '获取应用的所有密钥' })
   async getAppKeys(@Param('appId') appId: number) {
     const keys = await this.apiAuthService.getAppKeys(appId);
 
     // 不返回原始密钥，只返回前缀和后缀
-    return keys.map(key => ({
+    return keys.map((key) => ({
       id: key.id,
       name: key.name,
       displayKey: `${key.prefix}_****...${key.suffix}`,
@@ -106,6 +111,7 @@ export class ApiAppController {
   }
 
   @Delete('keys/:keyId')
+  @RequirePermissions('api-app:key:delete')
   @ApiOperation({ summary: '撤销API密钥' })
   async revokeKey(@Param('keyId') keyId: number) {
     await this.apiAuthService.revokeApiKey(keyId);
@@ -116,6 +122,7 @@ export class ApiAppController {
   }
 
   @Get(':appId/statistics')
+  @RequirePermissions('api-app:read')
   @ApiOperation({ summary: '获取API使用统计' })
   async getStatistics(
     @Param('appId') appId: number,

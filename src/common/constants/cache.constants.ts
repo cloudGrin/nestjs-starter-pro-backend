@@ -35,9 +35,6 @@ export const CACHE_KEYS = {
   /** 用户详情: user:findOne:{userId} */
   USER_DETAIL: (userId: number) => `user:findOne:${userId}`,
 
-  /** 用户部门: user:department:{userId} */
-  USER_DEPARTMENT: (userId: number) => `user:department:${userId}`,
-
   // ==================== 角色相关缓存 ====================
 
   /** 角色权限: role:permissions:{roleId} */
@@ -65,37 +62,10 @@ export const CACHE_KEYS = {
   /** 权限详情: permission:findOne:{permissionId} */
   PERMISSION_DETAIL: (permissionId: number) => `permission:findOne:${permissionId}`,
 
-  // ==================== 部门相关缓存 ====================
-
-  /** 部门树: department:tree:all */
-  DEPARTMENT_TREE: () => 'department:tree:all',
-
-  /** 部门详情: department:findOne:{deptId} */
-  DEPARTMENT_DETAIL: (deptId: number) => `department:findOne:${deptId}`,
-
-  /** 部门成员: department:members:{deptId} */
-  DEPARTMENT_MEMBERS: (deptId: number) => `department:members:${deptId}`,
-
-  // ==================== 在线用户相关缓存 ====================
-
-  /** 在线用户会话: online:user:session:{userId}:{sessionId} */
-  ONLINE_USER_SESSION: (userId: number, sessionId: string) =>
-    `online:user:session:${userId}:${sessionId}`,
-
-  /** 强制下线标记: online:user:force-logout:{userId}:{sessionId} */
-  FORCE_LOGOUT: (userId: number, sessionId: string) =>
-    `online:user:force-logout:${userId}:${sessionId}`,
-
-  /** 强制全部下线标记: online:user:force-logout-all:{userId} */
-  FORCE_LOGOUT_ALL: (userId: number) => `online:user:force-logout-all:${userId}`,
-
   // ==================== 分布式锁 ====================
 
   /** 用户权限查询锁: lock:user:permissions:{userId} */
   LOCK_USER_PERMISSIONS: (userId: number) => `lock:user:permissions:${userId}`,
-
-  /** 在线用户操作锁: lock:online:user:{userId} */
-  LOCK_ONLINE_USER: (userId: number) => `lock:online:user:${userId}`,
 
   /** 菜单操作锁: lock:menu:{menuId} */
   LOCK_MENU: (menuId: number) => `lock:menu:${menuId}`,
@@ -114,9 +84,6 @@ export const CACHE_KEYS = {
   /** 所有角色相关缓存: role:* */
   PATTERN_ROLE_ALL: () => 'role:*',
 
-  /** 所有部门相关缓存: department:* */
-  PATTERN_DEPARTMENT_ALL: () => 'department:*',
-
   /** 所有权限相关缓存: permission:* */
   PATTERN_PERMISSION_ALL: () => 'permission:*',
 
@@ -125,7 +92,6 @@ export const CACHE_KEYS = {
     `user:*:${userId}*`,
     `*:user:${userId}*`,
     `menu:user:${userId}*`,
-    `online:user:*:${userId}:*`,
   ],
 
   /** 特定角色的所有缓存 */
@@ -158,11 +124,5 @@ export const CACHE_STRATEGIES = {
   MENU_TREE: {
     ttl: CACHE_TTL.MEDIUM,
     key: CACHE_KEYS.MENU_TREE,
-  },
-
-  /** 部门树 - 1小时，组织架构变化不频繁 */
-  DEPARTMENT_TREE: {
-    ttl: CACHE_TTL.LONG,
-    key: CACHE_KEYS.DEPARTMENT_TREE,
   },
 } as const;

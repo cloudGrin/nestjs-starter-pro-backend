@@ -29,7 +29,9 @@ async function bootstrap() {
 
   // 设置全局前缀
   const apiPrefix = configService.get<string>('API_PREFIX', 'api');
-  app.setGlobalPrefix(apiPrefix);
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: ['healthz', 'readyz'],
+  });
 
   // 启用版本控制
   app.enableVersioning({

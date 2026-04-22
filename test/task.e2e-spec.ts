@@ -58,10 +58,7 @@ describe('定时任务模块 (e2e)', () => {
           description: '测试用定时任务',
         });
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -75,12 +72,10 @@ describe('定时任务模块 (e2e)', () => {
     });
 
     it('拒绝未认证的创建请求', async () => {
-      const response = await authenticatedRequest(app, 'invalid-token')
-        .post('/tasks')
-        .send({
-          name: '测试',
-          code: 'test',
-        });
+      const response = await authenticatedRequest(app, 'invalid-token').post('/tasks').send({
+        name: '测试',
+        code: 'test',
+      });
 
       expect(response.status).toBe(HttpStatus.UNAUTHORIZED);
     });
@@ -90,10 +85,7 @@ describe('定时任务模块 (e2e)', () => {
     it('应该返回任务列表', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken).get('/tasks');
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -109,10 +101,7 @@ describe('定时任务模块 (e2e)', () => {
         '/tasks?page=1&limit=5',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -161,10 +150,7 @@ describe('定时任务模块 (e2e)', () => {
         `/tasks/${testTaskId}`,
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -180,10 +166,7 @@ describe('定时任务模块 (e2e)', () => {
         '/tasks/999999',
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -222,10 +205,7 @@ describe('定时任务模块 (e2e)', () => {
           description: '更新后的描述',
         });
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -261,10 +241,7 @@ describe('定时任务模块 (e2e)', () => {
         `/tasks/${taskId}`,
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         createdTaskIds.push(taskId);
         return;
@@ -318,10 +295,7 @@ describe('定时任务模块 (e2e)', () => {
         `/tasks/${testTaskId}/logs`,
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }
@@ -342,10 +316,7 @@ describe('定时任务模块 (e2e)', () => {
         `/tasks/${testTaskId}/logs?page=1&limit=5`,
       );
 
-      if (
-        response.status === HttpStatus.FORBIDDEN ||
-        response.status === HttpStatus.UNAUTHORIZED
-      ) {
+      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
         console.warn('跳过测试：权限不足');
         return;
       }

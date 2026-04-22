@@ -27,7 +27,7 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
     try {
       const clientAddr = ipaddr.process(realIp);
 
-      return whitelist.some(allowedIp => {
+      return whitelist.some((allowedIp) => {
         // 支持CIDR表示法，如 192.168.1.0/24
         if (allowedIp.includes('/')) {
           const [network, prefix] = allowedIp.split('/');
@@ -80,11 +80,12 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
       }
 
       // 验证IP白名单
-      const rawClientIp = req.headers['x-forwarded-for'] ||
-                      req.headers['x-real-ip'] ||
-                      req.connection?.remoteAddress ||
-                      req.ip ||
-                      'unknown';
+      const rawClientIp =
+        req.headers['x-forwarded-for'] ||
+        req.headers['x-real-ip'] ||
+        req.connection?.remoteAddress ||
+        req.ip ||
+        'unknown';
 
       // 将 string | string[] 转换为 string
       const clientIp = Array.isArray(rawClientIp) ? rawClientIp[0] : rawClientIp;
@@ -121,6 +122,10 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
         id: app.id,
         name: app.name,
         scopes: app.scopes || [],
+        totalCalls: app.totalCalls || 0,
+        rateLimitPerHour: app.rateLimitPerHour,
+        rateLimitPerDay: app.rateLimitPerDay,
+        lastCalledAt: app.lastCalledAt,
         type: 'api-app',
       };
     } catch (error) {

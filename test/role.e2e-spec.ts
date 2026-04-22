@@ -9,7 +9,7 @@ import {
   registerTestUser,
   generateTestUsername,
   generateTestEmail,
-  authenticatedRequest
+  authenticatedRequest,
 } from './test-helper';
 import { DataSource } from 'typeorm';
 import { RoleEntity, RoleCategory } from '~/modules/role/entities/role.entity';
@@ -72,8 +72,6 @@ describe('Role Module (E2E)', () => {
     }
 
     testPermissions = [testReadPerm, testWritePerm];
-
-    console.log('[E2E Setup] Role模块测试环境准备完成');
   });
 
   afterAll(async () => {
@@ -94,7 +92,10 @@ describe('Role Module (E2E)', () => {
   describe('POST /roles - 创建角色', () => {
     it('管理员应该能够创建角色', async () => {
       // code只能包含小写字母和下划线,不能包含数字
-      const randomStr = Math.random().toString(36).substring(2, 8).replace(/[^a-z]/g, 'x');
+      const randomStr = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .replace(/[^a-z]/g, 'x');
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .post('/roles')
         .send({
@@ -125,16 +126,17 @@ describe('Role Module (E2E)', () => {
     });
 
     it('应该拒绝重复的角色编码', async () => {
-      const randomStr = Math.random().toString(36).substring(2, 8).replace(/[^a-z]/g, 'x');
+      const randomStr = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .replace(/[^a-z]/g, 'x');
       const duplicateCode = 'duplicate_code_' + randomStr;
 
       // 先创建一个角色
-      await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/roles')
-        .send({
-          code: duplicateCode,
-          name: '第一个角色',
-        });
+      await authenticatedRequest(app, adminCredentials.accessToken).post('/roles').send({
+        code: duplicateCode,
+        name: '第一个角色',
+      });
 
       // 尝试创建相同编码的角色
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
@@ -174,8 +176,7 @@ describe('Role Module (E2E)', () => {
   // ==================== GET /roles ====================
   describe('GET /roles - 获取角色列表', () => {
     it('管理员应该能够获取角色列表', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/roles');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get('/roles');
 
       expect([HttpStatus.OK]).toContain(response.status);
       expect(response.body).toHaveProperty('data');
@@ -185,8 +186,9 @@ describe('Role Module (E2E)', () => {
     });
 
     it('应该支持分页查询', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/roles?page=1&limit=10');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/roles?page=1&limit=10',
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       expect(response.body).toHaveProperty('data');
@@ -196,16 +198,18 @@ describe('Role Module (E2E)', () => {
     });
 
     it('应该支持按名称搜索', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/roles?name=E2E');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/roles?name=E2E',
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       expect(response.body).toHaveProperty('data');
     });
 
     it('普通用户应该被拒绝', async () => {
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .get('/roles');
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
+        '/roles',
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -214,8 +218,9 @@ describe('Role Module (E2E)', () => {
   // ==================== GET /roles/active ====================
   describe('GET /roles/active - 获取活跃角色', () => {
     it('管理员应该能够获取所有活跃角色', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/roles/active');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/roles/active',
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       // 检查响应格式
@@ -228,8 +233,9 @@ describe('Role Module (E2E)', () => {
     });
 
     it('普通用户应该被拒绝', async () => {
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .get('/roles/active');
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
+        '/roles/active',
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -243,8 +249,9 @@ describe('Role Module (E2E)', () => {
         return;
       }
 
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get(`/roles/${testRole.id}`);
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        `/roles/${testRole.id}`,
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       const roleData = response.body.data || response.body;
@@ -253,8 +260,9 @@ describe('Role Module (E2E)', () => {
     });
 
     it('获取不存在的角色应该返回404', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/roles/999999');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/roles/999999',
+      );
 
       expect(response.status).toBe(HttpStatus.NOT_FOUND);
     });
@@ -262,8 +270,9 @@ describe('Role Module (E2E)', () => {
     it('普通用户应该被拒绝', async () => {
       if (!testRole) return;
 
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .get(`/roles/${testRole.id}`);
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
+        `/roles/${testRole.id}`,
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -319,7 +328,10 @@ describe('Role Module (E2E)', () => {
 
     beforeEach(async () => {
       // 创建一个用于删除的角色(code只能包含小写字母和下划线)
-      const randomStr = Math.random().toString(36).substring(2, 8).replace(/[^a-z]/g, 'x');
+      const randomStr = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .replace(/[^a-z]/g, 'x');
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .post('/roles')
         .send({
@@ -338,15 +350,17 @@ describe('Role Module (E2E)', () => {
         return;
       }
 
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .delete(`/roles/${roleToDelete.id}`);
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).delete(
+        `/roles/${roleToDelete.id}`,
+      );
 
       expect([HttpStatus.OK, HttpStatus.NO_CONTENT]).toContain(response.status);
     });
 
     it('删除不存在的角色应该返回404', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .delete('/roles/999999');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).delete(
+        '/roles/999999',
+      );
 
       expect(response.status).toBe(HttpStatus.NOT_FOUND);
     });
@@ -354,8 +368,9 @@ describe('Role Module (E2E)', () => {
     it('普通用户应该被拒绝', async () => {
       if (!roleToDelete) return;
 
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .delete(`/roles/${roleToDelete.id}`);
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).delete(
+        `/roles/${roleToDelete.id}`,
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -369,7 +384,7 @@ describe('Role Module (E2E)', () => {
         return;
       }
 
-      const permissionIds = testPermissions.map(p => p.id);
+      const permissionIds = testPermissions.map((p) => p.id);
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .put(`/roles/${testRole.id}/permissions`)
         .send(permissionIds);
@@ -406,8 +421,9 @@ describe('Role Module (E2E)', () => {
         return;
       }
 
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get(`/roles/${testRole.id}/effective-permissions`);
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        `/roles/${testRole.id}/effective-permissions`,
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       // 响应可能在body或body.data中
@@ -421,8 +437,9 @@ describe('Role Module (E2E)', () => {
     it('普通用户应该被拒绝', async () => {
       if (!testRole) return;
 
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .get(`/roles/${testRole.id}/effective-permissions`);
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
+        `/roles/${testRole.id}/effective-permissions`,
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -432,7 +449,10 @@ describe('Role Module (E2E)', () => {
   describe('完整流程测试', () => {
     it('应该完成: 创建角色 → 分配权限 → 查询 → 删除', async () => {
       // 1. 创建角色 - code只能包含小写字母和下划线
-      const randomStr = Math.random().toString(36).substring(2, 10).replace(/[^a-z]/g, 'x');
+      const randomStr = Math.random()
+        .toString(36)
+        .substring(2, 10)
+        .replace(/[^a-z]/g, 'x');
       const uniqueCode = 'flow_test_' + randomStr;
       const createResponse = await authenticatedRequest(app, adminCredentials.accessToken)
         .post('/roles')
@@ -456,7 +476,7 @@ describe('Role Module (E2E)', () => {
       if (testPermissions?.length) {
         const assignResponse = await authenticatedRequest(app, adminCredentials.accessToken)
           .put(`/roles/${roleId}/permissions`)
-          .send(testPermissions.map(p => p.id));
+          .send(testPermissions.map((p) => p.id));
 
         // 如果失败,打印错误
         if (![HttpStatus.OK, HttpStatus.CREATED].includes(assignResponse.status)) {
@@ -466,28 +486,32 @@ describe('Role Module (E2E)', () => {
       }
 
       // 3. 查询角色详情
-      const getResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get(`/roles/${roleId}`);
+      const getResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        `/roles/${roleId}`,
+      );
 
       expect(getResponse.status).toBe(HttpStatus.OK);
       const getRoleData = getResponse.body.data || getResponse.body;
       expect(getRoleData.id).toBe(roleId);
 
       // 4. 获取有效权限
-      const permissionsResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get(`/roles/${roleId}/effective-permissions`);
+      const permissionsResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        `/roles/${roleId}/effective-permissions`,
+      );
 
       expect(permissionsResponse.status).toBe(HttpStatus.OK);
 
       // 5. 删除角色
-      const deleteResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .delete(`/roles/${roleId}`);
+      const deleteResponse = await authenticatedRequest(app, adminCredentials.accessToken).delete(
+        `/roles/${roleId}`,
+      );
 
       expect([HttpStatus.OK, HttpStatus.NO_CONTENT]).toContain(deleteResponse.status);
 
       // 6. 验证删除
-      const verifyResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get(`/roles/${roleId}`);
+      const verifyResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        `/roles/${roleId}`,
+      );
 
       expect(verifyResponse.status).toBe(HttpStatus.NOT_FOUND);
     });

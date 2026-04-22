@@ -20,13 +20,15 @@ Most backend frameworks fall into two extremes:
 - **Demo projects**: Too basic, just CRUD examples. **Not production-ready**.
 
 **NestJS Starter Pro fills the gap**:
-- ✅ Enterprise-grade code quality (layered architecture, TypeORM migrations, comprehensive tests)
+
+- ✅ Lean code quality (layered architecture, TypeORM migrations, focused tests)
 - ✅ Simplified RBAC (no permission groups, no complex AND/OR logic)
 - ✅ Dual authentication (JWT for users + API Key for third-party apps)
 - ✅ Essential features only (file upload, task scheduling, notifications)
-- ❌ No audit logs, no captcha, no department management (**you probably don't need them**)
+- ❌ No audit logs or complex organization processes (**you probably don't need them**)
 
 **Design Philosophy**:
+
 > 80% of projects only need 20% of enterprise features. We built that 20%.
 
 ---
@@ -58,18 +60,17 @@ Most backend frameworks fall into two extremes:
 ### Essential Modules
 
 - 👥 **User Management**: CRUD, role assignment, profile management
-- 📁 **File Management**: Local/OSS/MinIO support, chunked upload, image compression
+- 📁 **File Management**: Local and Aliyun OSS storage, chunked upload, image compression
 - ⏰ **Task Scheduling**: Cron-based jobs with execution logs
-- 🔔 **Notification System**: WebSocket real-time push, multi-channel support
+- 🔔 **Notification System**: Internal notifications plus Bark/Feishu external channels
 - 📊 **Data Dictionary**: System configurations and dropdown options
 - 📋 **Menu Management**: Dynamic menu generation based on roles
-- 📊 **Excel Import/Export**: Built-in Excel handling
 
 ### Developer Experience
 
 - 📖 **Swagger API Documentation**: Auto-generated, interactive API docs
 - 🧪 **Complete Test Suite**: Unit tests + E2E tests with good coverage
-- 🔧 **TypeORM Migrations**: Database version control (`synchronize: false`)
+- 🔧 **TypeORM Migrations**: Explicit schema setup (`synchronize: false`)
 - 🎨 **Strict Architecture**: Controller → Service → Repository (enforced)
 - 📝 **Comprehensive Docs**: `CLAUDE.md` for AI-assisted development
 
@@ -97,11 +98,12 @@ Most backend frameworks fall into two extremes:
               │
 ┌─────────────▼───────────────────────┐
 │       Database Layer                │
-│     (MySQL + Redis Cache)           │
+│     (MySQL + Memory Cache)          │
 └─────────────────────────────────────┘
 ```
 
 **Core Principles**:
+
 - ❌ Controllers CANNOT call Repositories directly
 - ❌ Business logic MUST NOT be in Controllers
 - ✅ All database operations in Repositories
@@ -109,16 +111,14 @@ Most backend frameworks fall into two extremes:
 
 ### What We Removed (And Why)
 
-| Removed Feature | Why You Don't Need It (Probably) |
-|----------------|----------------------------------|
-| Audit Logs | Log files + database logs are enough for most projects |
-| Login Logs | Unless you're a bank, user analytics tools work better |
-| Permission Groups | Adds complexity; direct role-permission mapping is clearer |
-| Permission Inheritance | Over-engineering; flat permissions are easier to reason about |
-| AND/OR Logic Selector | 90% of cases only need OR logic |
-| Department Management | Small teams don't have complex org structures |
-| Captcha | Rate limiting + account lockout is often sufficient |
-| Data Scope (Dept/Self/Custom) | Add it when you actually need it, not before |
+| Removed Feature               | Why You Don't Need It (Probably)                              |
+| ----------------------------- | ------------------------------------------------------------- |
+| Audit Logs                    | Log files + database logs are enough for most projects        |
+| Login Logs                    | Unless you're a bank, user analytics tools work better        |
+| Permission Groups             | Adds complexity; direct role-permission mapping is clearer    |
+| Permission Inheritance        | Over-engineering; flat permissions are easier to reason about |
+| AND/OR Logic Selector         | 90% of cases only need OR logic                               |
+| Data Scope (Dept/Self/Custom) | Add it when you actually need it, not before                  |
 
 See [docs/ADR.md](docs/ADR.md) for detailed architecture decisions.
 
@@ -126,18 +126,18 @@ See [docs/ADR.md](docs/ADR.md) for detailed architecture decisions.
 
 ## 📦 Tech Stack
 
-| Category | Technologies |
-|----------|-------------|
-| **Framework** | NestJS 11 + Express |
-| **Language** | TypeScript 5 (Strict Mode) |
-| **Database** | MySQL 8.0+ |
-| **Cache** | Redis 7+ |
-| **ORM** | TypeORM (Migration-based, `synchronize: false`) |
-| **Authentication** | JWT + Passport |
-| **Validation** | class-validator + class-transformer |
-| **Documentation** | Swagger (OpenAPI 3) |
-| **Testing** | Jest + Supertest |
-| **Code Quality** | ESLint + Prettier |
+| Category           | Technologies                                    |
+| ------------------ | ----------------------------------------------- |
+| **Framework**      | NestJS 11 + Express                             |
+| **Language**       | TypeScript 5 (Strict Mode)                      |
+| **Database**       | MySQL 8.0+                                      |
+| **Cache**          | Process memory cache                            |
+| **ORM**            | TypeORM (migration-based, `synchronize: false`) |
+| **Authentication** | JWT + Passport                                  |
+| **Validation**     | class-validator + class-transformer             |
+| **Documentation**  | Swagger (OpenAPI 3)                             |
+| **Testing**        | Jest + Supertest                                |
+| **Code Quality**   | ESLint + Prettier                               |
 
 ---
 
@@ -147,7 +147,6 @@ See [docs/ADR.md](docs/ADR.md) for detailed architecture decisions.
 
 - Node.js 20+
 - MySQL 8.0+
-- Redis 7+ (optional for caching)
 
 ### Installation
 
@@ -163,7 +162,7 @@ npm install
 cp .env.example .env
 # Edit .env with your database credentials
 
-# Run database migrations
+# Initialize database schema
 npm run migration:run
 
 # Start development server
@@ -171,18 +170,13 @@ npm run start:dev
 ```
 
 **Access**:
+
 - API: http://localhost:3000/api/v1
 - Swagger Docs: http://localhost:3000/api-docs
 
-### Default Credentials
+### First Admin
 
-After running migrations, use these credentials to log in:
-```
-Username: admin
-Password: admin123
-```
-
-**⚠️ Change these in production!**
+After the schema is initialized and the app starts against an empty `users` table, it creates an `admin` account with a random password. The password is printed to the application log once; change it after the first login.
 
 ---
 
@@ -220,9 +214,8 @@ nestjs-starter-pro/
 │   │   ├── config/             # System config
 │   │   ├── api-auth/           # API Key auth
 │   │   ├── open-api/           # Open API gateway
-│   │   ├── excel/              # Excel utils
 │   │   └── health/             # Health checks
-│   ├── migrations/             # Database migrations
+│   ├── migrations/             # Current schema initialization
 │   ├── app.module.ts           # Root module
 │   └── main.ts                 # Entry point
 ├── test/                       # Tests
@@ -266,7 +259,7 @@ export class UserController {
 ```typescript
 @Controller('auth')
 export class AuthController {
-  @Public()  // Skip authentication
+  @Public() // Skip authentication
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return await this.authService.login(dto);
@@ -274,10 +267,10 @@ export class AuthController {
 }
 ```
 
-### Database Migrations
+### Database Schema
 
 ```bash
-# Generate migration from entity changes
+# Generate a migration from entity changes when you intentionally evolve schema
 npm run build
 npm run migration:generate -- migrations/AddUserPhoneNumber
 
@@ -324,7 +317,7 @@ npm run build
 pm2 start dist/main.js --name nestjs-app
 ```
 
-See [docs/deployment/](docs/deployment/) for detailed deployment guides.
+See [DEPLOYMENT_QUICKSTART.md](DEPLOYMENT_QUICKSTART.md) for a lightweight deployment guide.
 
 ---
 
@@ -340,12 +333,14 @@ See [docs/deployment/](docs/deployment/) for detailed deployment guides.
 ## 🗺️ Roadmap
 
 ### v2.1 (Planned)
+
 - [ ] GraphQL support (optional module)
 - [ ] MongoDB adapter (alongside MySQL)
 - [ ] Built-in rate limiting per user
 - [ ] API versioning examples
 
 ### v2.2 (Future)
+
 - [ ] Multi-tenancy support
 - [ ] Microservices example
 - [ ] gRPC integration
@@ -360,6 +355,7 @@ See [ROADMAP.md](docs/ROADMAP.md) for full roadmap.
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 **Quick Checklist**:
+
 - ✅ Follow existing code style (ESLint + Prettier)
 - ✅ Write tests for new features
 - ✅ Update documentation
@@ -370,11 +366,13 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for gu
 ## 🙌 Inspiration & Alternatives
 
 This project was inspired by:
+
 - [RuoYi](https://github.com/yangzongzhuan/RuoYi) - Excellent but too complex for small projects
-- [Nest Admin](https://github.com/nest-admin/nest-admin) - Great, but lacks migration management
+- [Nest Admin](https://github.com/nest-admin/nest-admin) - Alternative NestJS admin reference
 - Clean Architecture principles from Uncle Bob
 
 **When NOT to use this**:
+
 - You need multi-tenancy out of the box → Consider SaaS-specific frameworks
 - You need microservices architecture → Check NestJS microservices docs
 - You need GraphQL API → Look at NestJS GraphQL starters
@@ -417,13 +415,15 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - **Demo 级项目**：过于简陋，只有基础 CRUD。**无法直接用于生产**。
 
 **NestJS Starter Pro 填补了这个空白**：
+
 - ✅ 企业级代码质量（分层架构、TypeORM Migration、完整测试）
 - ✅ 简化的 RBAC（去掉权限组、复杂的 AND/OR 逻辑）
 - ✅ 双认证体系（JWT 用户认证 + API Key 第三方接入）
 - ✅ 只保留核心功能（文件管理、任务调度、通知推送）
-- ❌ 没有审计日志、验证码、部门管理（**你大概率用不上**）
+- ❌ 没有审计日志和复杂组织流程（**你大概率用不上**）
 
 **设计理念**：
+
 > 80% 的项目只需要 20% 的企业级功能。我们实现了那 20%。
 
 ---
@@ -455,18 +455,17 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ### 核心模块
 
 - 👥 **用户管理**：CRUD、角色分配、个人资料管理
-- 📁 **文件管理**：支持本地/OSS/MinIO、分片上传、图片压缩
+- 📁 **文件管理**：支持本地/OSS、分片上传、图片压缩
 - ⏰ **任务调度**：基于 Cron 的定时任务，带执行日志
-- 🔔 **通知系统**：WebSocket 实时推送、多渠道支持
+- 🔔 **通知系统**：站内通知 + Bark/飞书站外通知
 - 📊 **数据字典**：系统配置和下拉选项
 - 📋 **菜单管理**：基于角色的动态菜单生成
-- 📊 **Excel 导入导出**：内置 Excel 处理
 
 ### 开发体验
 
 - 📖 **Swagger API 文档**：自动生成、可交互的 API 文档
 - 🧪 **完整测试套件**：单元测试 + E2E 测试，良好覆盖率
-- 🔧 **TypeORM Migration**：数据库版本控制（`synchronize: false`）
+- 🔧 **TypeORM Migration**：显式数据库结构管理（`synchronize: false`）
 - 🎨 **严格架构**：Controller → Service → Repository（强制执行）
 - 📝 **完善文档**：`CLAUDE.md` 支持 AI 辅助开发
 
@@ -476,16 +475,14 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ### 我们移除的功能（以及原因）
 
-| 移除的功能 | 为什么你（大概率）不需要 |
-|-----------|------------------------|
-| 审计日志 | 日志文件 + 数据库日志对大多数项目已经够用 |
-| 登录日志 | 除非你是银行，否则用户分析工具更好 |
-| 权限组 | 增加复杂度；直接角色-权限映射更清晰 |
-| 权限继承 | 过度设计；扁平权限更容易理解 |
-| AND/OR 逻辑选择器 | 90% 的情况只需要 OR 逻辑 |
-| 部门管理 | 小团队没有复杂的组织架构 |
-| 验证码 | 限流 + 账户锁定通常就足够了 |
-| 数据权限范围 | 真正需要时再加，不要提前设计 |
+| 移除的功能        | 为什么你（大概率）不需要                  |
+| ----------------- | ----------------------------------------- |
+| 审计日志          | 日志文件 + 数据库日志对大多数项目已经够用 |
+| 登录日志          | 除非你是银行，否则用户分析工具更好        |
+| 权限组            | 增加复杂度；直接角色-权限映射更清晰       |
+| 权限继承          | 过度设计；扁平权限更容易理解              |
+| AND/OR 逻辑选择器 | 90% 的情况只需要 OR 逻辑                  |
+| 数据权限范围      | 真正需要时再加，不要提前设计              |
 
 详见 [docs/ADR.md](docs/ADR.md) 了解详细的架构决策。
 
@@ -505,7 +502,7 @@ npm install
 cp .env.example .env
 # 编辑 .env 填入数据库信息
 
-# 运行数据库迁移
+# 初始化数据库结构
 npm run migration:run
 
 # 启动开发服务器
@@ -513,10 +510,11 @@ npm run start:dev
 ```
 
 访问：
+
 - API: http://localhost:3000/api/v1
 - Swagger 文档: http://localhost:3000/api-docs
 
-默认账号：`admin` / `admin123`（生产环境请修改）
+空库首次启动时会自动创建 `admin` 超级管理员账号，随机密码只会输出到应用日志一次；首次登录后请立即修改。
 
 ---
 

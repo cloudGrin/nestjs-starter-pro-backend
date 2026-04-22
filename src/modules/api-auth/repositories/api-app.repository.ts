@@ -45,9 +45,7 @@ export class ApiAppRepository extends BaseRepository<ApiAppEntity> {
   }): Promise<[ApiAppEntity[], number]> {
     const { name, isActive, ownerId, page = 1, limit = 10 } = query;
 
-    const qb = this.repository
-      .createQueryBuilder('app')
-      .leftJoinAndSelect('app.apiKeys', 'keys');
+    const qb = this.repository.createQueryBuilder('app').leftJoinAndSelect('app.apiKeys', 'keys');
 
     if (name) {
       qb.andWhere('app.name LIKE :name', { name: `%${name}%` });
@@ -80,9 +78,7 @@ export class ApiAppRepository extends BaseRepository<ApiAppEntity> {
    * 检查应用名称是否存在
    */
   async isNameExist(name: string, excludeId?: number): Promise<boolean> {
-    const qb = this.repository
-      .createQueryBuilder('app')
-      .where('app.name = :name', { name });
+    const qb = this.repository.createQueryBuilder('app').where('app.name = :name', { name });
 
     if (excludeId) {
       qb.andWhere('app.id != :id', { id: excludeId });

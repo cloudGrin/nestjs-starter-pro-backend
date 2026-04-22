@@ -3,8 +3,6 @@ import { SoftDeleteBaseEntity } from '~/core/base/base.entity';
 
 export enum TaskType {
   CRON = 'cron',
-  INTERVAL = 'interval',
-  TIMEOUT = 'timeout',
 }
 
 export enum TaskStatus {
@@ -125,7 +123,7 @@ export class TaskDefinitionEntity extends SoftDeleteBaseEntity {
   })
   alertConfig?: {
     enabled: boolean; // 是否启用告警
-    channels: Array<'log' | 'notification' | 'feishu' | 'email' | 'sms'>; // 告警渠道
+    channels: Array<'log'>; // 告警渠道
     onlyOnConsecutiveFailures?: number; // 仅在连续失败N次后告警
   };
 

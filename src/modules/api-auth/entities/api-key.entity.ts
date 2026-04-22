@@ -59,10 +59,7 @@ export class ApiKeyEntity extends BaseEntity {
       this.rawKey = `${this.prefix}_${key}`;
 
       // 存储哈希值
-      this.keyHash = crypto
-        .createHash('sha256')
-        .update(this.rawKey)
-        .digest('hex');
+      this.keyHash = crypto.createHash('sha256').update(this.rawKey).digest('hex');
 
       // 存储后缀（用于显示）
       this.suffix = key.slice(-4);

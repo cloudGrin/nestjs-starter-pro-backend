@@ -12,6 +12,7 @@ import {
   ApiCommonResponses,
   ApiLoginExample,
   Public,
+  AllowAuthenticated,
 } from '~/core/decorators';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { CurrentUser } from '../decorators/current-user.decorator';
@@ -58,6 +59,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @AllowAuthenticated()
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '用户登出' })
@@ -71,6 +73,7 @@ export class AuthController {
   }
 
   @Get('profile')
+  @AllowAuthenticated()
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前用户信息' })
   @ApiSuccessResponse(UserEntity)
@@ -86,6 +89,7 @@ export class AuthController {
   }
 
   @Get('check')
+  @AllowAuthenticated()
   @ApiBearerAuth()
   @ApiOperation({ summary: '检查认证状态' })
   async checkAuth(@CurrentUser() user: AuthenticatedUser) {

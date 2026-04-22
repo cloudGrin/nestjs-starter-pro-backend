@@ -16,21 +16,21 @@ This is a complete redesign from an enterprise-grade RBAC system to a lightweigh
 ### ✨ Added
 
 #### Core Features
+
 - **Simplified RBAC System**: User, Role, Permission, Menu management with OR-logic permission checks
 - **Dual Authentication**: JWT authentication (for users) + API Key authentication (for third-party apps)
-- **File Management**: Support for local storage, Aliyun OSS, and MinIO with chunked upload
+- **File Management**: Support for local storage and Aliyun OSS with chunked upload
 - **Task Scheduling**: Cron-based task scheduling with execution logs
-- **Notification System**: WebSocket real-time push notifications
+- **Notification System**: Internal notifications with Bark/Feishu external channels
 - **Data Dictionary**: System dictionary management for dropdown options
 - **System Configuration**: Dynamic system configuration management
-- **Excel Import/Export**: Batch data import/export functionality
 - **Health Check**: Liveness and Readiness probes for container orchestration
 
 #### Technical Features
-- **Strict Migration Management**: TypeORM with `synchronize: false`, all database changes via migrations
+
+- **Explicit Schema Management**: TypeORM with `synchronize: false`, schema initialized through migrations
 - **Layered Architecture**: Strict separation of Controller → Service → Repository
 - **Complete Testing**: Unit tests + E2E tests with coverage reports
-- **CI/CD Pipeline**: GitHub Actions with ESLint, TypeScript checks, security scanning
 - **API Documentation**: Auto-generated Swagger/OpenAPI documentation
 
 ### 🔥 Removed (Enterprise Features)
@@ -42,7 +42,6 @@ We removed the following enterprise-grade features to keep the framework lightwe
 - ❌ **Online Users**: Removed real-time online user tracking (use session management)
 - ❌ **Department Management**: Removed organizational hierarchy (not needed for small teams)
 - ❌ **Captcha**: Removed CAPTCHA module (use Cloudflare/rate limiting)
-- ❌ **Metrics Monitoring**: Removed built-in metrics (use APM tools like New Relic/DataDog)
 - ❌ **Permission Groups**: Removed permission grouping (simplified to flat structure)
 - ❌ **Permission Inheritance**: Removed parent-child permission relationships (over-engineering)
 - ❌ **AND/OR Logic Selector**: Unified to OR logic (simpler permission checks)
@@ -82,7 +81,7 @@ For a detailed comparison with other frameworks (RuoYi, Nest Admin, NestJS Boile
 
 - Fast startup time (~2 seconds in production)
 - Optimized database queries (no N+1 problems)
-- Redis caching for user permissions
+- Process memory caching for user permissions
 - Efficient TypeORM queries with QueryBuilder
 
 ### 🛠️ Tech Stack
@@ -90,7 +89,7 @@ For a detailed comparison with other frameworks (RuoYi, Nest Admin, NestJS Boile
 - **Framework**: NestJS 11.x
 - **Language**: TypeScript 5.x
 - **Database**: MySQL 8.0+ (with TypeORM)
-- **Cache**: Redis 7.x
+- **Cache**: Process memory cache
 - **Authentication**: JWT + Passport
 - **Validation**: class-validator + class-transformer
 - **Testing**: Jest + Supertest
@@ -106,6 +105,7 @@ For a detailed comparison with other frameworks (RuoYi, Nest Admin, NestJS Boile
 ### 🙏 Acknowledgments
 
 Built with inspiration from:
+
 - RuoYi (若依) - Enterprise admin framework
 - NestJS official examples
 - Clean Architecture principles
@@ -115,6 +115,7 @@ Built with inspiration from:
 ## [Unreleased]
 
 ### Planned Features
+
 - [ ] Rate limiting middleware
 - [ ] Internationalization (i18n) support
 - [ ] Multi-tenancy support (optional)

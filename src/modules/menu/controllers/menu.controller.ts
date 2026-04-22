@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Request } from 'express';
-import { ApiSuccessResponse, RequirePermissions } from '~/core/decorators';
+import { AllowAuthenticated, ApiSuccessResponse, RequirePermissions } from '~/core/decorators';
 import { MenuService } from '../services/menu.service';
 import {
   CreateMenuDto,
@@ -53,6 +53,7 @@ export class MenuController {
   }
 
   @Get('user-menus')
+  @AllowAuthenticated()
   @ApiOperation({
     summary: '获取当前用户的菜单',
     description: '根据用户角色过滤可访问的菜单，返回树形结构',

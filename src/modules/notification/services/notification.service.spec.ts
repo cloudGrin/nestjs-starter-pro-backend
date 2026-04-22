@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotificationService } from './notification.service';
 import { NotificationRepository } from '../repositories/notification.repository';
 import { UserRepository } from '~/modules/user/repositories/user.repository';
@@ -22,7 +21,6 @@ describe('NotificationService', () => {
   let channelManager: jest.Mocked<NotificationChannelManager>;
   let logger: jest.Mocked<LoggerService>;
   let cache: jest.Mocked<CacheService>;
-  let eventEmitter: jest.Mocked<EventEmitter2>;
 
   beforeEach(async () => {
     const mockNotificationRepository = {
@@ -57,10 +55,6 @@ describe('NotificationService', () => {
       del: jest.fn(),
     };
 
-    const mockEventEmitter = {
-      emit: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationService,
@@ -69,7 +63,6 @@ describe('NotificationService', () => {
         { provide: NotificationChannelManager, useValue: mockChannelManager },
         { provide: LoggerService, useValue: mockLogger },
         { provide: CacheService, useValue: mockCache },
-        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
 
@@ -79,7 +72,6 @@ describe('NotificationService', () => {
     channelManager = module.get(NotificationChannelManager);
     logger = module.get(LoggerService);
     cache = module.get(CacheService);
-    eventEmitter = module.get(EventEmitter2);
   });
 
   afterEach(() => {
@@ -121,10 +113,6 @@ describe('NotificationService', () => {
       expect(result).toHaveLength(1);
       expect(userRepository.findByIds).toHaveBeenCalledWith([1]);
       expect(notificationRepository.createMany).toHaveBeenCalled();
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'notification.created',
-        expect.objectContaining({ notifications: mockNotifications }),
-      );
     });
 
     it('应该成功创建多用户通知', async () => {
@@ -350,10 +338,6 @@ describe('NotificationService', () => {
       await service.markAsRead(notificationId, userId);
 
       expect(notificationRepository.markAsRead).toHaveBeenCalledWith(notificationId, userId);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('notification.read', {
-        id: notificationId,
-        userId,
-      });
     });
 
     it('当通知不存在时应该抛出异常', async () => {
@@ -377,7 +361,6 @@ describe('NotificationService', () => {
 
       expect(result).toBe(affected);
       expect(notificationRepository.markAllAsRead).toHaveBeenCalledWith(userId);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('notification.readAll', { userId, affected });
     });
 
     it('当没有未读通知时应该返回0', async () => {
@@ -425,10 +408,6 @@ describe('NotificationService', () => {
       // 3. 标记已读
       notificationRepository.markAsRead.mockResolvedValue({ affected: 1 } as any);
       await service.markAsRead(createdNotification.id, userId);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('notification.read', {
-        id: createdNotification.id,
-        userId,
-      });
 
       // 4. 查询列表（应该是已读状态）
       notificationRepository.paginateUserNotifications.mockResolvedValue({

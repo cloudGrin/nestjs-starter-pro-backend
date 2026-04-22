@@ -9,7 +9,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 
@@ -92,20 +91,6 @@ export function createMockConfigService(
 }
 
 /**
- * 创建Mock EventEmitter2
- */
-export function createMockEventEmitter(): jest.Mocked<EventEmitter2> {
-  return {
-    emit: jest.fn(),
-    emitAsync: jest.fn(),
-    on: jest.fn(),
-    once: jest.fn(),
-    removeListener: jest.fn(),
-    removeAllListeners: jest.fn(),
-  } as any;
-}
-
-/**
  * 创建Mock LoggerService
  */
 export function createMockLogger(): jest.Mocked<LoggerService> {
@@ -144,7 +129,7 @@ export function createMockCacheService(): jest.Mocked<CacheService> {
       cache.set(key, newValue);
       return newValue;
     }),
-    decr: jest.fn(async (key: string): Promise<number> => {
+    decrement: jest.fn(async (key: string): Promise<number> => {
       const current = cache.get(key) || 0;
       const newValue = Math.max(0, current - 1);
       cache.set(key, newValue);
@@ -153,23 +138,12 @@ export function createMockCacheService(): jest.Mocked<CacheService> {
     keys: jest.fn(async (pattern: string): Promise<string[]> => {
       return Array.from(cache.keys()).filter((key) => key.includes(pattern));
     }),
-    ttl: jest.fn(async (key: string): Promise<number> => {
-      return cache.has(key) ? 3600 : -2;
-    }),
-    acquireLock: jest.fn(async (key: string, ttl: number): Promise<string | null> => {
-      if (cache.has(`lock:${key}`)) {
-        return null;
+    delByPattern: jest.fn(async (pattern: string): Promise<void> => {
+      for (const key of Array.from(cache.keys())) {
+        if (key.includes(pattern.replace('*', ''))) {
+          cache.delete(key);
+        }
       }
-      const lockId = `lock-${Date.now()}`;
-      cache.set(`lock:${key}`, lockId);
-      return lockId;
-    }),
-    releaseLock: jest.fn(async (key: string, lockId: string): Promise<boolean> => {
-      if (cache.get(`lock:${key}`) === lockId) {
-        cache.delete(`lock:${key}`);
-        return true;
-      }
-      return false;
     }),
     __cache: cache, // 用于测试中访问内部状态
   } as any;
@@ -247,10 +221,6 @@ export const DEFAULT_TEST_CONFIG = {
     expiresIn: '1h',
     refreshSecret: 'test-refresh-secret',
     refreshExpiresIn: '7d',
-  },
-  redis: {
-    host: 'localhost',
-    port: 6379,
   },
   database: {
     host: 'localhost',

@@ -308,9 +308,7 @@ describe('认证模块 (e2e)', () => {
     });
 
     it('应该拒绝未认证的请求', async () => {
-      await request(app.getHttpServer())
-        .get('/auth/profile')
-        .expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer()).get('/auth/profile').expect(HttpStatus.UNAUTHORIZED);
     });
 
     it('应该拒绝无效的token', async () => {
@@ -358,9 +356,7 @@ describe('认证模块 (e2e)', () => {
     });
 
     it('应该拒绝未认证的请求', async () => {
-      await request(app.getHttpServer())
-        .get('/auth/check')
-        .expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer()).get('/auth/check').expect(HttpStatus.UNAUTHORIZED);
     });
   });
 
@@ -443,9 +439,7 @@ describe('认证模块 (e2e)', () => {
     });
 
     it('应该拒绝未认证的登出请求', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/logout')
-        .expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer()).post('/auth/logout').expect(HttpStatus.UNAUTHORIZED);
     });
 
     it('即使不提供refresh token也应该成功登出', async () => {

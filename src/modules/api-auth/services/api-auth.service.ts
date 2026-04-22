@@ -90,12 +90,13 @@ export class ApiAuthService {
    */
   async deleteApp(appId: number): Promise<void> {
     await this.getApp(appId); // 检查应用是否存在
-    await this.appRepository.softDelete(appId);
+    await this.appRepository.update(appId, { isActive: false });
 
     // 删除应用时，禁用所有相关密钥
     const keys = await this.keyRepository.findByAppId(appId);
     for (const key of keys) {
       await this.keyRepository.revokeKey(key.id);
+      await this.cacheService.del(`api_key:${key.keyHash}`);
     }
   }
 
@@ -117,7 +118,9 @@ export class ApiAuthService {
     const activeKeys = await this.keyRepository.findActiveKeysByAppId(dto.appId);
 
     if (activeKeys.length >= API_AUTH_CONSTANTS.MAX_KEYS_PER_APP) {
-      throw new BadRequestException(`每个应用最多只能有${API_AUTH_CONSTANTS.MAX_KEYS_PER_APP}个有效密钥`);
+      throw new BadRequestException(
+        `每个应用最多只能有${API_AUTH_CONSTANTS.MAX_KEYS_PER_APP}个有效密钥`,
+      );
     }
 
     const key = this.keyRepository.create({
@@ -140,15 +143,12 @@ export class ApiAuthService {
    * 验证API密钥
    */
   async validateApiKey(apiKey: string): Promise<ApiAppEntity | null> {
-    // 先从缓存查找
-    const cacheKey = `api_key:${apiKey}`;
+    const keyHash = ApiKeyEntity.hashKey(apiKey);
+    const cacheKey = `api_key:${keyHash}`;
     const cached = await this.cacheService.get<ApiAppEntity>(cacheKey);
     if (cached) {
       return cached;
     }
-
-    // 计算密钥哈希
-    const keyHash = ApiKeyEntity.hashKey(apiKey);
 
     // 查询密钥
     const key = await this.keyRepository.findByKeyHash(keyHash);
@@ -179,10 +179,7 @@ export class ApiAuthService {
   /**
    * 记录API调用
    */
-  async recordApiCall(
-    appId: number,
-    details: Partial<ApiCallLogEntity>,
-  ): Promise<void> {
+  async recordApiCall(appId: number, details: Partial<ApiCallLogEntity>): Promise<void> {
     const log = this.logRepository.create({
       appId,
       ...details,
@@ -220,7 +217,7 @@ export class ApiAuthService {
       return false;
     }
 
-    // 使用Redis实现滑动窗口限流
+    // 使用当前缓存实现滑动窗口限流
     const hourKey = `rate_limit:hour:${appId}`;
     const dayKey = `rate_limit:day:${appId}`;
 
@@ -306,13 +303,11 @@ export class ApiAuthService {
    * 撤销API密钥
    */
   async revokeApiKey(keyId: number): Promise<void> {
+    const key = await this.keyRepository.findById(keyId);
     await this.keyRepository.revokeKey(keyId);
 
-    // 清除缓存
-    const key = await this.keyRepository.findById(keyId);
-
-    if (key && key.rawKey) {
-      await this.cacheService.del(`api_key:${key.rawKey}`);
+    if (key) {
+      await this.cacheService.del(`api_key:${key.keyHash}`);
     }
   }
 

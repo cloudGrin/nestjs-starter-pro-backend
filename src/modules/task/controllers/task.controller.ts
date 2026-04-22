@@ -10,11 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import {
-  RequirePermissions,
-  ApiPaginatedResponse,
-  ApiSuccessResponse,
-} from '~/core/decorators';
+import { RequirePermissions, ApiPaginatedResponse, ApiSuccessResponse } from '~/core/decorators';
 import { TaskService } from '../services/task.service';
 import { CreateTaskDto } from '../dto/create-task.dto';
 import { UpdateTaskDto } from '../dto/update-task.dto';

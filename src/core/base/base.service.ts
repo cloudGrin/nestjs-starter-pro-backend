@@ -1,4 +1,3 @@
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BaseRepository, PaginationOptions, PaginationResult } from './base.repository';
 import { DeepPartial, FindManyOptions, FindOneOptions, FindOptionsWhere } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
@@ -21,7 +20,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
   protected abstract readonly repository: BaseRepository<T>;
   protected logger!: LoggerService;
   protected cache!: CacheService;
-  protected eventEmitter!: EventEmitter2;
 
   /**
    * 获取所有实体
@@ -77,9 +75,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
       // 清除相关缓存
       await this.clearCache();
 
-      // 发送创建事件
-      this.eventEmitter.emit(`${this.getEntityName()}.created`, { entity });
-
       this.logger.log(`Created ${this.getEntityName()} with id: ${entity.id}`);
       return entity;
     } catch (error) {
@@ -104,9 +99,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
       // 清除相关缓存
       await this.clearCache();
 
-      // 发送批量创建事件
-      this.eventEmitter.emit(`${this.getEntityName()}.batch-created`, { entities });
-
       this.logger.log(`Batch created ${entities.length} ${this.getEntityName()}`);
       return entities;
     } catch (error) {
@@ -120,9 +112,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
    */
   async update(id: number, data: QueryDeepPartialEntity<T>): Promise<T> {
     try {
-      // 获取原始实体
-      const original = await this.repository.findByIdOrFail(id);
-
       // 验证更新数据
       await this.validateUpdate(id, data);
 
@@ -131,12 +120,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
 
       // 清除相关缓存
       await this.clearCache(id);
-
-      // 发送更新事件
-      this.eventEmitter.emit(`${this.getEntityName()}.updated`, {
-        original,
-        updated,
-      });
 
       this.logger.log(`Updated ${this.getEntityName()} with id: ${id}`);
       return updated;
@@ -151,9 +134,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
    */
   async remove(id: number): Promise<void> {
     try {
-      // 获取实体（用于事件）
-      const entity = await this.repository.findByIdOrFail(id);
-
       // 验证删除
       await this.validateDelete(id);
 
@@ -162,9 +142,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
 
       // 清除相关缓存
       await this.clearCache(id);
-
-      // 发送删除事件
-      this.eventEmitter.emit(`${this.getEntityName()}.deleted`, { entity });
 
       this.logger.log(`Deleted ${this.getEntityName()} with id: ${id}`);
     } catch (error) {
@@ -178,9 +155,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
    */
   async softRemove(id: number): Promise<void> {
     try {
-      // 获取实体
-      const entity = await this.repository.findByIdOrFail(id);
-
       // 验证删除
       await this.validateDelete(id);
 
@@ -189,9 +163,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
 
       // 清除相关缓存
       await this.clearCache(id);
-
-      // 发送软删除事件
-      this.eventEmitter.emit(`${this.getEntityName()}.soft-deleted`, { entity });
 
       this.logger.log(`Soft deleted ${this.getEntityName()} with id: ${id}`);
     } catch (error) {
@@ -212,9 +183,6 @@ export abstract class BaseService<T extends { id: number }> implements CrudServi
 
       // 清除相关缓存
       await this.clearCache(id);
-
-      // 发送恢复事件
-      this.eventEmitter.emit(`${this.getEntityName()}.restored`, { id });
 
       this.logger.log(`Restored ${this.getEntityName()} with id: ${id}`);
     } catch (error) {

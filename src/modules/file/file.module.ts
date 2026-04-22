@@ -6,7 +6,6 @@ import { FileService } from './services/file.service';
 import { FileController } from './controllers/file.controller';
 import { LocalStorageStrategy } from './storage/local-storage.strategy';
 import { OssStorageStrategy } from './storage/oss-storage.strategy';
-import { MinioStorageStrategy } from './storage/minio-storage.strategy';
 import { FileStorageFactory } from './storage/storage.factory';
 
 @Module({
@@ -17,7 +16,6 @@ import { FileStorageFactory } from './storage/storage.factory';
     FileService,
     LocalStorageStrategy,
     OssStorageStrategy,
-    MinioStorageStrategy,
     FileStorageFactory,
   ],
   exports: [FileService],

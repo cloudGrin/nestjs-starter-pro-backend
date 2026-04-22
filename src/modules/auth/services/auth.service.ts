@@ -10,7 +10,6 @@ import { JwtService } from '@nestjs/jwt';
 import { TooManyRequestsException } from '../exceptions/too-many-requests.exception';
 import { ConfigService } from '@nestjs/config';
 import { In } from 'typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { UserService } from '~/modules/user/services/user.service';
@@ -43,7 +42,7 @@ export interface AuthTokens {
 export interface AuthResponse {
   user: Partial<UserEntity> & {
     isSuperAdmin?: boolean; // 超级管理员标识（拥有 super_admin 角色）
-    roleCode?: string;      // 主要角色码（第一个角色或 super_admin）
+    roleCode?: string; // 主要角色码（第一个角色或 super_admin）
   };
   tokens: AuthTokens;
 }
@@ -61,7 +60,6 @@ export class AuthService {
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
     private readonly cache: CacheService,
   ) {
@@ -102,9 +100,9 @@ export class AuthService {
     const isSuperAdmin = user.roles?.some((role) => role.code === 'super_admin');
     const maxAttempts = isSuperAdmin ? 10 : 5;
     const lockMinutes = isSuperAdmin ? 10 : 30;
-    const redisCacheTTL = lockMinutes * 60 * 1000; // 转换为毫秒
+    const lockTtl = lockMinutes * 60 * 1000; // 转换为毫秒
 
-    // 4. 暴力破解防护：检查用户名级别的Redis缓存（根据角色动态阈值）
+    // 4. 暴力破解防护：检查用户名级别缓存（根据角色动态阈值）
     const userKey = `login:attempts:user:${dto.account}`;
     const userAttempts = (await this.cache.get<number>(userKey)) || 0;
 
@@ -139,12 +137,12 @@ export class AuthService {
     const isPasswordValid = await user.validatePassword(inputPassword);
 
     if (!isPasswordValid) {
-      // 记录失败次数到Redis（暴力破解防护，根据角色设置不同的过期时间）
+      // 记录失败次数到缓存（暴力破解防护，根据角色设置不同的过期时间）
       if (ipAddress) {
         const ipKey = `login:attempts:ip:${ipAddress}`;
         await this.cache.incr(ipKey, 1800000); // IP级别：30分钟过期（固定）
       }
-      await this.cache.incr(userKey, redisCacheTTL); // 用户级别：根据角色动态设置
+      await this.cache.incr(userKey, lockTtl); // 用户级别：根据角色动态设置
 
       // 增加数据库中的登录失败次数
       user.incrementLoginAttempts();
@@ -177,16 +175,6 @@ export class AuthService {
     const sessionId = StringUtil.shortUuid();
     const tokens = await this.generateTokens(user, ipAddress, userAgent, sessionId);
 
-    // 发送登录事件
-    this.eventEmitter.emit('auth.login', {
-      userId: user.id,
-      username: user.username,
-      ipAddress,
-      userAgent,
-      sessionId: tokens.sessionId,
-      timestamp: new Date(),
-    });
-
     this.logger.log(`User ${user.username} logged in from ${ipAddress}`);
 
     // 移除敏感信息
@@ -201,7 +189,7 @@ export class AuthService {
       user: {
         ...userWithoutSensitiveData,
         isSuperAdmin, // ← 前端权限判断需要
-        roleCode,     // ← 前端权限判断需要
+        roleCode, // ← 前端权限判断需要
       },
       tokens,
     };
@@ -229,13 +217,6 @@ export class AuthService {
 
     const sessionId = StringUtil.shortUuid();
     const tokens = await this.generateTokens(user, undefined, undefined, sessionId);
-
-    // 发送注册事件
-    this.eventEmitter.emit('auth.register', {
-      userId: user.id,
-      email: user.email,
-      timestamp: new Date(),
-    });
 
     this.logger.log(`New user registered: ${user.username}`);
 
@@ -343,13 +324,6 @@ export class AuthService {
 
       // 清除缓存
       await this.clearUserCache(userId);
-
-      // 发送登出事件
-      this.eventEmitter.emit('auth.logout', {
-        userId,
-        sessionId,
-        timestamp: new Date(),
-      });
 
       this.logger.log(`User ${userId} logged out`);
     } catch (error) {
@@ -565,13 +539,6 @@ export class AuthService {
   }
 
   private emitLoginFailure(account: string, ip?: string, userAgent?: string, reason?: string) {
-    this.eventEmitter.emit('auth.login.failed', {
-      account,
-      ipAddress: ip,
-      userAgent,
-      reason,
-      timestamp: new Date(),
-    });
     this.logger.warn(`Login failed for ${account}: ${reason || 'unknown reason'}`);
   }
 }

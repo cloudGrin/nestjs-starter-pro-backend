@@ -32,6 +32,7 @@ import {
   ApiPaginationExample,
   ApiDeleteExample,
   RequirePermissions,
+  AllowAuthenticated,
 } from '~/core/decorators';
 import { UserEntity } from '../entities/user.entity';
 
@@ -59,6 +60,7 @@ export class UserController {
 
   // 注意：具体路径必须在参数化路径之前定义，否则会被 :id 匹配
   @Get('profile')
+  @AllowAuthenticated()
   @ApiOperation({ summary: '获取当前用户信息' })
   @ApiSuccessResponse(UserEntity)
   @ApiCommonResponses()
@@ -68,6 +70,7 @@ export class UserController {
   }
 
   @Put('profile')
+  @AllowAuthenticated()
   @ApiOperation({ summary: '更新当前用户信息' })
   @ApiSuccessResponse(UserEntity)
   @ApiCommonResponses()
@@ -77,6 +80,7 @@ export class UserController {
   }
 
   @Put('password')
+  @AllowAuthenticated()
   @ApiOperation({ summary: '修改密码' })
   @ApiCommonResponses()
   async changePassword(@Req() req: Request, @Body() dto: ChangePasswordDto) {

@@ -1,12 +1,4 @@
-import {
-  Entity,
-  Column,
-  ManyToMany,
-  JoinTable,
-  BeforeInsert,
-  BeforeUpdate,
-  Index,
-} from 'typeorm';
+import { Entity, Column, ManyToMany, JoinTable, BeforeInsert, BeforeUpdate, Index } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { SoftDeleteBaseEntity } from '~/core/base/base.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';

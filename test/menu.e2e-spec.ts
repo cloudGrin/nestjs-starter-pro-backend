@@ -16,7 +16,7 @@ import {
 describe('菜单模块 (e2e)', () => {
   let app: INestApplication;
   let credentials: TestCredentials;
-  let createdMenuIds: number[] = [];
+  const createdMenuIds: number[] = [];
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -35,9 +35,7 @@ describe('菜单模块 (e2e)', () => {
     // 清理创建的测试菜单
     for (const id of createdMenuIds) {
       try {
-        await authenticatedRequest(app, credentials.accessToken)
-          .delete(`/menus/${id}`)
-          .send();
+        await authenticatedRequest(app, credentials.accessToken).delete(`/menus/${id}`).send();
       } catch (error) {
         // 忽略删除错误
       }
@@ -127,13 +125,7 @@ describe('菜单模块 (e2e)', () => {
 
   describe('GET /menus', () => {
     it('应该返回菜单列表', async () => {
-      const response = await authenticatedRequest(app, credentials.accessToken)
-        .get('/menus');
-
-      if (response.status !== HttpStatus.OK) {
-        console.log('GET /menus failed with status:', response.status);
-        console.log('Response body:', JSON.stringify(response.body, null, 2));
-      }
+      const response = await authenticatedRequest(app, credentials.accessToken).get('/menus');
 
       expect(response.status).toBe(HttpStatus.OK);
       expect(response.body.success).toBe(true);
@@ -163,9 +155,7 @@ describe('菜单模块 (e2e)', () => {
     });
 
     it('应该拒绝未认证的请求', async () => {
-      await request(app.getHttpServer())
-        .get('/menus/user-menus')
-        .expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer()).get('/menus/user-menus').expect(HttpStatus.UNAUTHORIZED);
     });
   });
 
@@ -293,15 +283,10 @@ describe('菜单模块 (e2e)', () => {
     });
 
     it('应该成功移动菜单', async () => {
-      console.log(`[移动测试] menuId=${menuId}, targetParentId=${targetParentId}`);
-
       const response = await authenticatedRequest(app, credentials.accessToken)
         .patch(`/menus/${menuId}/move`)
         .send({ targetParentId })
         .expect(HttpStatus.OK);
-
-      console.log(`[移动测试] 响应:`, JSON.stringify(response.body, null, 2));
-
       expect(response.body.data.parentId).toBe(targetParentId);
     });
 

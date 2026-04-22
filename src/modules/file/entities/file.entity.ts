@@ -4,7 +4,6 @@ import { SoftDeleteBaseEntity } from '~/core/base/base.entity';
 export enum FileStorageType {
   LOCAL = 'local',
   OSS = 'oss',
-  MINIO = 'minio',
 }
 
 export enum FileStatus {

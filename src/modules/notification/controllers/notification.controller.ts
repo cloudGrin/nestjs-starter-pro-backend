@@ -14,11 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { NotificationService } from '../services/notification.service';
 import { CreateNotificationDto } from '../dto/create-notification.dto';
 import { QueryNotificationDto } from '../dto/query-notification.dto';
-import {
-  ApiPaginatedResponse,
-  ApiSuccessResponse,
-  RequirePermissions,
-} from '~/core/decorators';
+import { ApiPaginatedResponse, ApiSuccessResponse, RequirePermissions } from '~/core/decorators';
 import { NotificationEntity } from '../entities/notification.entity';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';

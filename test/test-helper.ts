@@ -13,7 +13,7 @@ import { UserStatus } from '../src/common/enums/user.enum';
 import { PermissionScannerService } from '../src/modules/permission/services/permission-scanner.service';
 import { CacheService } from '../src/shared/cache/cache.service';
 import { CACHE_KEYS } from '../src/common/constants/cache.constants';
-import { UserService } from '../src/modules/user/services/user.service';
+import request from 'supertest';
 
 /**
  * 创建测试应用实例
@@ -62,8 +62,6 @@ export async function registerTestUser(
     realName?: string;
   },
 ): Promise<TestCredentials> {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const request = require('supertest');
   const response = await request(app.getHttpServer())
     .post('/auth/register')
     .send(userData)
@@ -88,8 +86,6 @@ export async function loginTestUser(
     password: string;
   },
 ): Promise<TestCredentials> {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const request = require('supertest');
   const response = await request(app.getHttpServer())
     .post('/auth/login')
     .send(credentials)
@@ -125,22 +121,9 @@ export function generateTestEmail(): string {
  * 注意：supertest 要求必须先调用 HTTP 动词方法（.get(), .post() 等），
  * 然后才能链式调用 .set()，所以这里返回一个包装对象
  */
-export function authenticatedRequest(
-  app: INestApplication,
-  token: string,
-) {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const request = require('supertest');
+export function authenticatedRequest(app: INestApplication, token: string) {
   const server = app.getHttpServer();
   const authHeader = `Bearer ${token}`;
-
-  // Debug: 解码token查看userId
-  try {
-    const tokenPayload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    console.log(`[authenticatedRequest] token userId=${tokenPayload.sub}, username=${tokenPayload.username}`);
-  } catch (e) {
-    console.log('[authenticatedRequest] 无法解码token');
-  }
 
   return {
     get: (url: string) => request(server).get(url).set('Authorization', authHeader),
@@ -169,10 +152,7 @@ export async function createSuperAdminRole(app: INestApplication): Promise<RoleE
 
   // 检查是否已经存在超级管理员角色(兼容大小写)
   let superAdminRole = await roleRepository.findOne({
-    where: [
-      { code: 'super_admin' },
-      { code: 'SUPER_ADMIN' }
-    ],
+    where: [{ code: 'super_admin' }, { code: 'SUPER_ADMIN' }],
     relations: ['permissions'],
   });
 
@@ -190,16 +170,12 @@ export async function createSuperAdminRole(app: INestApplication): Promise<RoleE
   } else if (superAdminRole.code !== 'super_admin') {
     // 如果找到的是大写版本,更新为小写(确保与JWT strategy一致)
     superAdminRole.code = 'super_admin';
-    console.log('[测试辅助] 已将SUPER_ADMIN角色code更新为super_admin');
   }
 
   // 获取所有权限
   const allPermissions = await permissionRepository.find({
     where: { isActive: true },
   });
-
-  const userPermissionsCount = allPermissions.filter((permission) => permission.code.startsWith('user:')).length;
-  console.log(`[测试辅助] user:* 权限数量: ${userPermissionsCount}`);
 
   if (allPermissions.length === 0) {
     console.warn('警告：数据库中没有权限数据，超级管理员将没有任何权限');
@@ -221,8 +197,6 @@ export async function createSuperAdminRole(app: INestApplication): Promise<RoleE
   }
   if (allPermissions.length > 0) {
     await rolePermissionRelation.add(allPermissions.map((permission) => permission.id));
-    const refreshedPermissions = await rolePermissionRelation.loadMany() as PermissionEntity[];
-    console.log(`[测试辅助] 超级管理员角色权限数量: ${refreshedPermissions.length}`);
   }
 
   return superAdminRole;
@@ -247,13 +221,8 @@ export async function registerSuperAdmin(
   // 创建超级管理员角色
   const superAdminRole = await createSuperAdminRole(app);
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const request = require('supertest');
-
   // 先注册普通用户
-  const registerResponse = await request(app.getHttpServer())
-    .post('/auth/register')
-    .send(userData);
+  const registerResponse = await request(app.getHttpServer()).post('/auth/register').send(userData);
 
   if (registerResponse.status !== 201) {
     console.error('注册失败:', registerResponse.status, registerResponse.body);
@@ -282,29 +251,23 @@ export async function registerSuperAdmin(
   await userRepository.save(user);
 
   // 由于CASCADE机制在某些情况下可能不稳定，手动确保user_roles记录存在
-  await dataSource.query(
-    'INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)',
-    [userId, superAdminRole.id]
-  );
-  console.log(`[测试辅助] 已确保user_roles记录: userId=${userId}, roleId=${superAdminRole.id}`);
+  await dataSource.query('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [
+    userId,
+    superAdminRole.id,
+  ]);
 
   // 等待一小段时间确保数据库写入完成
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await new Promise((resolve) => setTimeout(resolve, 100));
 
   // 验证角色分配
   const userWithRoles = await userRepository.findOne({
     where: { id: userId } as any,
     relations: ['roles'],
   });
-  console.log(`[测试辅助] 用户 ${user.username} 的角色:`, userWithRoles?.roles?.map(r => r.code).join(', ') || '无');
 
   if (!userWithRoles?.roles || userWithRoles.roles.length === 0) {
     throw new Error(`[测试辅助] 角色分配失败！userId=${userId}`);
   }
-
-  const userService = app.get(UserService);
-  const permissionsAfterAssign = await userService.getUserPermissions(userId);
-  console.log(`[测试辅助] 用户 ${user.username} 权限数量: ${permissionsAfterAssign.length}, 示例权限: ${permissionsAfterAssign.slice(0, 10).join(', ')}`);
 
   // 清除与用户权限相关的缓存，避免 RBAC 2.0 缓存命中导致权限缺失
   const cacheKeysToClear = [
@@ -326,8 +289,6 @@ export async function registerSuperAdmin(
   );
 
   // 重新登录以获取包含新权限的JWT token
-  // 注意：测试环境已在.env.test中设置 CAPTCHA_REQUIRE_LOGIN=false，无需验证码
-  console.log(`[测试辅助] 准备重新登录: username=${userData.username}`);
   const loginResponse = await request(app.getHttpServer())
     .post('/auth/login')
     .send({
@@ -336,9 +297,6 @@ export async function registerSuperAdmin(
     })
     .expect(200);
 
-  console.log(`[测试辅助] 登录响应状态:`, loginResponse.status);
-  console.log(`[测试辅助] 登录响应body:`, JSON.stringify(loginResponse.body, null, 2));
-
   // 适配新的API响应结构: { tokens: {...}, user: {...} }
   const data = loginResponse.body.data;
   const result = {
@@ -346,8 +304,6 @@ export async function registerSuperAdmin(
     refreshToken: data.tokens?.refreshToken || data.refreshToken,
     user: data.user || data,
   };
-
-  console.log(`[测试辅助] registerSuperAdmin返回: userId=${result.user.id}, username=${result.user.username}`);
 
   return result;
 }

@@ -14,5 +14,4 @@ import { API_KEY_SCOPES_KEY } from '../guards/api-key.guard';
  * async updateOrder() { }
  * ```
  */
-export const RequireApiScopes = (...scopes: string[]) =>
-  SetMetadata(API_KEY_SCOPES_KEY, scopes);
+export const RequireApiScopes = (...scopes: string[]) => SetMetadata(API_KEY_SCOPES_KEY, scopes);

@@ -15,7 +15,6 @@ services:
       - "3307:3306"  # 使用3307端口避免与本地MySQL冲突
     volumes:
       - mysql-test-data:/var/lib/mysql
-      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest_root_password"]
       interval: 5s
@@ -24,28 +23,8 @@ services:
     networks:
       - home-test-network
 
-  # Redis缓存 - 用于E2E测试
-  redis-test:
-    image: redis:7-alpine
-    container_name: home-redis-test
-    restart: unless-stopped
-    command: redis-server --requirepass test_redis_password
-    ports:
-      - "6380:6379"  # 使用6380端口避免与本地Redis冲突
-    volumes:
-      - redis-test-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "test_redis_password", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    networks:
-      - home-test-network
-
 volumes:
   mysql-test-data:
-    driver: local
-  redis-test-data:
     driver: local
 
 networks:

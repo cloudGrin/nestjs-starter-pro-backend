@@ -1,6 +1,6 @@
+import { Injectable } from '@nestjs/common';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { ITaskHandler } from '../interfaces/task-handler.interface';
-import { TaskHandler } from '../decorators/task-handler.decorator';
 import { TaskLogRepository } from '../repositories/task-log.repository';
 
 /**
@@ -9,9 +9,9 @@ import { TaskLogRepository } from '../repositories/task-log.repository';
  * 用途：定期清理过期的任务执行日志，释放存储空间
  * 功能：删除超过保留期限的任务日志
  *
- * 使用 @TaskHandler 装饰器，自动注册到任务调度系统
+ * 在 TaskModule 中显式注册，避免引入额外的自动发现机制。
  */
-@TaskHandler('system:cleanup-task-logs')
+@Injectable()
 export class CleanupLogsHandler implements ITaskHandler {
   readonly name = 'system:cleanup-task-logs';
   readonly description = '清理旧任务日志';

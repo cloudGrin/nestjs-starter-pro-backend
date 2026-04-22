@@ -37,7 +37,7 @@ describe('API认证模块 (e2e)', () => {
       const appData = {
         name: `Test App ${Date.now()}`,
         description: 'E2E Test Application',
-        scopes: ['read:users', 'read:orders'],
+        scopes: ['read:users', 'read:statistics', 'read:orders'],
         rateLimitPerHour: 500,
         rateLimitPerDay: 5000,
       };
@@ -93,19 +93,13 @@ describe('API认证模块 (e2e)', () => {
       const keyData = {
         name: 'Production Key',
         environment: 'production',
-        scopes: ['read:users'],
+        scopes: ['read:users', 'read:statistics'],
       };
 
       const response = await request(app.getHttpServer())
         .post(`/v1/api-apps/${testAppId}/keys`)
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .send(keyData);
-
-      // 打印响应用于调试
-      if (response.status !== HttpStatus.CREATED) {
-        console.log('❌ 错误响应:', JSON.stringify(response.body, null, 2));
-        console.log('状态码:', response.status);
-      }
 
       expect(response.status).toBe(HttpStatus.CREATED);
 
@@ -188,9 +182,7 @@ describe('API认证模块 (e2e)', () => {
     });
 
     it('应该拒绝缺少API密钥的请求', async () => {
-      await request(app.getHttpServer())
-        .get('/v1/open/users')
-        .expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer()).get('/v1/open/users').expect(HttpStatus.UNAUTHORIZED);
     });
 
     it('应该拒绝无效的API密钥', async () => {
@@ -265,13 +257,9 @@ describe('API认证模块 (e2e)', () => {
   describe('GET /v1/api-apps/:id/statistics - API使用统计', () => {
     it('应该返回详细的API调用统计', async () => {
       // 先进行几次API调用
-      await request(app.getHttpServer())
-        .get('/v1/open/users')
-        .set('X-API-Key', testApiKey);
+      await request(app.getHttpServer()).get('/v1/open/users').set('X-API-Key', testApiKey);
 
-      await request(app.getHttpServer())
-        .get('/v1/open/users')
-        .set('X-API-Key', testApiKey);
+      await request(app.getHttpServer()).get('/v1/open/users').set('X-API-Key', testApiKey);
 
       // 获取统计
       const response = await request(app.getHttpServer())

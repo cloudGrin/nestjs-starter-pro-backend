@@ -33,8 +33,6 @@ describe('Notification Module (E2E)', () => {
       email: generateTestEmail(),
       password: 'User@123456',
     });
-
-    console.log('[E2E Setup] 超级管理员和普通用户创建完成');
   });
 
   afterAll(async () => {
@@ -53,7 +51,6 @@ describe('Notification Module (E2E)', () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .post('/notifications')
         .send(notificationData);
-
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
       // 创建通知返回数组（支持批量创建）
@@ -77,7 +74,6 @@ describe('Notification Module (E2E)', () => {
         .post('/notifications')
         .send(notificationData);
 
-
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body.data.length).toBeGreaterThanOrEqual(2);
@@ -96,7 +92,6 @@ describe('Notification Module (E2E)', () => {
         .post('/notifications')
         .send(notificationData);
 
-
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body.data[0].type).toBe(NotificationType.SYSTEM);
@@ -114,7 +109,6 @@ describe('Notification Module (E2E)', () => {
         .post('/notifications')
         .send(notificationData);
 
-
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
       expect(response.body.data[0].priority).toBe('high');
     });
@@ -131,7 +125,6 @@ describe('Notification Module (E2E)', () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .post('/notifications')
         .send(notificationData);
-
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
       if (response.body.data[0].expireAt) {
@@ -151,7 +144,6 @@ describe('Notification Module (E2E)', () => {
         .post('/notifications')
         .send(notificationData);
 
-
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
     });
 
@@ -166,7 +158,6 @@ describe('Notification Module (E2E)', () => {
         .post('/notifications')
         .send(notificationData);
 
-
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
     });
 
@@ -180,7 +171,6 @@ describe('Notification Module (E2E)', () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .post('/notifications')
         .send(notificationData);
-
 
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
     });
@@ -236,7 +226,6 @@ describe('Notification Module (E2E)', () => {
         '/notifications',
       );
 
-
       expect([HttpStatus.OK]).toContain(response.status);
       expect(response.body.data).toHaveProperty('items');
       expect(response.body.data).toHaveProperty('meta');
@@ -250,7 +239,6 @@ describe('Notification Module (E2E)', () => {
         .get('/notifications')
         .query({ page: 1, limit: 2 });
 
-
       expect([HttpStatus.OK]).toContain(response.status);
       expect(response.body.data.meta.currentPage).toBe(1);
       expect(response.body.data.meta.itemsPerPage).toBe(2);
@@ -260,7 +248,6 @@ describe('Notification Module (E2E)', () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .get('/notifications')
         .query({ status: NotificationStatus.UNREAD });
-
 
       expect([HttpStatus.OK]).toContain(response.status);
       if (response.body.data.items.length > 0) {
@@ -274,7 +261,6 @@ describe('Notification Module (E2E)', () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .get('/notifications')
         .query({ type: NotificationType.MESSAGE });
-
 
       expect([HttpStatus.OK]).toContain(response.status);
       if (response.body.data.items.length > 0) {
@@ -292,7 +278,6 @@ describe('Notification Module (E2E)', () => {
         .get('/notifications')
         .query({ startDate, endDate });
 
-
       expect([HttpStatus.OK]).toContain(response.status);
     });
 
@@ -309,7 +294,6 @@ describe('Notification Module (E2E)', () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
         '/notifications',
       );
-
 
       expect([HttpStatus.OK]).toContain(response.status);
       // 验证返回的通知都属于当前用户
@@ -344,7 +328,6 @@ describe('Notification Module (E2E)', () => {
         '/notifications/unread',
       );
 
-
       expect([HttpStatus.OK]).toContain(response.status);
       expect(Array.isArray(response.body.data)).toBe(true);
       // 验证所有返回的通知都是未读状态
@@ -360,7 +343,6 @@ describe('Notification Module (E2E)', () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
         '/notifications/unread',
       );
-
 
       expect([HttpStatus.OK]).toContain(response.status);
       expect(typeof response.body.data.length).toBe('number');
@@ -396,14 +378,12 @@ describe('Notification Module (E2E)', () => {
 
     it('应该成功标记通知为已读', async () => {
       if (!testNotificationId) {
-        console.log('跳过测试：未能创建测试通知');
         return;
       }
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken).put(
         `/notifications/${testNotificationId}/read`,
       );
-
 
       expect([HttpStatus.OK]).toContain(response.status);
     });
@@ -427,7 +407,6 @@ describe('Notification Module (E2E)', () => {
           `/notifications/${notificationId}/read`,
         );
 
-
         expect([HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND]).toContain(response.status);
       }
     });
@@ -436,7 +415,6 @@ describe('Notification Module (E2E)', () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken).put(
         '/notifications/999999/read',
       );
-
 
       expect([HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST]).toContain(response.status);
     });
@@ -471,7 +449,6 @@ describe('Notification Module (E2E)', () => {
         '/notifications/read-all',
       );
 
-
       expect([HttpStatus.OK]).toContain(response.status);
       expect(typeof response.body.data.affected).toBe('number');
       expect(response.body.data.affected).toBeGreaterThanOrEqual(0);
@@ -483,7 +460,6 @@ describe('Notification Module (E2E)', () => {
         '/notifications/unread',
       );
 
-
       const beforeCount = beforeResponse.body.data?.length || 0;
 
       // 标记全部已读
@@ -493,7 +469,6 @@ describe('Notification Module (E2E)', () => {
       const afterResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
         '/notifications/unread',
       );
-
 
       const afterCount = afterResponse.body.data?.length || 0;
 
@@ -521,7 +496,6 @@ describe('Notification Module (E2E)', () => {
           type: NotificationType.MESSAGE,
         });
 
-
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(createResponse.status);
       // 创建通知返回数组
       const notificationId = createResponse.body.data[0].id;
@@ -531,9 +505,10 @@ describe('Notification Module (E2E)', () => {
         '/notifications/unread',
       );
 
-
       expect([HttpStatus.OK]).toContain(unreadResponse.status);
-      const unreadNotification = unreadResponse.body.data?.find((n: any) => n.id === notificationId);
+      const unreadNotification = unreadResponse.body.data?.find(
+        (n: any) => n.id === notificationId,
+      );
       expect(unreadNotification).toBeDefined();
       expect(unreadNotification.status).toBe(NotificationStatus.UNREAD);
 
@@ -542,7 +517,6 @@ describe('Notification Module (E2E)', () => {
         `/notifications/${notificationId}/read`,
       );
 
-
       expect([HttpStatus.OK]).toContain(markReadResponse.status);
 
       // 4. 再次查询通知列表，验证状态已改变
@@ -550,9 +524,10 @@ describe('Notification Module (E2E)', () => {
         .get('/notifications')
         .query({ page: 1, limit: 100 });
 
-
       expect([HttpStatus.OK]).toContain(listResponse.status);
-      const readNotification = listResponse.body.data?.items?.find((n: any) => n.id === notificationId);
+      const readNotification = listResponse.body.data?.items?.find(
+        (n: any) => n.id === notificationId,
+      );
       if (readNotification) {
         expect(readNotification.status).toBe(NotificationStatus.READ);
       }
@@ -635,7 +610,6 @@ describe('Notification Module (E2E)', () => {
       const endTime = Date.now();
       const duration = endTime - startTime;
 
-      console.log(`创建${count}条通知耗时: ${duration}ms, 平均: ${duration / count}ms/条`);
       expect(duration).toBeLessThan(count * 1000); // 平均每条不超过1秒
     });
 
@@ -648,9 +622,6 @@ describe('Notification Module (E2E)', () => {
 
       const endTime = Date.now();
       const duration = endTime - startTime;
-
-      console.log(`查询通知列表耗时: ${duration}ms`);
-
 
       expect([HttpStatus.OK]).toContain(response.status);
       expect(duration).toBeLessThan(2000); // 查询不超过2秒

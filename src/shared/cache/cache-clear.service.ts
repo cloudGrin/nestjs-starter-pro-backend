@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CacheService } from './cache.service';
@@ -48,9 +48,6 @@ export class CacheClearService {
 
       // 用户详情
       this.cache.del(CACHE_KEYS.USER_DETAIL(userId)),
-
-      // 部门相关 (已移除department功能)
-      // this.cache.del(CACHE_KEYS.USER_DEPARTMENT(userId)),
 
       // 使用模式清理所有相关缓存
       this.cache.delByPattern(`user:*:${userId}`),
@@ -229,33 +226,6 @@ export class CacheClearService {
     this.logger.log(`已批量清理 ${permissionIds.length} 个权限的缓存`);
   }
 
-  // ==================== 部门相关缓存清理 ====================
-
-  /**
-   * 清理部门缓存（包括部门树和成员）
-   * @param deptId 部门ID（可选）
-   * @deprecated 已移除department功能
-   */
-  async clearDepartmentCache(deptId?: number): Promise<void> {
-    // 已移除department功能
-    this.logger.debug('Department功能已移除，跳过缓存清理');
-    // if (deptId) {
-    //   this.logger.debug(`清理部门 ${deptId} 的缓存`);
-    //   await Promise.all([
-    //     this.cache.del(CACHE_KEYS.DEPARTMENT_DETAIL(deptId)),
-    //     this.cache.del(CACHE_KEYS.DEPARTMENT_MEMBERS(deptId)),
-    //     this.cache.delByPattern(`department:*:${deptId}*`),
-    //   ]);
-    // } else {
-    //   this.logger.debug('清理所有部门缓存');
-    //   await Promise.all([
-    //     this.cache.del(CACHE_KEYS.DEPARTMENT_TREE()),
-    //     this.cache.delByPattern(CACHE_KEYS.PATTERN_DEPARTMENT_ALL()),
-    //   ]);
-    // }
-    // this.logger.log(deptId ? `已清理部门 ${deptId} 的缓存` : '已清理所有部门缓存');
-  }
-
   // ==================== 高级缓存清理 ====================
 
   /**
@@ -314,7 +284,6 @@ export class CacheClearService {
       this.cache.delByPattern('role:*'),
       this.cache.delByPattern('permission:*'),
       this.cache.delByPattern('menu:*'),
-      // this.cache.delByPattern('department:*'), // 已移除department功能
     ]);
 
     this.logger.warn('已清理所有业务缓存，请监控数据库负载');

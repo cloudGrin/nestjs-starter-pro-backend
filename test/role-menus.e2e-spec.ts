@@ -16,7 +16,7 @@ describe('角色-菜单关联 (e2e)', () => {
   let app: INestApplication;
   let credentials: TestCredentials;
   let roleId: number;
-  let menuIds: number[] = [];
+  const menuIds: number[] = [];
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -30,7 +30,10 @@ describe('角色-菜单关联 (e2e)', () => {
 
     // 创建测试角色
     // code只能包含小写字母和下划线,不能包含数字
-    const randomStr = Math.random().toString(36).substring(2, 10).replace(/[^a-z]/g, 'x');
+    const randomStr = Math.random()
+      .toString(36)
+      .substring(2, 10)
+      .replace(/[^a-z]/g, 'x');
     const roleData = {
       code: `test_role_${randomStr}`,
       name: '测试角色',
@@ -65,9 +68,7 @@ describe('角色-菜单关联 (e2e)', () => {
     // 清理测试数据
     for (const menuId of menuIds) {
       try {
-        await authenticatedRequest(app, credentials.accessToken)
-          .delete(`/menus/${menuId}`)
-          .send();
+        await authenticatedRequest(app, credentials.accessToken).delete(`/menus/${menuId}`).send();
       } catch (error) {
         // 忽略删除错误
       }
@@ -75,9 +76,7 @@ describe('角色-菜单关联 (e2e)', () => {
 
     if (roleId) {
       try {
-        await authenticatedRequest(app, credentials.accessToken)
-          .delete(`/roles/${roleId}`)
-          .send();
+        await authenticatedRequest(app, credentials.accessToken).delete(`/roles/${roleId}`).send();
       } catch (error) {
         // 忽略删除错误
       }
@@ -130,8 +129,9 @@ describe('角色-菜单关联 (e2e)', () => {
     });
 
     it('应该返回角色的菜单列表', async () => {
-      const response = await authenticatedRequest(app, credentials.accessToken)
-        .get(`/roles/${roleId}/menus`);
+      const response = await authenticatedRequest(app, credentials.accessToken).get(
+        `/roles/${roleId}/menus`,
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       expect(Array.isArray(response.body.data)).toBe(true);
@@ -140,8 +140,9 @@ describe('角色-菜单关联 (e2e)', () => {
     });
 
     it('应该拒绝不存在的角色ID', async () => {
-      const response = await authenticatedRequest(app, credentials.accessToken)
-        .get('/roles/999999/menus');
+      const response = await authenticatedRequest(app, credentials.accessToken).get(
+        '/roles/999999/menus',
+      );
 
       expect(response.status).toBe(HttpStatus.NOT_FOUND);
     });
@@ -198,8 +199,9 @@ describe('角色-菜单关联 (e2e)', () => {
       expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(assignResponse.status);
 
       // 3. 查询角色的菜单,验证菜单已分配
-      const getMenusResponse = await authenticatedRequest(app, credentials.accessToken)
-        .get(`/roles/${roleId}/menus`);
+      const getMenusResponse = await authenticatedRequest(app, credentials.accessToken).get(
+        `/roles/${roleId}/menus`,
+      );
 
       expect(getMenusResponse.status).toBe(HttpStatus.OK);
       const roleMenus = getMenusResponse.body.data;
@@ -215,8 +217,9 @@ describe('角色-菜单关联 (e2e)', () => {
       expect(revokeResponse.status).toBe(HttpStatus.OK);
 
       // 5. 验证菜单已移除
-      const getMenusAfterRemove = await authenticatedRequest(app, credentials.accessToken)
-        .get(`/roles/${roleId}/menus`);
+      const getMenusAfterRemove = await authenticatedRequest(app, credentials.accessToken).get(
+        `/roles/${roleId}/menus`,
+      );
 
       expect(getMenusAfterRemove.status).toBe(HttpStatus.OK);
       const remainingMenus = getMenusAfterRemove.body.data;
@@ -224,8 +227,9 @@ describe('角色-菜单关联 (e2e)', () => {
       expect(stillHasMenu).toBe(false);
 
       // 6. 清理：删除测试菜单
-      const deleteResponse = await authenticatedRequest(app, credentials.accessToken)
-        .delete(`/menus/${newMenuId}`);
+      const deleteResponse = await authenticatedRequest(app, credentials.accessToken).delete(
+        `/menus/${newMenuId}`,
+      );
 
       expect(deleteResponse.status).toBe(HttpStatus.OK);
     });

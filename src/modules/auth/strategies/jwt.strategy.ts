@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -20,6 +20,8 @@ export interface AuthenticatedUser {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
+
   constructor(
     private readonly userService: UserService,
     private readonly configService: ConfigService,
@@ -69,7 +71,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       roleCode,
     };
 
-    console.log('[JwtStrategy] 用户认证成功:', {
+    this.logger.debug({
       userId: user.id,
       username: user.username,
       roleCodes,

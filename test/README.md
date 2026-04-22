@@ -20,8 +20,8 @@ pnpm test:env:up
 ```
 
 这将启动：
+
 - MySQL 测试数据库 (端口: 3307)
-- Redis 缓存服务 (端口: 6380)
 
 ### 2. 运行E2E测试
 
@@ -60,13 +60,13 @@ test/
 ## 🔧 配置文件
 
 ### Docker配置
+
 - `docker-compose.test.yml` - Docker服务配置
-- `scripts/init-test-db.sql` - 数据库初始化脚本
 
 ### 环境变量
+
 - `.env.test` - E2E测试环境变量
   - MySQL: localhost:3307
-  - Redis: localhost:6380
   - 用户名/密码已预配置
 
 ## 📝 测试编写指南
@@ -133,6 +133,7 @@ describe('我的功能 (e2e)', () => {
 **错误**：`Port 3307 is already in use`
 
 **解决**：
+
 1. 停止本地MySQL服务
 2. 或修改`docker-compose.test.yml`中的端口映射
 
@@ -141,6 +142,7 @@ describe('我的功能 (e2e)', () => {
 **问题**：测试之间相互影响
 
 **解决**：
+
 ```bash
 # 清理并重启测试环境
 pnpm test:env:clean
@@ -152,17 +154,18 @@ pnpm test:env:up
 **错误**：`ECONNREFUSED 127.0.0.1:3307`
 
 **解决**：
+
 1. 确认容器已启动：`docker ps | grep home`
 2. 检查容器日志：`docker logs home-mysql-test`
 3. 等待健康检查通过（约5-10秒）
 
 ## 📊 当前测试覆盖
 
-| 模块 | 测试数量 | 状态 |
-|------|---------|------|
-| 认证 (auth) | 29个 | ✅ |
-| 用户 (user) | 待开发 | 📋 |
-| 权限 (permission) | 待开发 | 📋 |
+| 模块              | 测试数量 | 状态 |
+| ----------------- | -------- | ---- |
+| 认证 (auth)       | 29个     | ✅   |
+| 用户 (user)       | 待开发   | 📋   |
+| 权限 (permission) | 待开发   | 📋   |
 
 ## 🎯 测试最佳实践
 

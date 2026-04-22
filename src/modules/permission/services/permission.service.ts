@@ -4,12 +4,10 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/core/base/base.repository';
-import { Cacheable } from '~/core/decorators';
 import { PermissionEntity } from '../entities/permission.entity';
 import { PermissionRepository } from '../repositories/permission.repository';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
@@ -22,13 +20,11 @@ export class PermissionService extends BaseService<PermissionEntity> {
     private readonly permissionRepo: PermissionRepository,
     logger: LoggerService,
     cache: CacheService,
-    eventEmitter: EventEmitter2,
   ) {
     super();
     this.repository = permissionRepo;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter;
     this.logger.setContext(PermissionService.name);
   }
 
@@ -36,9 +32,7 @@ export class PermissionService extends BaseService<PermissionEntity> {
    * 创建权限
    */
   async create(dto: CreatePermissionDto): Promise<PermissionEntity> {
-    this.logger.debug(
-      `准备创建权限 code=${dto.code}, name=${dto.name}`,
-    );
+    this.logger.debug(`准备创建权限 code=${dto.code}, name=${dto.name}`);
 
     // 检查编码是否已存在
     if (await this.permissionRepo.isCodeExist(dto.code)) {
@@ -51,8 +45,6 @@ export class PermissionService extends BaseService<PermissionEntity> {
     const saved = await this.permissionRepo.save(entity);
     this.logger.debug(`权限保存成功 id=${saved.id}, code=${saved.code}`);
 
-    this.eventEmitter.emit('permission.created', { permission: saved });
-    this.logger.debug(`已触发权限创建事件 permissionId=${saved.id}`);
     await this.clearCache();
     this.logger.debug('创建权限后清理缓存完成');
 
@@ -84,8 +76,6 @@ export class PermissionService extends BaseService<PermissionEntity> {
     const updated = await this.permissionRepo.save(entity);
     this.logger.debug(`权限更新保存成功 id=${updated.id}`);
 
-    this.eventEmitter.emit('permission.updated', { permission: updated });
-    this.logger.debug(`已触发权限更新事件 permissionId=${updated.id}`);
     await this.clearCache();
     this.logger.debug(`更新权限后清理缓存完成 permissionId=${updated.id}`);
 
@@ -110,11 +100,9 @@ export class PermissionService extends BaseService<PermissionEntity> {
 
     // TODO: 检查是否有角色正在使用此权限
 
-    await this.permissionRepo.softDelete(id);
-    this.logger.debug(`权限软删除完成 id=${id}`);
+    await this.permissionRepo.delete(id);
+    this.logger.debug(`权限删除完成 id=${id}`);
 
-    this.eventEmitter.emit('permission.deleted', { permission: entity });
-    this.logger.debug(`已触发权限删除事件 permissionId=${id}`);
     await this.clearCache();
     this.logger.debug(`删除权限后清理缓存完成 permissionId=${id}`);
 
@@ -124,7 +112,6 @@ export class PermissionService extends BaseService<PermissionEntity> {
   /**
    * 查询权限详情
    */
-  @Cacheable({ prefix: 'permission:id', argIndexes: [0], ttl: 1800 })
   async findById(id: number): Promise<PermissionEntity> {
     this.logger.debug(`查询权限详情 id=${id}`);
 
@@ -167,7 +154,6 @@ export class PermissionService extends BaseService<PermissionEntity> {
   /**
    * 获取权限树
    */
-  @Cacheable({ prefix: 'permission:tree', ttl: 1800 })
   async getPermissionTree(): Promise<any[]> {
     this.logger.debug('查询权限树');
     const tree = await this.permissionRepo.getPermissionTree();
@@ -178,7 +164,6 @@ export class PermissionService extends BaseService<PermissionEntity> {
   /**
    * 根据模块获取权限列表
    */
-  @Cacheable({ prefix: 'permission:module', argIndexes: [0], ttl: 1800 })
   async findByModule(module: string): Promise<PermissionEntity[]> {
     this.logger.debug(`根据模块查询权限 module=${module}`);
     const items = await this.permissionRepo.findByModule(module);

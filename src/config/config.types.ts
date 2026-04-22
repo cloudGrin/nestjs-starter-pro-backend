@@ -22,17 +22,6 @@ export interface AppConfig {
 }
 
 /**
- * Redis 配置
- */
-export interface RedisConfig {
-  host: string;
-  port: number;
-  db: number;
-  password?: string;
-  keyPrefix: string;
-}
-
-/**
  * JWT 配置
  */
 export interface JwtConfig {
@@ -81,7 +70,7 @@ export interface ThrottleConfig {
  * 文件上传配置
  */
 export interface FileConfig {
-  storage: 'local' | 'oss' | 'minio';
+  storage: 'local' | 'oss';
   uploadDir: string;
   tempDir: string;
   baseUrl: string;
@@ -115,17 +104,6 @@ export interface FileConfig {
       secure: boolean;
       baseUrl?: string;
     };
-    minio: {
-      enable: boolean;
-      endPoint?: string;
-      port?: number;
-      useSSL: boolean;
-      bucket?: string;
-      accessKey?: string;
-      secretKey?: string;
-      baseUrl?: string;
-      region?: string;
-    };
   };
 }
 
@@ -143,12 +121,6 @@ export interface NotificationConfig {
       enable: boolean;
       defaultWebhook?: string;
     };
-    sms: {
-      enable: boolean;
-      provider?: string;
-      signName?: string;
-      templateId?: string;
-    };
   };
 }
 
@@ -158,7 +130,6 @@ export interface NotificationConfig {
 export interface Configuration {
   app: AppConfig;
   database: DataSourceOptions;
-  redis: RedisConfig;
   jwt: JwtConfig;
   logging: LoggingConfig;
   swagger: SwaggerConfig;

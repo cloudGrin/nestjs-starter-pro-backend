@@ -18,7 +18,7 @@ describe('用户模块 (e2e)', () => {
   let app: INestApplication;
   let adminCredentials: TestCredentials;
   let normalUserCredentials: TestCredentials;
-  let createdUserIds: number[] = [];
+  const createdUserIds: number[] = [];
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -36,22 +36,13 @@ describe('用户模块 (e2e)', () => {
       email: generateTestEmail(),
       password: 'User@123456',
     });
-
-    // Debug: 解码并输出adminCredentials.accessToken中的userId
-    const adminTokenPayload = JSON.parse(Buffer.from(adminCredentials.accessToken.split('.')[1], 'base64').toString());
-    const normalTokenPayload = JSON.parse(Buffer.from(normalUserCredentials.accessToken.split('.')[1], 'base64').toString());
-    console.log('[E2E Setup] Admin token userId:', adminTokenPayload.sub, ', user.id:', adminCredentials.user.id);
-    console.log('[E2E Setup] Normal token userId:', normalTokenPayload.sub, ', user.id:', normalUserCredentials.user.id);
-    console.log('[E2E Setup] 超级管理员和普通用户创建完成');
   });
 
   afterAll(async () => {
     // 清理创建的测试用户
     for (const id of createdUserIds) {
       try {
-        await authenticatedRequest(app, adminCredentials.accessToken)
-          .delete(`/users/${id}`)
-          .send();
+        await authenticatedRequest(app, adminCredentials.accessToken).delete(`/users/${id}`).send();
       } catch (error) {
         // 忽略删除错误
       }
@@ -73,7 +64,6 @@ describe('用户模块 (e2e)', () => {
         .post('/users')
         .send(userData);
 
-      console.log('[调试] 超级管理员创建用户响应:', response.status, JSON.stringify(response.body));
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
 
       if (response.body.success) {
@@ -260,9 +250,7 @@ describe('用户模块 (e2e)', () => {
     });
 
     it('应该拒绝未认证的请求', async () => {
-      await request(app.getHttpServer())
-        .get('/users/profile')
-        .expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer()).get('/users/profile').expect(HttpStatus.UNAUTHORIZED);
     });
   });
 
@@ -684,7 +672,11 @@ describe('用户模块 (e2e)', () => {
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(createResponse.status);
 
-      if (!createResponse.body.success || !createResponse.body.data || !createResponse.body.data.id) {
+      if (
+        !createResponse.body.success ||
+        !createResponse.body.data ||
+        !createResponse.body.data.id
+      ) {
         console.warn('跳过测试：用户创建失败');
         return;
       }
@@ -739,7 +731,11 @@ describe('用户模块 (e2e)', () => {
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(createResponse.status);
 
-      if (!createResponse.body.success || !createResponse.body.data || !createResponse.body.data.id) {
+      if (
+        !createResponse.body.success ||
+        !createResponse.body.data ||
+        !createResponse.body.data.id
+      ) {
         console.warn('跳过测试：用户创建失败');
         return;
       }

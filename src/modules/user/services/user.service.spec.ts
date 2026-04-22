@@ -11,7 +11,6 @@ import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
 import {
   UserMockFactory,
@@ -19,7 +18,6 @@ import {
   createMockRepository,
   createMockLogger,
   createMockCacheService,
-  createMockEventEmitter,
   createMockDataSource,
 } from '~/test-utils';
 
@@ -28,7 +26,6 @@ describe('UserService', () => {
   let userRepository: jest.Mocked<UserRepository>;
   let roleRepository: jest.Mocked<any>;
   let cache: jest.Mocked<CacheService>;
-  let eventEmitter: jest.Mocked<EventEmitter2>;
   let logger: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
@@ -44,7 +41,6 @@ describe('UserService', () => {
 
     const mockRoleRepository = createMockRepository<RoleEntity>();
     const mockCache = createMockCacheService();
-    const mockEventEmitter = createMockEventEmitter();
     const mockLogger = createMockLogger();
     const mockDataSource = createMockDataSource();
 
@@ -72,10 +68,6 @@ describe('UserService', () => {
           provide: CacheService,
           useValue: mockCache,
         },
-        {
-          provide: EventEmitter2,
-          useValue: mockEventEmitter,
-        },
       ],
     }).compile();
 
@@ -83,7 +75,6 @@ describe('UserService', () => {
     userRepository = module.get(UserRepository);
     roleRepository = module.get(getRepositoryToken(RoleEntity));
     cache = module.get(CacheService);
-    eventEmitter = module.get(EventEmitter2);
     logger = module.get(LoggerService);
   });
 
@@ -126,7 +117,6 @@ describe('UserService', () => {
         roles: [],
       });
       expect(userRepository.save).toHaveBeenCalledWith(mockUser);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.created', { user: mockUser });
       expect(logger.log).toHaveBeenCalled();
     });
 
@@ -273,7 +263,6 @@ describe('UserService', () => {
       expect(userRepository.findByIdOrFail).toHaveBeenCalledWith(userId);
       expect(userRepository.isEmailExist).toHaveBeenCalledWith(updateDto.email, userId);
       expect(userRepository.save).toHaveBeenCalled();
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.updated', { user: updatedUser });
     });
 
     it('当更新的邮箱已存在时应该抛出ConflictException', async () => {
@@ -440,51 +429,6 @@ describe('UserService', () => {
     });
   });
 
-  describe('事件发送', () => {
-    it('创建用户后应该发送user.created事件', async () => {
-      // Arrange
-      const createDto = {
-        username: 'testuser',
-        email: 'test@example.com',
-        password: 'Password123!',
-      };
-
-      const mockUser = UserMockFactory.create(createDto);
-
-      userRepository.isUsernameExist.mockResolvedValue(false);
-      userRepository.isEmailExist.mockResolvedValue(false);
-      userRepository.create.mockReturnValue(mockUser as any);
-      userRepository.save.mockResolvedValue(mockUser as any);
-
-      // Act
-      await service.createUser(createDto);
-
-      // Assert
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.created', {
-        user: mockUser,
-      });
-    });
-
-    it('更新用户后应该发送user.updated事件', async () => {
-      // Arrange
-      const userId = 1;
-      const updateDto = { nickname: '新昵称' };
-      const existingUser = UserMockFactory.create({ id: userId });
-      const updatedUser = { ...existingUser, ...updateDto };
-
-      userRepository.findByIdOrFail.mockResolvedValue(existingUser);
-      userRepository.save.mockResolvedValue(updatedUser as any);
-
-      // Act
-      await service.updateUser(userId, updateDto);
-
-      // Assert
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.updated', {
-        user: updatedUser,
-      });
-    });
-  });
-
   describe('deleteUser', () => {
     beforeEach(() => {
       userRepository.softDelete = jest.fn().mockResolvedValue(undefined);
@@ -503,7 +447,6 @@ describe('UserService', () => {
       // Assert
       expect(userRepository.findByIdOrFail).toHaveBeenCalledWith(userId);
       expect(userRepository.softDelete).toHaveBeenCalledWith(userId);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.deleted', { user: mockUser });
       expect(logger.log).toHaveBeenCalled();
     });
   });
@@ -527,7 +470,6 @@ describe('UserService', () => {
       // Assert
       expect(userRepository.findByIds).toHaveBeenCalledWith(userIds);
       expect(userRepository.softDelete).toHaveBeenCalledTimes(3);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('users.deleted', { users: mockUsers });
       expect(logger.log).toHaveBeenCalled();
     });
 
@@ -550,7 +492,12 @@ describe('UserService', () => {
       // Arrange
       const userId = 1;
       const mockUser = UserMockFactory.create({ id: userId, status: 'disabled' as any });
-      const enabledUser = { ...mockUser, status: 'active' as any, loginAttempts: 0, lockedUntil: undefined };
+      const enabledUser = {
+        ...mockUser,
+        status: 'active' as any,
+        loginAttempts: 0,
+        lockedUntil: undefined,
+      };
 
       userRepository.findByIdOrFail.mockResolvedValue(mockUser);
       userRepository.save.mockResolvedValue(enabledUser as any);
@@ -562,7 +509,6 @@ describe('UserService', () => {
       expect(result.status).toBe('active');
       expect(result.loginAttempts).toBe(0);
       expect(result.lockedUntil).toBeUndefined();
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.enabled', { user: enabledUser });
       expect(logger.log).toHaveBeenCalled();
     });
   });
@@ -587,7 +533,6 @@ describe('UserService', () => {
       // Assert
       expect(result.status).toBe('disabled');
       expect(userRepository.updateRefreshToken).toHaveBeenCalledWith(userId, undefined);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.disabled', { user: disabledUser });
       expect(logger.log).toHaveBeenCalled();
     });
   });
@@ -677,9 +622,7 @@ describe('UserService', () => {
           },
           {
             isActive: false, // 未激活角色
-            permissions: [
-              { code: 'admin:all', isActive: true },
-            ],
+            permissions: [{ code: 'admin:all', isActive: true }],
           },
         ],
       };
@@ -734,7 +677,9 @@ describe('UserService', () => {
       const userId = 1;
       const requiredPermissions = ['user:view', 'user:edit'];
 
-      jest.spyOn(service, 'getUserPermissions').mockResolvedValue(['user:view', 'user:edit', 'role:view']);
+      jest
+        .spyOn(service, 'getUserPermissions')
+        .mockResolvedValue(['user:view', 'user:edit', 'role:view']);
 
       // Act
       const result = await service.hasAllPermissions(userId, requiredPermissions);
@@ -820,7 +765,6 @@ describe('UserService', () => {
       expect(mockUser.password).toBe(changePasswordDto.newPassword);
       expect(userRepository.save).toHaveBeenCalledWith(mockUser);
       expect(userRepository.updateRefreshToken).toHaveBeenCalledWith(userId, undefined);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.password-changed', { userId });
       expect(logger.log).toHaveBeenCalled();
     });
 
@@ -834,8 +778,12 @@ describe('UserService', () => {
       };
 
       // Act & Assert
-      await expect(service.changePassword(userId, changePasswordDto)).rejects.toThrow(BadRequestException);
-      await expect(service.changePassword(userId, changePasswordDto)).rejects.toThrow('两次输入的密码不一致');
+      await expect(service.changePassword(userId, changePasswordDto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.changePassword(userId, changePasswordDto)).rejects.toThrow(
+        '两次输入的密码不一致',
+      );
     });
 
     it('当旧密码错误时应该抛出BadRequestException', async () => {
@@ -856,8 +804,12 @@ describe('UserService', () => {
       userRepository.findWithPassword.mockResolvedValue(mockUser as any);
 
       // Act & Assert
-      await expect(service.changePassword(userId, changePasswordDto)).rejects.toThrow(BadRequestException);
-      await expect(service.changePassword(userId, changePasswordDto)).rejects.toThrow('当前密码错误');
+      await expect(service.changePassword(userId, changePasswordDto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.changePassword(userId, changePasswordDto)).rejects.toThrow(
+        '当前密码错误',
+      );
     });
   });
 
@@ -891,7 +843,6 @@ describe('UserService', () => {
       expect(mockUser.lockedUntil).toBeUndefined();
       expect(userRepository.save).toHaveBeenCalledWith(mockUser);
       expect(userRepository.updateRefreshToken).toHaveBeenCalledWith(userId, undefined);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.password-reset', { userId });
       expect(logger.log).toHaveBeenCalled();
     });
   });
@@ -917,10 +868,6 @@ describe('UserService', () => {
 
       // Assert
       expect(result.roles).toEqual(mockRoles);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('user.roles-assigned', {
-        user: { ...mockUser, roles: mockRoles },
-        roleIds,
-      });
       expect(logger.log).toHaveBeenCalled();
     });
   });

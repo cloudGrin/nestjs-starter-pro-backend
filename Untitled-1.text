@@ -1,0 +1,46 @@
+我会从 src/main.ts 的启动链路开始，顺着 AppModule、全局中间件/守卫/拦截器、模块注册和 service 依赖逐层复核，重点判断哪些功能仍然偏复杂、重复或可以合并，哪些属于真实 bug。
+
+• 入口文件本身已经很薄，当前需要重点看它挂载的“全局能力”是否还在把项目推向平台化：版本路由、Swagger、安全/CORS、全局校验之外，真正的复杂度大多会在 AppModule、共享模块和各业务模块里。
+
+• AppModule 仍然是典型后台脚手架形态：全局 JWT、全局权限、全局响应包装、全局日志、限流、SharedModule 全局导出都集中在入口层。下一步我会核对这些全局能力是否真的被各模块需要，以及是否存在配置
+  读取不一致或重复实现。
+
+• 用户链路里已经出现几类需要区分的问题：初始化管理员本身可用，但公开注册仍存在；权限缓存有两套实现；用户 service 里还有明显调试 SQL 和过宽 DTO 复用。接下来会继续看角色/菜单/权限三件套，因为
+  它们决定后台复杂度上限。
+
+• 中层模块的主要倾向已经很清楚：角色、权限、菜单、字典、配置都还保留了脚手架/企业后台痕迹，并且有些接口缺少权限装饰导致“未声明权限即放行”。我会跑一次构建验证当前改动是否仍能编译，再基于入口
+  - 开放 API 路由版本重复：src/main.ts:36 启用了 URI 版本 /v1，但 src/modules/open-api/controllers/open-api.controller.ts:21 又写了 v1/open，实际路径会变成类似 /api/v1/v1/open/users。
+  - 全局响应包装会破坏文件下载：src/core/interceptors/transform.interceptor.ts:21 会包装所有返回值，可能把 src/modules/file/controllers/file.controller.ts:272 的 StreamableFile 包成 JSON。
+  - 公开注册仍然存在：src/modules/auth/controllers/auth.controller.ts:40。对于“个人后台 + 初始化 admin”的目标，开放注册不合适，建议关闭或仅允许 admin 创建用户。
+  - DictItemController 全部缺少 @RequirePermissions，因 src/core/guards/permissions.guard.ts:52 的策略是“无权限声明即放行”，所有登录用户都能增删改字典项：src/modules/dict/controllers/dict-
+  item.controller.ts:29。
+  - SystemConfigController 多个读取接口无权限声明，所有登录用户可读系统配置：src/modules/config/controllers/system-config.controller.ts:55、src/modules/config/controllers/system-
+  config.controller.ts:62、src/modules/config/controllers/system-config.controller.ts:69。
+  - API 应用管理只有 JWT，没有 @RequirePermissions，且没有 owner 限制，登录用户可管理所有 API App：src/modules/api-auth/controllers/api-app.controller.ts:22。
+  - 默认初始化只创建 super_admin 角色和用户，没有初始化菜单。超级管理员虽能绕过权限，但 src/modules/menu/services/menu.service.ts:293 只能返回数据库已有菜单；空库首次启动后台菜单会是空的。
+
+  P2 Bug / 隐患
+
+  - LoggerService 是单例，但 setContext() 改的是实例字段：src/shared/logger/logger.service.ts:72。各 service 构造时互相覆盖 context，日志来源会混乱。
+  - 权限缓存有两套 key：PermissionsGuard 使用 user:permissions:{id}，src/core/guards/permissions.guard.ts:117；UserService 使用 BaseService.getCacheKey()，实际类似 UserEntity:permissions:
+  {id}，src/modules/user/services/user.service.ts:459。清理时只删 user:permissions:{id}，可能导致 profile/前端权限展示滞后。
+  - 数据库配置在 src/shared/database/database.module.ts:17 覆盖了 getDatabaseConfig() 里的 extra，导致 charset、timeout、connectionLimit 等配置丢失。
+  - /readyz 注释说依赖异常返回 503，但实际抛普通 Error，全局异常过滤器会返回 500：src/modules/health/controllers/health.controller.ts:51。
+  - API 调用日志在 Guard 阶段记录，固定 statusCode: 200、responseTime: 0，且在限流检查之前：src/modules/api-auth/strategies/simple-api-key.strategy.ts:107。统计数据不可信。
+  - 文件允许类型包含 .xls/.xlsx，但 MIME 白名单没有 Excel MIME，上传 Excel 会被拒：src/config/configuration.ts:169 和 src/modules/file/services/file.service.ts:478。
+  - 本地存储默认启用，但签名 URL 接口对 local 必然失败：src/modules/file/storage/local-storage.strategy.ts:109 和 src/modules/file/controllers/file.controller.ts:217。
+
+  过度设计
+
+  - 权限体系仍偏平台化：角色、权限、菜单、自动扫描、角色菜单、菜单 displayCondition 全部保留。对于个人后台，建议保留 super_admin 绕过 + @RequirePermissions 基础权限即可，删除“有效权限”“互斥
+  角色”“权限自动扫描 API”等概念：src/modules/role/controllers/role.controller.ts:91、src/modules/permission/services/permission-scanner.service.ts:51。
+  - CacheClearService 仍是复杂的集中式级联清理器，但大部分模块仍自己 clearCache() 或手写 key，职责没有真正统一：src/shared/cache/cache-clear.service.ts:9。
+  - TaskService 虽只保留 cron，但仍有数据库任务定义、重试、超时、告警、日志等完整任务平台能力：src/modules/task/services/task.service.ts:183。个人项目建议只保留“代码注册 cron + 简单执行日
+  志”。
+  - FileService 仍包含直传、分片上传、图片压缩、缩略图、签名 URL、local/oss 策略。建议当前阶段保留直传/下载/local/oss，移除分片上传和图片处理：src/modules/file/services/
+  file.service.ts:216。
+  - ApiAuth 可以保留，但建议收缩为“API App + API Key + scopes”。当前 callbackUrl/webhookUrl、调用日志、统计、日/小时限流、IP 白名单偏平台化：src/modules/api-auth/entities/api-
+  app.entity.ts:14。
+  - SystemConfig 与 .env 配置并存，容易造成配置来源混乱。个人后台建议保留 .env 为系统配置，system_configs 只用于业务模块动态配置，或者暂时删除：src/modules/config/services/system-
+  config.service.ts:20。
+  - DictType + DictItem 可保留，但如果当前业务模块没有实际引用，建议延后，或合并控制器为 /dicts/:type/items，减少模块面积：src/modules/dict/dict.module.ts:12。

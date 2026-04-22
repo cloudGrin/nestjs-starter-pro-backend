@@ -9,7 +9,7 @@ import {
   registerTestUser,
   generateTestUsername,
   generateTestEmail,
-  authenticatedRequest
+  authenticatedRequest,
 } from './test-helper';
 import { DataSource } from 'typeorm';
 import { PermissionEntity, PermissionType } from '~/modules/permission/entities/permission.entity';
@@ -44,8 +44,6 @@ describe('Permission Module (E2E)', () => {
       password: 'User@123456',
       realName: 'Permission测试普通用户',
     });
-
-    console.log('[E2E Setup] Permission模块测试环境准备完成');
   });
 
   afterAll(async () => {
@@ -64,7 +62,10 @@ describe('Permission Module (E2E)', () => {
   // ==================== POST /permissions ====================
   describe('POST /permissions - 创建权限', () => {
     it('管理员应该能够创建权限', async () => {
-      const randomStr = Math.random().toString(36).substring(2, 8).replace(/[^a-z]/g, 'x');
+      const randomStr = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .replace(/[^a-z]/g, 'x');
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .post('/permissions')
         .send({
@@ -85,18 +86,19 @@ describe('Permission Module (E2E)', () => {
     });
 
     it('应该拒绝重复的权限编码', async () => {
-      const randomStr = Math.random().toString(36).substring(2, 8).replace(/[^a-z]/g, 'x');
+      const randomStr = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .replace(/[^a-z]/g, 'x');
       const duplicateCode = 'dup_perm_' + randomStr;
 
       // 先创建一个权限
-      await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/permissions')
-        .send({
-          code: duplicateCode,
-          name: '第一个权限',
-          type: PermissionType.API,
-          module: 'test',
-        });
+      await authenticatedRequest(app, adminCredentials.accessToken).post('/permissions').send({
+        code: duplicateCode,
+        name: '第一个权限',
+        type: PermissionType.API,
+        module: 'test',
+      });
 
       // 尝试创建相同编码的权限
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
@@ -128,8 +130,9 @@ describe('Permission Module (E2E)', () => {
   // ==================== GET /permissions ====================
   describe('GET /permissions - 获取权限列表', () => {
     it('管理员应该能够获取权限列表', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/permissions');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/permissions',
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       expect(response.body).toHaveProperty('data');
@@ -139,8 +142,9 @@ describe('Permission Module (E2E)', () => {
     });
 
     it('应该支持分页查询', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/permissions?page=1&limit=10');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/permissions?page=1&limit=10',
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       expect(response.body.data).toHaveProperty('items');
@@ -148,16 +152,18 @@ describe('Permission Module (E2E)', () => {
     });
 
     it('应该支持按模块搜索', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/permissions?module=user');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/permissions?module=user',
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       expect(response.body.data).toHaveProperty('items');
     });
 
     it('普通用户应该被拒绝', async () => {
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .get('/permissions');
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
+        '/permissions',
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -166,8 +172,9 @@ describe('Permission Module (E2E)', () => {
   // ==================== GET /permissions/tree ====================
   describe('GET /permissions/tree - 获取权限树', () => {
     it('管理员应该能够获取权限树', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/permissions/tree');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/permissions/tree',
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       const tree = response.body.data || response.body;
@@ -175,8 +182,9 @@ describe('Permission Module (E2E)', () => {
     });
 
     it('普通用户应该被拒绝', async () => {
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .get('/permissions/tree');
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
+        '/permissions/tree',
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -190,8 +198,9 @@ describe('Permission Module (E2E)', () => {
         return;
       }
 
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get(`/permissions/${testPermission.id}`);
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        `/permissions/${testPermission.id}`,
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
       const permData = response.body.data || response.body;
@@ -200,8 +209,9 @@ describe('Permission Module (E2E)', () => {
     });
 
     it('获取不存在的权限应该返回404', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/permissions/999999');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/permissions/999999',
+      );
 
       expect(response.status).toBe(HttpStatus.NOT_FOUND);
     });
@@ -209,8 +219,9 @@ describe('Permission Module (E2E)', () => {
     it('普通用户应该被拒绝', async () => {
       if (!testPermission) return;
 
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .get(`/permissions/${testPermission.id}`);
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
+        `/permissions/${testPermission.id}`,
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -266,7 +277,10 @@ describe('Permission Module (E2E)', () => {
 
     beforeEach(async () => {
       // 创建一个用于删除的权限
-      const randomStr = Math.random().toString(36).substring(2, 8).replace(/[^a-z]/g, 'x');
+      const randomStr = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .replace(/[^a-z]/g, 'x');
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .post('/permissions')
         .send({
@@ -287,16 +301,23 @@ describe('Permission Module (E2E)', () => {
         return;
       }
 
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .delete(`/permissions/${permToDelete.id}`);
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).delete(
+        `/permissions/${permToDelete.id}`,
+      );
 
       // 删除可能返回200/204,或500(如果有子权限或被引用)
-      expect([HttpStatus.OK, HttpStatus.NO_CONTENT, HttpStatus.INTERNAL_SERVER_ERROR, HttpStatus.BAD_REQUEST]).toContain(response.status);
+      expect([
+        HttpStatus.OK,
+        HttpStatus.NO_CONTENT,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.BAD_REQUEST,
+      ]).toContain(response.status);
     });
 
     it('删除不存在的权限应该返回404', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .delete('/permissions/999999');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).delete(
+        '/permissions/999999',
+      );
 
       expect(response.status).toBe(HttpStatus.NOT_FOUND);
     });
@@ -304,8 +325,9 @@ describe('Permission Module (E2E)', () => {
     it('普通用户应该被拒绝', async () => {
       if (!permToDelete) return;
 
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .delete(`/permissions/${permToDelete.id}`);
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).delete(
+        `/permissions/${permToDelete.id}`,
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -314,8 +336,9 @@ describe('Permission Module (E2E)', () => {
   // ==================== POST /permissions/sync ====================
   describe('POST /permissions/sync - 同步权限', () => {
     it('管理员应该能够同步权限', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/permissions/sync');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).post(
+        '/permissions/sync',
+      );
 
       expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(response.status);
       const data = response.body.data || response.body;
@@ -324,8 +347,9 @@ describe('Permission Module (E2E)', () => {
     });
 
     it('普通用户应该被拒绝', async () => {
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .post('/permissions/sync');
+      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).post(
+        '/permissions/sync',
+      );
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -335,7 +359,10 @@ describe('Permission Module (E2E)', () => {
   describe('完整流程测试', () => {
     it('应该完成: 创建权限 → 查询 → 更新 → 删除', async () => {
       // 1. 创建权限
-      const randomStr = Math.random().toString(36).substring(2, 10).replace(/[^a-z]/g, 'x');
+      const randomStr = Math.random()
+        .toString(36)
+        .substring(2, 10)
+        .replace(/[^a-z]/g, 'x');
       const createResponse = await authenticatedRequest(app, adminCredentials.accessToken)
         .post('/permissions')
         .send({
@@ -351,8 +378,9 @@ describe('Permission Module (E2E)', () => {
       const permId = permData.id;
 
       // 2. 查询权限详情
-      const getResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get(`/permissions/${permId}`);
+      const getResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        `/permissions/${permId}`,
+      );
 
       expect(getResponse.status).toBe(HttpStatus.OK);
       const getPermData = getResponse.body.data || getResponse.body;
@@ -368,16 +396,26 @@ describe('Permission Module (E2E)', () => {
       expect([HttpStatus.OK]).toContain(updateResponse.status);
 
       // 4. 删除权限
-      const deleteResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .delete(`/permissions/${permId}`);
+      const deleteResponse = await authenticatedRequest(app, adminCredentials.accessToken).delete(
+        `/permissions/${permId}`,
+      );
 
       // 删除可能成功(200/204)或失败(500如果被引用)
-      expect([HttpStatus.OK, HttpStatus.NO_CONTENT, HttpStatus.INTERNAL_SERVER_ERROR, HttpStatus.BAD_REQUEST]).toContain(deleteResponse.status);
+      expect([
+        HttpStatus.OK,
+        HttpStatus.NO_CONTENT,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.BAD_REQUEST,
+      ]).toContain(deleteResponse.status);
 
       // 5. 验证删除 (只在删除成功时验证)
-      if (deleteResponse.status === HttpStatus.OK || deleteResponse.status === HttpStatus.NO_CONTENT) {
-        const verifyResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-          .get(`/permissions/${permId}`);
+      if (
+        deleteResponse.status === HttpStatus.OK ||
+        deleteResponse.status === HttpStatus.NO_CONTENT
+      ) {
+        const verifyResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
+          `/permissions/${permId}`,
+        );
 
         expect(verifyResponse.status).toBe(HttpStatus.NOT_FOUND);
       }
@@ -415,8 +453,9 @@ describe('Permission Module (E2E)', () => {
       testRole = roleResponse.body.data || roleResponse.body;
 
       // 2. 查找 user:read 权限
-      const permListResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/permissions?module=user');
+      const permListResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        '/permissions?module=user',
+      );
 
       const permissions = permListResponse.body.data.items || permListResponse.body.data || [];
       const readPermission = permissions.find((p: any) => p.code === 'user:read');
@@ -426,13 +465,6 @@ describe('Permission Module (E2E)', () => {
         const assignPermResponse = await authenticatedRequest(app, adminCredentials.accessToken)
           .put(`/roles/${testRole.id}/permissions`)
           .send([readPermission.id]);
-
-        console.log('[测试调试] 权限分配响应:', {
-          status: assignPermResponse.status,
-          body: assignPermResponse.body,
-          testRoleId: testRole.id,
-          readPermissionId: readPermission.id,
-        });
 
         // 验证权限分配成功
         expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(assignPermResponse.status);
@@ -449,48 +481,38 @@ describe('Permission Module (E2E)', () => {
       });
 
       // 5. 通过数据库直接分配角色（更可靠）
-      await dataSource.query(
-        'INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)',
-        [limitedUserCredentials.user.id, testRole.id]
-      );
+      await dataSource.query('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [
+        limitedUserCredentials.user.id,
+        testRole.id,
+      ]);
 
       // 等待数据库写入完成
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // 6. 清除用户权限缓存
       const cacheService = app.get(CacheService);
       await cacheService.del(CACHE_KEYS.USER_PERMISSIONS(limitedUserCredentials.user.id));
 
       // 7. 重新登录以获取包含角色信息的新token
-      const loginResponse = await request(app.getHttpServer())
-        .post('/auth/login')
-        .send({
-          account: username,
-          password: 'Limited@123456',
-        });
+      const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+        account: username,
+        password: 'Limited@123456',
+      });
 
       // 更新credentials为包含角色信息的新token
       limitedUserCredentials = {
         accessToken: loginResponse.body.data.tokens.accessToken,
         user: loginResponse.body.data.user,
       };
-
-      console.log('[E2E Setup] 创建受限权限用户完成:', {
-        userId: limitedUserCredentials.user.id,
-        username: limitedUserCredentials.user.username,
-        roleId: testRole.id,
-        roleName: testRole.name,
-        roleCodes: limitedUserCredentials.user.roles?.map((r: any) => r.code) || [],
-        userPermissions: limitedUserCredentials.user.permissions?.length || 0,
-      });
     });
 
     afterAll(async () => {
       // 清理测试数据
       if (testRole) {
         try {
-          await authenticatedRequest(app, adminCredentials.accessToken)
-            .delete(`/roles/${testRole.id}`);
+          await authenticatedRequest(app, adminCredentials.accessToken).delete(
+            `/roles/${testRole.id}`,
+          );
         } catch (error) {
           console.warn('清理testRole失败:', (error as Error).message);
         }
@@ -498,8 +520,9 @@ describe('Permission Module (E2E)', () => {
     });
 
     it('有 user:read 权限的用户应该能访问用户列表', async () => {
-      const response = await authenticatedRequest(app, limitedUserCredentials.accessToken)
-        .get('/users');
+      const response = await authenticatedRequest(app, limitedUserCredentials.accessToken).get(
+        '/users',
+      );
 
       // 应该成功访问
       expect(response.status).toBe(HttpStatus.OK);
@@ -515,16 +538,18 @@ describe('Permission Module (E2E)', () => {
       });
 
       // 尝试删除用户（需要 user:delete 权限）
-      const response = await authenticatedRequest(app, limitedUserCredentials.accessToken)
-        .delete(`/users/${targetUser.user.id}`);
+      const response = await authenticatedRequest(app, limitedUserCredentials.accessToken).delete(
+        `/users/${targetUser.user.id}`,
+      );
 
       // 应该返回 403 Forbidden
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
       expect(response.body.message).toContain('权限');
 
       // 验证用户仍然存在（未被删除）
-      const verifyResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get(`/users/${targetUser.user.id}`);
+      const verifyResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        `/users/${targetUser.user.id}`,
+      );
 
       expect(verifyResponse.status).toBe(HttpStatus.OK);
     });
@@ -556,8 +581,9 @@ describe('Permission Module (E2E)', () => {
     });
 
     it('没有任何 permission 模块权限的用户应该被拒绝访问权限接口', async () => {
-      const response = await authenticatedRequest(app, limitedUserCredentials.accessToken)
-        .get('/permissions');
+      const response = await authenticatedRequest(app, limitedUserCredentials.accessToken).get(
+        '/permissions',
+      );
 
       // 应该返回 403 Forbidden
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
@@ -569,8 +595,9 @@ describe('Permission Module (E2E)', () => {
       // 某些接口可能配置为 @RequirePermissions('user:read', 'user:manage')
       // 用户拥有其中一个权限即可访问
 
-      const response = await authenticatedRequest(app, limitedUserCredentials.accessToken)
-        .get('/users');  // 此接口需要 user:read 权限
+      const response = await authenticatedRequest(app, limitedUserCredentials.accessToken).get(
+        '/users',
+      ); // 此接口需要 user:read 权限
 
       // 应该成功访问
       expect(response.status).toBe(HttpStatus.OK);

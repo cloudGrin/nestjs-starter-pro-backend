@@ -8,6 +8,8 @@ import { LoggerService } from '~/shared/logger/logger.service';
 import { RoleRepository } from '~/modules/role/repositories/role.repository';
 import { PermissionRepository } from '~/modules/permission/repositories/permission.repository';
 import { CACHE_KEYS, CACHE_TTL } from '~/common/constants/cache.constants';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { ALLOW_AUTHENTICATED_KEY } from '../decorators/allow-authenticated.decorator';
 
 /**
  * 权限守卫（简化版 - 轻量级实现）
@@ -38,28 +40,50 @@ export class PermissionsGuard implements CanActivate {
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true;
+    }
+
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    if (!user) {
+      throw new ForbiddenException('未登录或登录已过期');
+    }
+
+    const allowAuthenticated = this.reflector.getAllAndOverride<boolean>(
+      ALLOW_AUTHENTICATED_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (allowAuthenticated) {
+      this.logger.debug(
+        `已登录即可访问接口，跳过业务权限检查 method=${request.method}, url=${request.url}, userId=${user.id}`,
+      );
+      return true;
+    }
+
     // 1. 获取接口所需的权限列表
     const requiredPermissions = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    const request = context.switchToHttp().getRequest();
     this.logger.debug(
       `权限检查开始 method=${request.method}, url=${request.url}, required=${JSON.stringify(requiredPermissions || [])}`,
     );
 
-    // 如果没有设置权限要求，允许访问
+    // 默认拒绝：非公开接口必须显式声明权限，避免新增接口遗漏鉴权。
     if (!requiredPermissions || requiredPermissions.length === 0) {
-      this.logger.debug('当前接口未配置权限要求，直接放行');
-      return true;
-    }
-
-    // 2. 获取用户信息
-    const user = request.user;
-
-    if (!user) {
-      throw new ForbiddenException('未登录或登录已过期');
+      this.logger.warn(
+        `接口未声明权限，已拒绝访问 method=${request.method}, url=${request.url}`,
+      );
+      throw new ForbiddenException('接口未配置访问权限');
     }
 
     // 3. 超级管理员自动拥有所有权限
@@ -116,67 +140,39 @@ export class PermissionsGuard implements CanActivate {
     const startTime = Date.now();
     const cacheKey = CACHE_KEYS.USER_PERMISSIONS(userId);
 
-    // 使用 getOrSet + withLock 防止并发场景下的缓存雪崩
     const permissions = await this.cacheService.getOrSet(
       cacheKey,
       async () => {
         const dbQueryStartTime = Date.now();
+        this.logger.debug(`用户 ${userId} 权限缓存未命中，查询数据库`);
 
-        // 使用分布式锁确保只有一个请求查询数据库
-        const lockKey = CACHE_KEYS.LOCK_USER_PERMISSIONS(userId);
-        return this.cacheService.withLock(
-          lockKey,
-          async () => {
-            // 双重检查缓存（锁等待期间可能已有其他请求更新缓存）
-            const cached = await this.cacheService.get<string[]>(cacheKey);
-            if (cached) {
-              const lockWaitTime = Date.now() - dbQueryStartTime;
-              this.logger.debug(
-                `用户 ${userId} 权限从缓存获取（锁后二次检查，等待锁耗时: ${lockWaitTime}ms）`,
-              );
-              return cached;
-            }
+        try {
+          const queryStartTime = Date.now();
 
-            this.logger.debug(`用户 ${userId} 权限缓存未命中，查询数据库`);
+          const result = await this.permissionRepository
+            .createQueryBuilder('p')
+            .select('DISTINCT p.code', 'code')
+            .innerJoin('role_permissions', 'rp', 'p.id = rp.permission_id')
+            .innerJoin('user_roles', 'ur', 'rp.role_id = ur.role_id')
+            .innerJoin('roles', 'r', 'ur.role_id = r.id')
+            .where('ur.user_id = :userId', { userId })
+            .andWhere('p.isActive = :isActive', { isActive: true })
+            .andWhere('r.isActive = :isActive', { isActive: true })
+            .getRawMany();
 
-            try {
-              // 使用 TypeORM QueryBuilder（自动处理字段映射，避免列名错误）
-              const queryStartTime = Date.now();
+          const queryTime = Date.now() - queryStartTime;
+          const permissions = result.map((row: any) => row.code);
+          const totalDbTime = Date.now() - dbQueryStartTime;
 
-              const result = await this.permissionRepository
-                .createQueryBuilder('p')
-                .select('DISTINCT p.code', 'code')
-                .innerJoin('role_permissions', 'rp', 'p.id = rp.permission_id')
-                .innerJoin('user_roles', 'ur', 'rp.role_id = ur.role_id')
-                .innerJoin('roles', 'r', 'ur.role_id = r.id')
-                .where('ur.user_id = :userId', { userId })
-                .andWhere('p.isActive = :isActive', { isActive: true }) // ✅ TypeORM自动处理字段映射
-                .andWhere('r.isActive = :isActive', { isActive: true })
-                .getRawMany();
+          this.logger.debug(
+            `用户 ${userId} 权限查询完成: db=${queryTime}ms, total=${totalDbTime}ms, count=${permissions.length}`,
+          );
 
-              const queryTime = Date.now() - queryStartTime;
-
-              const permissions = result.map((row: any) => row.code);
-              const totalDbTime = Date.now() - dbQueryStartTime;
-
-              this.logger.log(
-                `📊 用户 ${userId} 权限查询性能统计: ` +
-                  `数据库查询耗时=${queryTime}ms, ` +
-                  `总耗时(含锁)=${totalDbTime}ms, ` +
-                  `权限数量=${permissions.length}`,
-              );
-
-              this.logger.debug(`用户 ${userId} 的权限列表: ${permissions.join(', ')}`);
-
-              return permissions;
-            } catch (error) {
-              this.logger.error(`用户 ${userId} 权限查询失败: ${error.message}`, error.stack);
-              // 查询失败时返回空权限数组（用户可能没有角色）
-              return [];
-            }
-          },
-          5000,
-        ); // 锁超时5秒
+          return permissions;
+        } catch (error) {
+          this.logger.error(`用户 ${userId} 权限查询失败: ${error.message}`, error.stack);
+          return [];
+        }
       },
       CACHE_TTL.MEDIUM, // 使用统一的缓存TTL（30分钟）
     );

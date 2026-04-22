@@ -17,15 +17,7 @@ import { RoleEntity } from '../role/entities/role.entity';
     ]),
   ],
   controllers: [PermissionController],
-  providers: [
-    PermissionService,
-    PermissionScannerService,
-    PermissionRepository,
-  ],
-  exports: [
-    PermissionService,
-    PermissionScannerService,
-    PermissionRepository,
-  ],
+  providers: [PermissionService, PermissionScannerService, PermissionRepository],
+  exports: [PermissionService, PermissionScannerService, PermissionRepository],
 })
 export class PermissionModule {}

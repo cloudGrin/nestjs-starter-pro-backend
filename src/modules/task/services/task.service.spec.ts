@@ -1,18 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { CronJob } from 'cron';
 import { TaskService } from './task.service';
 import { TaskDefinitionRepository } from '../repositories/task-definition.repository';
 import { TaskLogRepository } from '../repositories/task-log.repository';
 import { TaskHandlerRegistry } from './task-handler.registry';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
-import {
-  TaskDefinitionEntity,
-  TaskStatus,
-  TaskType,
-} from '../entities/task-definition.entity';
+import { TaskDefinitionEntity, TaskStatus, TaskType } from '../entities/task-definition.entity';
 import { TaskLogStatus } from '../entities/task-log.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
 
@@ -24,7 +18,6 @@ describe('TaskService', () => {
   let handlerRegistry: jest.Mocked<TaskHandlerRegistry>;
   let logger: jest.Mocked<LoggerService>;
   let cache: jest.Mocked<CacheService>;
-  let eventEmitter: jest.Mocked<EventEmitter2>;
 
   beforeEach(async () => {
     const mockTaskRepository = {
@@ -39,6 +32,7 @@ describe('TaskService', () => {
 
     const mockTaskLogRepository = {
       create: jest.fn(),
+      createAndSave: jest.fn(),
       update: jest.fn().mockResolvedValue(undefined),
       find: jest.fn().mockResolvedValue([]),
       findAll: jest.fn(),
@@ -56,11 +50,7 @@ describe('TaskService', () => {
 
     const mockSchedulerRegistry = {
       addCronJob: jest.fn(),
-      addInterval: jest.fn(),
-      addTimeout: jest.fn(),
       deleteCronJob: jest.fn(),
-      deleteInterval: jest.fn(),
-      deleteTimeout: jest.fn(),
       getCronJob: jest.fn().mockReturnValue(mockCronJob),
     };
 
@@ -83,12 +73,6 @@ describe('TaskService', () => {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
-      acquireLock: jest.fn().mockResolvedValue('lock-id'),
-      releaseLock: jest.fn().mockResolvedValue(true),
-    };
-
-    const mockEventEmitter = {
-      emit: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -100,7 +84,6 @@ describe('TaskService', () => {
         { provide: TaskHandlerRegistry, useValue: mockHandlerRegistry },
         { provide: LoggerService, useValue: mockLogger },
         { provide: CacheService, useValue: mockCache },
-        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
 
@@ -111,7 +94,6 @@ describe('TaskService', () => {
     handlerRegistry = module.get(TaskHandlerRegistry);
     logger = module.get(LoggerService);
     cache = module.get(CacheService);
-    eventEmitter = module.get(EventEmitter2);
   });
 
   afterEach(() => {
@@ -124,15 +106,13 @@ describe('TaskService', () => {
       expect(logger.setContext).toHaveBeenCalledWith('TaskService');
     });
 
-    it('onModuleInit 应该注册系统内置处理器', async () => {
+    it('onModuleInit 无启用任务时不注册调度', async () => {
       taskRepository.findAll.mockResolvedValue([]);
 
       await service.onModuleInit();
 
-      expect(handlerRegistry.register).toHaveBeenCalledWith(
-        'system:cleanup-task-logs',
-        expect.any(Function),
-      );
+      expect(schedulerRegistry.addCronJob).not.toHaveBeenCalled();
+      expect(logger.log).toHaveBeenCalledWith('Initialized scheduler with 0 tasks');
     });
 
     it('onModuleInit 应该加载并注册启用的任务', async () => {
@@ -189,8 +169,8 @@ describe('TaskService', () => {
       const createDto = {
         code: 'enabled-task',
         name: '启用的任务',
-        type: TaskType.INTERVAL,
-        schedule: '60000',
+        type: TaskType.CRON,
+        schedule: '0 0 * * *',
         handler: 'test-handler',
         allowManual: true,
         status: TaskStatus.ENABLED,
@@ -207,7 +187,7 @@ describe('TaskService', () => {
 
       await service.createTask(createDto);
 
-      expect(schedulerRegistry.addInterval).toHaveBeenCalled();
+      expect(schedulerRegistry.addCronJob).toHaveBeenCalled();
     });
 
     it('当任务编码已存在时应该抛出异常', async () => {
@@ -477,19 +457,17 @@ describe('TaskService', () => {
       taskRepository.findById.mockResolvedValue(task);
       taskRepository.update.mockResolvedValue(undefined as any);
       handlerRegistry.get.mockReturnValue(mockHandler);
-      taskLogRepository.create.mockResolvedValue({
+      taskLogRepository.createAndSave.mockResolvedValue({
         id: 1,
         taskId: task.id,
         status: TaskLogStatus.RUNNING,
       } as any);
       taskLogRepository.update.mockResolvedValue(undefined as any);
-      cache.acquireLock.mockResolvedValue('lock-id');
-      cache.releaseLock.mockResolvedValue(true);
 
       await service.triggerTask(1, {});
 
       expect(mockHandler).toHaveBeenCalled();
-      expect(taskLogRepository.create).toHaveBeenCalled();
+      expect(taskLogRepository.createAndSave).toHaveBeenCalled();
     });
 
     it('不允许手动触发时应该抛出异常', async () => {
@@ -519,14 +497,12 @@ describe('TaskService', () => {
       taskRepository.findById.mockResolvedValue(task);
       taskRepository.update.mockResolvedValue(undefined as any);
       handlerRegistry.get.mockReturnValue(mockHandler);
-      taskLogRepository.create.mockResolvedValue({
+      taskLogRepository.createAndSave.mockResolvedValue({
         id: 1,
         taskId: task.id,
         status: TaskLogStatus.RUNNING,
       } as any);
       taskLogRepository.update.mockResolvedValue(undefined as any);
-      cache.acquireLock.mockResolvedValue('lock-id');
-      cache.releaseLock.mockResolvedValue(true);
 
       // 任务失败时会重新抛出错误
       await expect(service.triggerTask(1, {})).rejects.toThrow('Task failed');
@@ -537,6 +513,47 @@ describe('TaskService', () => {
           status: TaskLogStatus.FAILED,
         }),
       );
+    });
+
+    it('同一进程内同一任务并发触发时只执行一次', async () => {
+      const task = {
+        id: 1,
+        code: 'test-task',
+        allowManual: true,
+        handler: 'test-handler',
+        status: TaskStatus.ENABLED,
+      } as TaskDefinitionEntity;
+
+      let completeHandler!: () => void;
+      const handlerPromise = new Promise<void>((resolve) => {
+        completeHandler = resolve;
+      });
+      const mockHandler = jest
+        .fn()
+        .mockReturnValueOnce(handlerPromise)
+        .mockResolvedValue(undefined);
+
+      taskRepository.findByIdOrFail.mockResolvedValue(task);
+      taskRepository.findById.mockResolvedValue(task);
+      taskRepository.update.mockResolvedValue(undefined as any);
+      handlerRegistry.get.mockReturnValue(mockHandler);
+      taskLogRepository.createAndSave.mockResolvedValue({
+        id: 1,
+        taskId: task.id,
+        status: TaskLogStatus.RUNNING,
+      } as any);
+      taskLogRepository.update.mockResolvedValue(undefined as any);
+
+      const firstExecution = service.triggerTask(1, {});
+      await Promise.resolve();
+      const secondExecution = service.triggerTask(1, {});
+
+      await expect(secondExecution).resolves.toBeUndefined();
+      expect(mockHandler).toHaveBeenCalledTimes(1);
+      expect(taskLogRepository.createAndSave).toHaveBeenCalledTimes(1);
+
+      completeHandler();
+      await expect(firstExecution).resolves.toBeUndefined();
     });
   });
 
@@ -562,60 +579,6 @@ describe('TaskService', () => {
       await service.createTask(task);
 
       expect(schedulerRegistry.addCronJob).toHaveBeenCalled();
-    });
-
-    it('应该正确注册 INTERVAL 任务', async () => {
-      const task = {
-        code: 'interval-task',
-        type: TaskType.INTERVAL,
-        schedule: '60000',
-        handler: 'test-handler',
-      } as TaskDefinitionEntity;
-
-      taskRepository.findByCode.mockResolvedValue(null);
-      taskRepository.create.mockResolvedValue({
-        id: 1,
-        ...task,
-        name: 'Test',
-        status: TaskStatus.ENABLED,
-      } as TaskDefinitionEntity);
-      handlerRegistry.get.mockReturnValue(jest.fn());
-
-      await service.createTask({
-        ...task,
-        name: 'Test',
-        allowManual: false,
-        status: TaskStatus.ENABLED,
-      });
-
-      expect(schedulerRegistry.addInterval).toHaveBeenCalled();
-    });
-
-    it('应该正确注册 TIMEOUT 任务', async () => {
-      const task = {
-        code: 'timeout-task',
-        type: TaskType.TIMEOUT,
-        schedule: '5000',
-        handler: 'test-handler',
-      } as TaskDefinitionEntity;
-
-      taskRepository.findByCode.mockResolvedValue(null);
-      taskRepository.create.mockResolvedValue({
-        id: 1,
-        ...task,
-        name: 'Test',
-        status: TaskStatus.ENABLED,
-      } as TaskDefinitionEntity);
-      handlerRegistry.get.mockReturnValue(jest.fn());
-
-      await service.createTask({
-        ...task,
-        name: 'Test',
-        allowManual: false,
-        status: TaskStatus.ENABLED,
-      });
-
-      expect(schedulerRegistry.addTimeout).toHaveBeenCalled();
     });
 
     it('处理器不存在时仍然可以创建任务', async () => {
@@ -647,7 +610,7 @@ describe('TaskService', () => {
     it('创建->启用->执行->禁用流程', async () => {
       // 1. 创建禁用的任务
       const createDto = {
-        code: 'workflow-task',
+        code: 'lifecycle-task',
         name: '流程测试任务',
         type: TaskType.CRON,
         schedule: '0 0 * * *',
@@ -681,7 +644,7 @@ describe('TaskService', () => {
       taskRepository.findByIdOrFail.mockResolvedValue(enabledTask);
       taskRepository.findById.mockResolvedValue(enabledTask);
       handlerRegistry.get.mockReturnValue(mockHandler);
-      taskLogRepository.create.mockResolvedValue({
+      taskLogRepository.createAndSave.mockResolvedValue({
         id: 1,
         taskId: 1,
         status: TaskLogStatus.SUCCESS,

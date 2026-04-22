@@ -14,11 +14,7 @@ import { RoleService } from '../services/role.service';
 import { CreateRoleDto } from '../dto/create-role.dto';
 import { AssignMenusDto } from '../dto/assign-menus.dto';
 import { RevokeMenusDto } from '../dto/revoke-menus.dto';
-import {
-  ApiSuccessResponse,
-  ApiPaginatedResponse,
-  RequirePermissions,
-} from '~/core/decorators';
+import { ApiSuccessResponse, ApiPaginatedResponse, RequirePermissions } from '~/core/decorators';
 import { RoleEntity } from '../entities/role.entity';
 import { MenuEntity } from '~/modules/menu/entities/menu.entity';
 import { AdminOnly } from '~/modules/auth/decorators/roles.decorator';
@@ -31,6 +27,7 @@ export class RoleController {
   constructor(private readonly roleService: RoleService) {}
 
   @Post()
+  @RequirePermissions('role:create')
   @ApiOperation({ summary: '创建角色' })
   @ApiSuccessResponse(RoleEntity)
   async create(@Body() dto: CreateRoleDto) {
@@ -38,6 +35,7 @@ export class RoleController {
   }
 
   @Get()
+  @RequirePermissions('role:read')
   @ApiOperation({ summary: '获取角色列表' })
   @ApiPaginatedResponse(RoleEntity)
   async findAll(
@@ -54,6 +52,7 @@ export class RoleController {
   }
 
   @Get('active')
+  @RequirePermissions('role:read')
   @ApiOperation({ summary: '获取所有活跃角色' })
   @ApiSuccessResponse(RoleEntity, true)
   async findActiveRoles() {
@@ -61,6 +60,7 @@ export class RoleController {
   }
 
   @Get(':id')
+  @RequirePermissions('role:read')
   @ApiOperation({ summary: '获取角色详情' })
   @ApiParam({ name: 'id', description: '角色ID' })
   @ApiSuccessResponse(RoleEntity)
@@ -69,6 +69,7 @@ export class RoleController {
   }
 
   @Put(':id')
+  @RequirePermissions('role:update')
   @ApiOperation({ summary: '更新角色' })
   @ApiParam({ name: 'id', description: '角色ID' })
   @ApiSuccessResponse(RoleEntity)
@@ -77,6 +78,7 @@ export class RoleController {
   }
 
   @Delete(':id')
+  @RequirePermissions('role:delete')
   @ApiOperation({ summary: '删除角色' })
   @ApiParam({ name: 'id', description: '角色ID' })
   async remove(@Param('id', ParseIntPipe) id: number) {
@@ -85,6 +87,7 @@ export class RoleController {
   }
 
   @Put(':id/permissions')
+  @RequirePermissions('role:permission:assign')
   @ApiOperation({ summary: '分配权限' })
   @ApiParam({ name: 'id', description: '角色ID' })
   @ApiSuccessResponse(RoleEntity)

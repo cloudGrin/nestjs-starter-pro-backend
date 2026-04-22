@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
@@ -34,13 +33,11 @@ export class UserService extends BaseService<UserEntity> {
     private readonly dataSource: DataSource,
     logger: LoggerService,
     cache: CacheService,
-    eventEmitter: EventEmitter2,
   ) {
     super();
     this.repository = userRepository;
     this.logger = logger;
     this.cache = cache;
-    this.eventEmitter = eventEmitter;
     this.logger.setContext(UserService.name);
   }
 
@@ -97,10 +94,6 @@ export class UserService extends BaseService<UserEntity> {
 
     const savedUser = await this.userRepository.save(user);
     this.logger.debug(`用户保存成功 id=${savedUser.id}, username=${savedUser.username}`);
-
-    // 发送用户创建事件
-    this.eventEmitter.emit('user.created', { user: savedUser });
-    this.logger.debug(`已触发用户创建事件 userId=${savedUser.id}`);
 
     // 清除缓存
     await this.clearCache();
@@ -168,10 +161,6 @@ export class UserService extends BaseService<UserEntity> {
     this.logger.debug(`用户信息合并完成，准备保存 id=${id}`);
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`用户更新保存成功 id=${updatedUser.id}`);
-
-    // 发送用户更新事件
-    this.eventEmitter.emit('user.updated', { user: updatedUser });
-    this.logger.debug(`已触发用户更新事件 userId=${updatedUser.id}`);
 
     // 清除缓存
     await this.clearCache(id);
@@ -290,10 +279,6 @@ export class UserService extends BaseService<UserEntity> {
     await this.userRepository.updateRefreshToken(userId, undefined);
     this.logger.debug(`清除用户刷新Token userId=${userId}`);
 
-    // 发送密码修改事件
-    this.eventEmitter.emit('user.password-changed', { userId });
-    this.logger.debug(`已触发用户修改密码事件 userId=${userId}`);
-
     // 清除缓存
     await this.clearCache(userId);
     this.logger.debug(`修改密码后清理缓存完成 userId=${userId}`);
@@ -320,10 +305,6 @@ export class UserService extends BaseService<UserEntity> {
     await this.userRepository.updateRefreshToken(userId, undefined);
     this.logger.debug(`重置密码后清除刷新Token userId=${userId}`);
 
-    // 发送密码重置事件
-    this.eventEmitter.emit('user.password-reset', { userId });
-    this.logger.debug(`已触发用户密码重置事件 userId=${userId}`);
-
     // 清除缓存
     await this.clearCache(userId);
     this.logger.debug(`重置密码后清理缓存完成 userId=${userId}`);
@@ -345,10 +326,6 @@ export class UserService extends BaseService<UserEntity> {
 
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`用户启用保存成功 id=${id}`);
-
-    // 发送事件
-    this.eventEmitter.emit('user.enabled', { user: updatedUser });
-    this.logger.debug(`已触发用户启用事件 userId=${id}`);
 
     // 清除缓存
     await this.clearCache(id);
@@ -376,10 +353,6 @@ export class UserService extends BaseService<UserEntity> {
     await this.userRepository.updateRefreshToken(id, undefined);
     this.logger.debug(`禁用用户后清除刷新Token userId=${id}`);
 
-    // 发送事件
-    this.eventEmitter.emit('user.disabled', { user: updatedUser });
-    this.logger.debug(`已触发用户禁用事件 userId=${id}`);
-
     // 清除缓存
     await this.clearCache(id);
     this.logger.debug(`禁用用户后清理缓存完成 userId=${id}`);
@@ -399,10 +372,6 @@ export class UserService extends BaseService<UserEntity> {
 
     await this.userRepository.softDelete(id);
     this.logger.debug(`用户软删除完成 id=${id}`);
-
-    // 发送事件
-    this.eventEmitter.emit('user.deleted', { user });
-    this.logger.debug(`已触发用户删除事件 userId=${id}`);
 
     // 清除缓存
     await this.clearCache(id);
@@ -430,10 +399,6 @@ export class UserService extends BaseService<UserEntity> {
       await this.userRepository.softDelete(user.id);
       this.logger.debug(`用户软删除完成 id=${user.id}`);
     }
-
-    // 发送事件
-    this.eventEmitter.emit('users.deleted', { users });
-    this.logger.debug(`已触发批量删除用户事件 数量=${users.length}`);
 
     // 清除缓存
     await this.clearCache();
@@ -474,12 +439,6 @@ export class UserService extends BaseService<UserEntity> {
     user.roles = roles;
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`分配角色保存成功 userId=${userId}`);
-
-    // 发送事件
-    this.eventEmitter.emit('user.roles-assigned', { user: updatedUser, roleIds });
-    this.logger.debug(
-      `已触发用户分配角色事件 userId=${userId}, roleIds=${JSON.stringify(roleIds)}`,
-    );
 
     // 清除缓存
     await this.clearCache(userId);

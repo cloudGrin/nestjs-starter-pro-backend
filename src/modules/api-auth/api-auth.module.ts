@@ -15,11 +15,7 @@ import { SharedModule } from '~/shared/shared.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ApiAppEntity,
-      ApiKeyEntity,
-      ApiCallLogEntity,
-    ]),
+    TypeOrmModule.forFeature([ApiAppEntity, ApiKeyEntity, ApiCallLogEntity]),
     PassportModule.register({ defaultStrategy: 'api-key' }),
     SharedModule, // 包含CacheService
   ],
@@ -32,9 +28,6 @@ import { SharedModule } from '~/shared/shared.module';
     ApiKeyStrategy,
     ApiKeyGuard,
   ],
-  exports: [
-    ApiAuthService,
-    ApiKeyGuard,
-  ],
+  exports: [ApiAuthService, ApiKeyGuard],
 })
 export class ApiAuthModule {}

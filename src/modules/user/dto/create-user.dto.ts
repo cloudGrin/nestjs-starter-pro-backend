@@ -11,8 +11,6 @@ import {
   IsArray,
   IsNumber,
   Matches,
-  IsInt,
-  Min,
 } from 'class-validator';
 import { UserGender, UserStatus } from '~/common/enums/user.enum';
 
@@ -137,11 +135,4 @@ export class CreateUserDto {
   @IsArray()
   @IsNumber({}, { each: true })
   roleIds?: number[];
-
-  // 已移除department功能
-  // @ApiPropertyOptional({ description: '所属部门ID', type: Number })
-  // @IsOptional()
-  // @IsInt()
-  // @Min(1)
-  // departmentId?: number;
 }

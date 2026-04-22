@@ -11,7 +11,7 @@ if ! docker info > /dev/null 2>&1; then
 fi
 
 # 启动测试服务
-echo "📦 启动MySQL和Redis容器..."
+echo "📦 启动MySQL容器..."
 docker-compose -f docker-compose.test.yml up -d
 
 # 等待服务健康检查通过
@@ -26,14 +26,6 @@ until docker exec home-mysql-test mysqladmin ping -h localhost -u root -ptest_ro
 done
 echo "✅ MySQL已就绪"
 
-# 检查Redis健康状态
-echo "🔍 检查Redis状态..."
-until docker exec home-redis-test redis-cli -a test_redis_password ping 2>/dev/null | grep -q PONG; do
-  echo "   等待Redis启动..."
-  sleep 2
-done
-echo "✅ Redis已就绪"
-
 # 运行数据库迁移
 echo "🔧 运行数据库迁移..."
 cd "$(dirname "$0")/.." || exit 1
@@ -44,7 +36,6 @@ echo "✨ E2E测试环境已就绪！"
 echo ""
 echo "📊 服务信息："
 echo "   MySQL: localhost:3307"
-echo "   Redis: localhost:6380"
 echo ""
 echo "🧪 运行测试："
 echo "   npm run test:e2e"

@@ -12,7 +12,6 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { ApiSuccessResponse, ApiPaginatedResponse, RequirePermissions } from '~/core/decorators';
 import { PermissionService } from '../services/permission.service';
-import { PermissionScannerService } from '../services/permission-scanner.service';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 import { PermissionEntity } from '../entities/permission.entity';
 
@@ -20,10 +19,7 @@ import { PermissionEntity } from '../entities/permission.entity';
 @ApiBearerAuth()
 @Controller('permissions')
 export class PermissionController {
-  constructor(
-    private readonly permissionService: PermissionService,
-    private readonly permissionScannerService: PermissionScannerService,
-  ) {}
+  constructor(private readonly permissionService: PermissionService) {}
 
   @Post()
   @RequirePermissions('permission:create')
@@ -75,17 +71,4 @@ export class PermissionController {
     return { message: '删除成功' };
   }
 
-  @Post('sync')
-  @RequirePermissions('permission:sync')
-  @ApiOperation({
-    summary: '手动触发权限扫描同步',
-    description: '扫描所有控制器的 @RequirePermissions 装饰器，自动同步权限点到数据库',
-  })
-  async syncPermissions() {
-    const result = await this.permissionScannerService.manualSync();
-    return {
-      message: '权限同步完成',
-      data: result,
-    };
-  }
 }

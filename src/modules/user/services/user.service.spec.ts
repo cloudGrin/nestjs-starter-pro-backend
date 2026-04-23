@@ -11,6 +11,7 @@ import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
+import { CACHE_KEYS } from '~/common/constants/cache.constants';
 import { DataSource } from 'typeorm';
 import {
   UserMockFactory,
@@ -574,8 +575,12 @@ describe('UserService', () => {
 
       // Assert
       expect(result).toEqual(['user:view', 'user:edit', 'role:view']);
-      expect(cache.get).toHaveBeenCalled();
-      expect(cache.set).toHaveBeenCalled();
+      expect(cache.get).toHaveBeenCalledWith(CACHE_KEYS.USER_PERMISSIONS(userId));
+      expect(cache.set).toHaveBeenCalledWith(
+        CACHE_KEYS.USER_PERMISSIONS(userId),
+        ['user:view', 'user:edit', 'role:view'],
+        expect.any(Number),
+      );
     });
 
     it('应该从缓存获取权限', async () => {

@@ -324,65 +324,6 @@ export class RoleService extends BaseService<RoleEntity> {
     this.logger.debug('已清除所有用户权限缓存');
   }
 
-  // ==================== 🆕 RBAC 2.0 新增方法 ====================
-
-  /**
-   * 获取角色的有效权限（简化版：仅直接分配的权限）
-   */
-  async getEffectivePermissions(roleId: number): Promise<string[]> {
-    this.logger.debug(`计算角色有效权限 roleId=${roleId}`);
-
-    const role = await this.roleRepository.findOne({
-      where: { id: roleId },
-      relations: ['permissions'],
-    });
-
-    if (!role) {
-      this.logger.debug(`计算有效权限失败，未找到角色 roleId=${roleId}`);
-      throw new NotFoundException('角色不存在');
-    }
-
-    const permissionCodes = new Set<string>();
-
-    // 从直接分配的权限获取
-    if (role.permissions) {
-      role.permissions.forEach((p) => {
-        if (p.isActive) {
-          permissionCodes.add(p.code);
-        }
-      });
-    }
-    this.logger.debug(`角色直接权限统计 roleId=${roleId}, 数量=${role.permissions?.length || 0}`);
-
-    const result = Array.from(permissionCodes);
-    this.logger.debug(`角色有效权限计算完成 roleId=${roleId}, 总数=${result.length}`);
-
-    return result;
-  }
-
-  /**
-   * 检查角色互斥冲突（简化版：轻量级系统无互斥角色概念）
-   */
-  async checkExclusiveConflict(
-    userId: number,
-    newRoleIds: number[],
-  ): Promise<{
-    hasConflict: boolean;
-    conflicts: Array<{ role1: string; role2: string }>;
-  }> {
-    this.logger.debug(`检测角色互斥冲突 userId=${userId}, roleIds=${JSON.stringify(newRoleIds)}`);
-
-    // 轻量级系统简化：不存在互斥角色，始终返回无冲突
-    this.logger.debug('轻量级系统无互斥角色限制，跳过冲突检查');
-
-    return {
-      hasConflict: false,
-      conflicts: [],
-    };
-  }
-
-  // ==================== 🆕 菜单管理方法 ====================
-
   /**
    * 分配菜单给角色
    */

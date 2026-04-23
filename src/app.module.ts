@@ -15,11 +15,9 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { RoleModule } from './modules/role/role.module';
-import { DictModule } from './modules/dict/dict.module';
-import { ConfigModule as SystemConfigModule } from './modules/config/config.module';
 import { FileModule } from './modules/file/file.module';
 import { NotificationModule } from './modules/notification/notification.module';
-import { TaskModule } from './modules/task/task.module';
+import { CronModule } from './modules/cron/cron.module';
 import { ApiAuthModule } from './modules/api-auth/api-auth.module';
 import { OpenApiModule } from './modules/open-api/open-api.module';
 import { HealthModule } from './modules/health/health.module';
@@ -67,11 +65,9 @@ import { MenuModule } from './modules/menu/menu.module';
     UserModule,
     RoleModule,
     MenuModule,
-    DictModule,
-    SystemConfigModule,
     FileModule,
     NotificationModule,
-    TaskModule,
+    CronModule,
     ApiAuthModule,
     OpenApiModule,
     HealthModule,

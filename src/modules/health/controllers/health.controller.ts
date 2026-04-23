@@ -1,4 +1,12 @@
-import { Controller, Get, HttpCode, HttpStatus, VERSION_NEUTRAL, Version } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  VERSION_NEUTRAL,
+  Version,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '~/core/decorators';
 import { HealthService } from '../services/health.service';
@@ -49,7 +57,7 @@ export class HealthController {
 
     // 如果任何依赖不健康，返回 503 Service Unavailable
     if (result.status === 'unhealthy') {
-      throw new Error('Service not ready');
+      throw new ServiceUnavailableException('Service not ready');
     }
 
     return result;

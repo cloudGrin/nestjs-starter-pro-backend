@@ -10,7 +10,6 @@ import { UserEntity } from '../src/modules/user/entities/user.entity';
 import { RoleEntity, RoleCategory } from '../src/modules/role/entities/role.entity';
 import { PermissionEntity } from '../src/modules/permission/entities/permission.entity';
 import { UserStatus } from '../src/common/enums/user.enum';
-import { PermissionScannerService } from '../src/modules/permission/services/permission-scanner.service';
 import { CacheService } from '../src/shared/cache/cache.service';
 import { CACHE_KEYS } from '../src/common/constants/cache.constants';
 import request from 'supertest';
@@ -141,14 +140,6 @@ export async function createSuperAdminRole(app: INestApplication): Promise<RoleE
   const dataSource = app.get(DataSource);
   const roleRepository = dataSource.getRepository(RoleEntity);
   const permissionRepository = dataSource.getRepository(PermissionEntity);
-
-  // 先同步最新权限（即使角色已存在，防止新增接口权限缺失）
-  try {
-    const permissionScannerService = app.get(PermissionScannerService);
-    await permissionScannerService.manualSync();
-  } catch (error) {
-    console.warn('权限同步失败，继续创建超级管理员角色:', (error as Error)?.message || error);
-  }
 
   // 检查是否已经存在超级管理员角色(兼容大小写)
   let superAdminRole = await roleRepository.findOne({

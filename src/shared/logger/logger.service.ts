@@ -7,7 +7,6 @@ import * as path from 'path';
 @Injectable()
 export class LoggerService implements NestLoggerService {
   private logger: winston.Logger;
-  private context?: string;
 
   constructor(private configService: ConfigService) {
     const logLevel = this.configService.get<string>('logging.level', 'debug');
@@ -79,27 +78,27 @@ export class LoggerService implements NestLoggerService {
     });
   }
 
-  setContext(context: string) {
-    this.context = context;
+  setContext(_context: string) {
+    // LoggerService is a singleton; keeping mutable context here causes cross-service log pollution.
   }
 
   log(message: any, context?: string) {
-    this.logger.info(message, { context: context || this.context });
+    this.logger.info(message, { context });
   }
 
   error(message: any, trace?: string, context?: string) {
-    this.logger.error(message, { trace, context: context || this.context });
+    this.logger.error(message, { trace, context });
   }
 
   warn(message: any, context?: string) {
-    this.logger.warn(message, { context: context || this.context });
+    this.logger.warn(message, { context });
   }
 
   debug(message: any, context?: string) {
-    this.logger.debug(message, { context: context || this.context });
+    this.logger.debug(message, { context });
   }
 
   verbose(message: any, context?: string) {
-    this.logger.verbose(message, { context: context || this.context });
+    this.logger.verbose(message, { context });
   }
 }

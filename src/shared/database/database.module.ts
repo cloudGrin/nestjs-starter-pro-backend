@@ -1,7 +1,19 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { DataSource, DataSourceOptions } from 'typeorm';
+
+export function buildDataSourceOptions(dbConfig: DataSourceOptions): TypeOrmModuleOptions {
+  return {
+    ...dbConfig,
+    autoLoadEntities: true,
+    logging: dbConfig.logging ? ['query', 'error'] : false,
+    logger: dbConfig.logging ? 'advanced-console' : undefined,
+    extra: {
+      ...(dbConfig.extra || {}),
+    },
+  } as TypeOrmModuleOptions;
+}
 
 @Module({
   imports: [
@@ -9,15 +21,7 @@ import { DataSource, DataSourceOptions } from 'typeorm';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const dbConfig = configService.get('database');
-        return {
-          ...dbConfig,
-          autoLoadEntities: true,
-          logging: dbConfig.logging ? ['query', 'error'] : false,
-          logger: dbConfig.logging ? 'advanced-console' : undefined,
-          extra: {
-            connectionLimit: 10,
-          },
-        } as DataSourceOptions;
+        return buildDataSourceOptions(dbConfig);
       },
       dataSourceFactory: async (options) => {
         if (!options) {

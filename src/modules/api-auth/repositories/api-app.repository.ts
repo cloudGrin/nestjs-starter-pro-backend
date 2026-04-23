@@ -67,14 +67,6 @@ export class ApiAppRepository extends BaseRepository<ApiAppEntity> {
   }
 
   /**
-   * 更新调用统计
-   */
-  async updateCallStats(appId: number): Promise<void> {
-    await this.repository.increment({ id: appId }, 'totalCalls', 1);
-    await this.repository.update(appId, { lastCalledAt: new Date() });
-  }
-
-  /**
    * 检查应用名称是否存在
    */
   async isNameExist(name: string, excludeId?: number): Promise<boolean> {

@@ -5,7 +5,6 @@ import { MenuService } from './menu.service';
 import { MenuRepository } from '../repositories/menu.repository';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
-import { CacheClearService } from '~/shared/cache/cache-clear.service';
 import { MenuEntity, MenuType } from '../entities/menu.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { CreateMenuDto, UpdateMenuDto, QueryMenuDto } from '../dto';
@@ -74,13 +73,6 @@ describe('MenuService', () => {
             set: jest.fn(),
             del: jest.fn(),
             delByPattern: jest.fn(),
-          },
-        },
-        {
-          provide: CacheClearService,
-          useValue: {
-            clearUserPermissionsCache: jest.fn(),
-            clearMenuCache: jest.fn(),
           },
         },
       ],

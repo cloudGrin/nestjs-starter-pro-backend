@@ -72,26 +72,9 @@ export interface ThrottleConfig {
 export interface FileConfig {
   storage: 'local' | 'oss';
   uploadDir: string;
-  tempDir: string;
   baseUrl: string;
   maxSize: number;
   allowedTypes: string[];
-
-  chunk: {
-    defaultSize: number;
-    expire: number;
-  };
-
-  image: {
-    compress: boolean;
-    quality: number;
-    maxWidth: number;
-    thumbnail: {
-      enable: boolean;
-      width: number;
-      height: number;
-    };
-  };
 
   external: {
     oss: {

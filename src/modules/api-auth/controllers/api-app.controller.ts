@@ -121,13 +121,4 @@ export class ApiAppController {
     };
   }
 
-  @Get(':appId/statistics')
-  @RequirePermissions('api-app:read')
-  @ApiOperation({ summary: '获取API使用统计' })
-  async getStatistics(
-    @Param('appId') appId: number,
-    @Query('period') period: 'hour' | 'day' | 'month' = 'day',
-  ) {
-    return this.apiAuthService.getApiStatistics(appId, period);
-  }
 }

@@ -9,6 +9,7 @@ import { Repository, In } from 'typeorm';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
+import { CACHE_KEYS, CACHE_TTL } from '~/common/constants/cache.constants';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { PaginationResult } from '~/core/base/base.repository';
 import { CryptoUtil } from '~/common/utils/crypto.util';
@@ -456,7 +457,7 @@ export class UserService extends BaseService<UserEntity> {
    */
   async getUserPermissions(userId: number): Promise<string[]> {
     this.logger.debug(`获取用户权限 userId=${userId}`);
-    const cacheKey = this.getCacheKey('permissions', userId);
+    const cacheKey = CACHE_KEYS.USER_PERMISSIONS(userId);
 
     // 尝试从缓存获取
     const cached = await this.cache.get<string[]>(cacheKey);
@@ -493,9 +494,8 @@ export class UserService extends BaseService<UserEntity> {
     const permissionList = Array.from(permissions);
     this.logger.debug(`计算用户权限完成 userId=${userId}, 权限数量=${permissionList.length}`);
 
-    // 缓存权限（1小时）
-    await this.cache.set(cacheKey, permissionList, 3600);
-    this.logger.debug(`用户权限写入缓存 userId=${userId}, ttl=3600`);
+    await this.cache.set(cacheKey, permissionList, CACHE_TTL.MEDIUM);
+    this.logger.debug(`用户权限写入缓存 userId=${userId}, ttl=${CACHE_TTL.MEDIUM}`);
 
     return permissionList;
   }
@@ -541,7 +541,7 @@ export class UserService extends BaseService<UserEntity> {
    * 注意：这会清除PermissionsGuard中缓存的用户权限，确保角色变更后立即生效
    */
   private async clearUserPermissionCache(userId: number): Promise<void> {
-    const cacheKey = `user:permissions:${userId}`;
+    const cacheKey = CACHE_KEYS.USER_PERMISSIONS(userId);
     await this.cache.del(cacheKey);
     this.logger.debug(`已清除用户权限缓存 userId=${userId}`);
   }

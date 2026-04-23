@@ -95,36 +95,6 @@ export class RoleController {
     return this.roleService.assignPermissions(id, permissionIds);
   }
 
-  // ==================== 🆕 RBAC 2.0 新增接口 ====================
-
-  @Get(':id/effective-permissions')
-  @RequirePermissions('role:read')
-  @ApiOperation({
-    summary: '获取角色的有效权限',
-    description: '获取角色的所有有效权限（含权限组中的权限和继承的父角色权限）',
-  })
-  @ApiParam({ name: 'id', description: '角色ID' })
-  async getEffectivePermissions(@Param('id', ParseIntPipe) id: number) {
-    const permissions = await this.roleService.getEffectivePermissions(id);
-    return {
-      roleId: id,
-      permissions,
-      count: permissions.length,
-    };
-  }
-
-  @Post('check-exclusive')
-  @RequirePermissions('role:read')
-  @ApiOperation({
-    summary: '检查角色互斥冲突',
-    description: '检查要分配给用户的多个角色之间是否存在互斥冲突',
-  })
-  async checkExclusiveConflict(@Body() dto: { userId: number; roleIds: number[] }) {
-    return this.roleService.checkExclusiveConflict(dto.userId, dto.roleIds);
-  }
-
-  // ==================== 🆕 菜单管理接口 ====================
-
   @Post(':id/menus')
   @RequirePermissions('role:menu:assign')
   @ApiOperation({

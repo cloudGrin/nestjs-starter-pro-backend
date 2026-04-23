@@ -413,38 +413,6 @@ describe('Role Module (E2E)', () => {
     });
   });
 
-  // ==================== GET /roles/:id/effective-permissions ====================
-  describe('GET /roles/:id/effective-permissions - 获取有效权限', () => {
-    it('管理员应该能够获取角色的有效权限', async () => {
-      if (!testRole) {
-        console.warn('跳过测试: testRole未创建');
-        return;
-      }
-
-      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
-        `/roles/${testRole.id}/effective-permissions`,
-      );
-
-      expect(response.status).toBe(HttpStatus.OK);
-      // 响应可能在body或body.data中
-      const data = response.body.data || response.body;
-      expect(data).toHaveProperty('roleId');
-      expect(data).toHaveProperty('permissions');
-      expect(data).toHaveProperty('count');
-      expect(Array.isArray(data.permissions)).toBe(true);
-    });
-
-    it('普通用户应该被拒绝', async () => {
-      if (!testRole) return;
-
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
-        `/roles/${testRole.id}/effective-permissions`,
-      );
-
-      expect(response.status).toBe(HttpStatus.FORBIDDEN);
-    });
-  });
-
   // ==================== 完整流程测试 ====================
   describe('完整流程测试', () => {
     it('应该完成: 创建角色 → 分配权限 → 查询 → 删除', async () => {
@@ -494,21 +462,14 @@ describe('Role Module (E2E)', () => {
       const getRoleData = getResponse.body.data || getResponse.body;
       expect(getRoleData.id).toBe(roleId);
 
-      // 4. 获取有效权限
-      const permissionsResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
-        `/roles/${roleId}/effective-permissions`,
-      );
-
-      expect(permissionsResponse.status).toBe(HttpStatus.OK);
-
-      // 5. 删除角色
+      // 4. 删除角色
       const deleteResponse = await authenticatedRequest(app, adminCredentials.accessToken).delete(
         `/roles/${roleId}`,
       );
 
       expect([HttpStatus.OK, HttpStatus.NO_CONTENT]).toContain(deleteResponse.status);
 
-      // 6. 验证删除
+      // 5. 验证删除
       const verifyResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
         `/roles/${roleId}`,
       );

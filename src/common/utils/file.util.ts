@@ -199,7 +199,7 @@ export class FileUtil {
    * 判断是否为文档文件
    */
   static isDocument(filename: string): boolean {
-    const docExts = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'];
+    const docExts = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.txt'];
     return docExts.includes(this.getExtension(filename));
   }
 

@@ -47,17 +47,8 @@ describe('FileService', () => {
         const config: Record<string, any> = {
           'file.storage': FileStorageType.LOCAL,
           'file.uploadDir': 'uploads',
-          'file.tempDir': 'uploads/temp',
           'file.maxSize': 50 * 1024 * 1024,
           'file.allowedTypes': ['.jpg', '.jpeg', '.png', '.pdf', '.txt'],
-          'file.chunk.defaultSize': 5 * 1024 * 1024,
-          'file.chunk.expire': 24 * 60 * 60,
-          'file.image.compress': true,
-          'file.image.quality': 80,
-          'file.image.maxWidth': 1920,
-          'file.image.thumbnail.enable': false, // 测试中禁用缩略图避免sharp依赖
-          'file.image.thumbnail.width': 320,
-          'file.image.thumbnail.height': 320,
         };
         return config[key] ?? defaultValue;
       }),
@@ -73,7 +64,6 @@ describe('FileService', () => {
       }),
       delete: jest.fn().mockResolvedValue(undefined),
       getStream: jest.fn().mockReturnValue({} as any),
-      generateSignedUrl: jest.fn().mockResolvedValue('https://example.com/signed-url'),
     };
 
     const mockStorageFactory = {
@@ -277,121 +267,6 @@ describe('FileService', () => {
       baseRemoveSpy.mockRestore();
     });
 
-    it('应该同时删除缩略图', async () => {
-      const mockFile = {
-        id: 1,
-        path: 'uploads/test.jpg',
-        thumbnailPath: 'uploads/thumbnails/test_thumb.jpg',
-        storage: FileStorageType.LOCAL,
-      } as FileEntity;
-
-      repository.findByIdOrFail.mockResolvedValue(mockFile);
-      const baseRemoveSpy = jest.spyOn(
-        Object.getPrototypeOf(Object.getPrototypeOf(service)),
-        'remove',
-      );
-      baseRemoveSpy.mockResolvedValue(undefined);
-
-      await service.remove(1);
-
-      const strategy = storageFactory.getStrategy(FileStorageType.LOCAL);
-      expect(strategy.delete).toHaveBeenCalledWith(mockFile.path);
-      expect(strategy.delete).toHaveBeenCalledWith(mockFile.thumbnailPath);
-
-      baseRemoveSpy.mockRestore();
-    });
-  });
-
-  describe('generateDownloadUrl', () => {
-    it('应该为文件所有者生成下载URL', async () => {
-      const mockFile = {
-        id: 1,
-        path: 'uploads/test.jpg',
-        originalName: 'test.jpg',
-        uploaderId: 1,
-        storage: FileStorageType.LOCAL,
-      } as FileEntity;
-
-      repository.findByIdOrFail.mockResolvedValue(mockFile);
-
-      const url = await service.generateDownloadUrl(1, 1, 3600, false);
-
-      expect(url).toBe('https://example.com/signed-url');
-      const strategy = storageFactory.getStrategy(FileStorageType.LOCAL);
-      expect(strategy.generateSignedUrl).toHaveBeenCalledWith(
-        mockFile.path,
-        3600,
-        mockFile.originalName,
-      );
-    });
-
-    it('应该允许管理员访问任何文件', async () => {
-      const mockFile = {
-        id: 1,
-        path: 'uploads/test.jpg',
-        originalName: 'test.jpg',
-        uploaderId: 2, // 不同的用户
-        storage: FileStorageType.LOCAL,
-      } as FileEntity;
-
-      repository.findByIdOrFail.mockResolvedValue(mockFile);
-
-      const url = await service.generateDownloadUrl(1, 1, 3600, true);
-
-      expect(url).toBeTruthy();
-    });
-
-    it('应该拒绝非所有者访问私有文件', async () => {
-      const mockFile = {
-        id: 1,
-        path: 'uploads/test.jpg',
-        originalName: 'test.jpg',
-        uploaderId: 2, // 不同的用户
-        storage: FileStorageType.LOCAL,
-      } as FileEntity;
-
-      repository.findByIdOrFail.mockResolvedValue(mockFile);
-
-      await expect(service.generateDownloadUrl(1, 1, 3600, false)).rejects.toThrow(
-        BusinessException,
-      );
-    });
-  });
-
-  describe('getUploadProgress', () => {
-    it('应该返回上传进度', async () => {
-      const mockProgress = {
-        uploadId: 'test-upload-id',
-        filename: 'large-file.zip',
-        totalChunks: 10,
-        uploadedChunks: 5,
-        uploadedSize: 5 * 1024 * 1024,
-        totalSize: 10 * 1024 * 1024,
-        status: FileStatus.UPLOADING,
-      };
-
-      cache.get.mockResolvedValue(mockProgress);
-
-      const result = await service.getUploadProgress('test-upload-id');
-
-      expect(result).toEqual(mockProgress);
-      expect(cache.get).toHaveBeenCalledWith('upload:progress:test-upload-id');
-    });
-
-    it('当uploadId为空时应该返回null', async () => {
-      const result = await service.getUploadProgress('');
-
-      expect(result).toBeNull();
-      expect(cache.get).not.toHaveBeenCalled();
-    });
-
-    it('当进度不存在时应该返回null', async () => {
-      cache.get.mockResolvedValue(null);
-
-      const result = await service.getUploadProgress('non-existent');
-
-      expect(result).toBeNull();
-    });
   });
 
   describe('完整流程测试', () => {

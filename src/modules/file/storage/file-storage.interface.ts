@@ -44,12 +44,4 @@ export interface FileStorageStrategy {
    */
   toAbsolutePath?(path: string): string;
 
-  /**
-   * 🆕 生成临时签名 URL（用于安全下载）
-   * @param path 文件路径
-   * @param expiresIn 过期时间（秒），默认 3600（1小时）
-   * @param filename 下载时的文件名（可选）
-   * @returns 签名后的临时访问 URL
-   */
-  generateSignedUrl?(path: string, expiresIn?: number, filename?: string): Promise<string>;
 }

@@ -102,17 +102,6 @@ export class LocalStorageStrategy implements FileStorageStrategy {
   }
 
   /**
-   * 生成临时签名 URL（本地存储不支持）
-   * 本地存储策略不支持签名 URL，应使用应用层鉴权
-   * @throws Error 总是抛出错误
-   */
-  async generateSignedUrl(_path: string, _expiresIn?: number, _filename?: string): Promise<string> {
-    throw new Error(
-      'Local storage does not support signed URLs. Use application-level authentication instead.',
-    );
-  }
-
-  /**
    * 构建响应元数据
    */
   private buildMetadata(

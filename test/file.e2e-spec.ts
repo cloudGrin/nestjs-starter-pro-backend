@@ -311,68 +311,6 @@ describe('文件管理模块 (e2e)', () => {
     });
   });
 
-  describe('GET /files/:id/signed-url', () => {
-    let testFileId: number;
-
-    beforeAll(async () => {
-      // 上传一个私有文件用于测试签名URL
-      const testBuffer = Buffer.from('private file content');
-      const uploadResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
-        .attach('file', testBuffer, 'private.txt')
-        .field('isPublic', 'false');
-
-      if ([HttpStatus.CREATED, HttpStatus.OK].includes(uploadResponse.status)) {
-        testFileId = uploadResponse.body.data?.id;
-        if (testFileId) {
-          uploadedFileIds.push(testFileId);
-        }
-      }
-    });
-
-    it('应该为文件所有者生成签名URL', async () => {
-      if (!testFileId) {
-        console.warn('跳过测试：没有测试文件');
-        return;
-      }
-
-      const response = await authenticatedRequest(app, credentials.accessToken).get(
-        `/files/${testFileId}/signed-url`,
-      );
-
-      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
-        console.warn('跳过测试：权限不足或存储策略不支持');
-        return;
-      }
-
-      if (response.status === HttpStatus.OK) {
-        expect(response.body.data).toHaveProperty('url');
-        expect(response.body.data).toHaveProperty('expiresIn');
-        expect(response.body.data).toHaveProperty('expiresAt');
-      }
-    });
-
-    it('应该支持自定义过期时间', async () => {
-      if (!testFileId) {
-        console.warn('跳过测试：没有测试文件');
-        return;
-      }
-
-      const response = await authenticatedRequest(app, credentials.accessToken).get(
-        `/files/${testFileId}/signed-url?expiresIn=7200`,
-      );
-
-      if (response.status === HttpStatus.FORBIDDEN || response.status === HttpStatus.UNAUTHORIZED) {
-        console.warn('跳过测试：权限不足或存储策略不支持');
-        return;
-      }
-
-      if (response.status === HttpStatus.OK) {
-        expect(response.body.data.expiresIn).toBe(7200);
-      }
-    });
-  });
-
   describe('DELETE /files/:id', () => {
     it('应该成功删除文件', async () => {
       // 先上传一个文件用于删除

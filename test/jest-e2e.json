@@ -14,6 +14,5 @@
   ],
   "coverageDirectory": "../coverage-e2e",
   "testTimeout": 120000,
-  "setupFilesAfterEnv": ["<rootDir>/setup.ts"],
-  "forceExit": true
+  "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
 }

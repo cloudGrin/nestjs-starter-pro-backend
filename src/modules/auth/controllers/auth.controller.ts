@@ -3,7 +3,6 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
-import { RegisterDto } from '../dto/register.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import {
   ApiSuccessResponse,
@@ -36,16 +35,6 @@ export class AuthController {
     const userAgent = req.headers['user-agent'];
 
     return this.authService.login(dto, ipAddress, userAgent);
-  }
-
-  @Post('register')
-  @Public()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: '用户注册' })
-  @ApiBody({ type: RegisterDto })
-  @ApiPublicResponses()
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
   }
 
   @Post('refresh')

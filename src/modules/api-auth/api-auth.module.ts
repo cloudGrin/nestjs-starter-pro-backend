@@ -3,10 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { ApiAppEntity } from './entities/api-app.entity';
 import { ApiKeyEntity } from './entities/api-key.entity';
-import { ApiCallLogEntity } from './entities/api-call-log.entity';
 import { ApiAppRepository } from './repositories/api-app.repository';
 import { ApiKeyRepository } from './repositories/api-key.repository';
-import { ApiCallLogRepository } from './repositories/api-call-log.repository';
 import { ApiAuthService } from './services/api-auth.service';
 import { ApiAppController } from './controllers/api-app.controller';
 import { ApiKeyStrategy } from './strategies/simple-api-key.strategy';
@@ -15,7 +13,7 @@ import { SharedModule } from '~/shared/shared.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ApiAppEntity, ApiKeyEntity, ApiCallLogEntity]),
+    TypeOrmModule.forFeature([ApiAppEntity, ApiKeyEntity]),
     PassportModule.register({ defaultStrategy: 'api-key' }),
     SharedModule, // 包含CacheService
   ],
@@ -23,7 +21,6 @@ import { SharedModule } from '~/shared/shared.module';
   providers: [
     ApiAppRepository,
     ApiKeyRepository,
-    ApiCallLogRepository,
     ApiAuthService,
     ApiKeyStrategy,
     ApiKeyGuard,

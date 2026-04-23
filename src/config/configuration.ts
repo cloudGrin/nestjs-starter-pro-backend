@@ -157,8 +157,6 @@ export const configuration = (): Configuration => ({
     storage: (process.env.FILE_STORAGE as 'local' | 'oss') || 'local',
     /** 上传文件保存目录 */
     uploadDir: process.env.FILE_UPLOAD_DIR || 'uploads',
-    /** 临时文件目录（用于分片上传） */
-    tempDir: process.env.FILE_TEMP_DIR || 'uploads/temp',
     /** 文件访问基础 URL */
     baseUrl: process.env.FILE_BASE_URL || '/uploads',
     /** 最大文件大小（字节），默认 50MB */
@@ -166,45 +164,11 @@ export const configuration = (): Configuration => ({
     /** 允许的文件类型（扩展名列表） */
     allowedTypes: (
       process.env.FILE_ALLOWED_TYPES ||
-      '.jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip'
+      '.jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip'
     )
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean),
-
-    /**
-     * 分片上传配置
-     */
-    chunk: {
-      /** 默认分片大小（字节），默认 5MB */
-      defaultSize: parseInt(process.env.FILE_CHUNK_SIZE || `${5 * 1024 * 1024}`, 10),
-      /** 分片信息过期时间（秒），默认 24 小时 */
-      expire: parseInt(process.env.FILE_CHUNK_EXPIRE || `${24 * 60 * 60}`, 10),
-    },
-
-    /**
-     * 图片处理配置
-     */
-    image: {
-      /** 是否压缩图片（默认 false） */
-      compress: process.env.FILE_IMAGE_COMPRESS === 'true',
-      /** 压缩质量（1-100），默认 80 */
-      quality: parseInt(process.env.FILE_IMAGE_QUALITY || '80', 10),
-      /** 最大宽度（像素），超过则缩放 */
-      maxWidth: parseInt(process.env.FILE_IMAGE_MAX_WIDTH || '1920', 10),
-
-      /**
-       * 缩略图配置
-       */
-      thumbnail: {
-        /** 是否生成缩略图（默认 false） */
-        enable: process.env.FILE_IMAGE_THUMBNAIL_ENABLE === 'true',
-        /** 缩略图宽度（像素） */
-        width: parseInt(process.env.FILE_IMAGE_THUMBNAIL_WIDTH || '320', 10),
-        /** 缩略图高度（像素） */
-        height: parseInt(process.env.FILE_IMAGE_THUMBNAIL_HEIGHT || '320', 10),
-      },
-    },
 
     /**
      * 外部存储服务配置

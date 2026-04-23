@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   Delete,
   Get,
@@ -13,7 +12,6 @@ import {
   UseInterceptors,
   HttpStatus,
   HttpCode,
-  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -28,7 +26,6 @@ import { memoryStorage } from 'multer';
 import { StreamableFile } from '@nestjs/common';
 import { FileService } from '../services/file.service';
 import { UploadFileDto } from '../dto/upload-file.dto';
-import { UploadChunkDto } from '../dto/upload-chunk.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
 import {
   ApiPaginatedResponse,
@@ -131,55 +128,6 @@ export class FileController {
     return this.fileService.upload(file, uploadDto, user?.id);
   }
 
-  @Post('upload/chunk')
-  @RequirePermissions('file:upload')
-  @ApiOperation({
-    summary: '上传文件分片',
-    description: '用于大文件分片上传，每个分片默认不超过10MB',
-  })
-  @ApiFileUploadResponse('上传文件分片')
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        chunk: { type: 'string', format: 'binary', description: '分片文件' },
-        uploadId: { type: 'string', description: '上传会话ID' },
-        chunkIndex: { type: 'number', description: '当前分片索引（从1开始）' },
-        totalChunks: { type: 'number', description: '分片总数' },
-        chunkSize: { type: 'number', description: '分片大小（字节）' },
-        totalSize: { type: 'number', description: '文件总大小（字节）' },
-        filename: { type: 'string', description: '原始文件名' },
-        hash: { type: 'string', description: '文件哈希（可选）' },
-        module: { type: 'string', description: '业务模块标识' },
-        tags: { type: 'string', description: '业务标签' },
-        isPublic: { type: 'boolean', description: '是否公开访问' },
-        remark: { type: 'string', description: '备注信息' },
-      },
-      required: [
-        'chunk',
-        'uploadId',
-        'chunkIndex',
-        'totalChunks',
-        'chunkSize',
-        'totalSize',
-        'filename',
-      ],
-    },
-  })
-  @UseInterceptors(
-    FileInterceptor('chunk', {
-      storage: memoryStorage(),
-    }),
-  )
-  async uploadChunk(
-    @UploadedFile() file: Express.Multer.File,
-    @Body() payload: UploadChunkDto,
-    @CurrentUser() user: UserEntity,
-  ) {
-    return this.fileService.uploadChunk(file, payload, user?.id);
-  }
-
   @Get()
   @RequirePermissions('file:read')
   @ApiOperation({ summary: '获取文件列表' })
@@ -187,18 +135,6 @@ export class FileController {
   @ApiCommonResponses()
   async findAll(@Query() query: QueryFileDto) {
     return this.fileService.findFiles(query);
-  }
-
-  @Get('upload/:uploadId/progress')
-  @RequirePermissions('file:upload')
-  @ApiOperation({ summary: '查询分片上传进度' })
-  @ApiParam({ name: 'uploadId', description: '上传会话ID' })
-  async getProgress(@Param('uploadId') uploadId: string) {
-    const progress = await this.fileService.getUploadProgress(uploadId);
-    if (!progress) {
-      throw BusinessException.notFound('上传任务', uploadId);
-    }
-    return progress;
   }
 
   @Get(':id')
@@ -212,28 +148,6 @@ export class FileController {
       throw BusinessException.notFound('文件', id);
     }
     return file;
-  }
-
-  @Get(':id/signed-url')
-  @RequirePermissions('file:download')
-  @ApiOperation({ summary: '生成文件下载签名 URL' })
-  @ApiParam({ name: 'id', description: '文件ID' })
-  async generateSignedUrl(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('expiresIn', new ParseIntPipe({ optional: true })) expiresIn: number = 3600,
-    @CurrentUser() user: UserEntity,
-  ) {
-    // 检查是否为管理员
-    const isAdmin =
-      user.roles?.some((role) => role.code === 'admin' || role.code === 'super_admin') ?? false;
-
-    const signedUrl = await this.fileService.generateDownloadUrl(id, user.id, expiresIn, isAdmin);
-
-    return {
-      url: signedUrl,
-      expiresIn,
-      expiresAt: new Date(Date.now() + expiresIn * 1000),
-    };
   }
 
   @Delete(':id')

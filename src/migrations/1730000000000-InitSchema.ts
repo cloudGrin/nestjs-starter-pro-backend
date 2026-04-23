@@ -185,16 +185,11 @@ export class InitSchema1730000000000 implements MigrationInterface {
         category varchar(50) NOT NULL COMMENT '文件类别',
         storage enum('local', 'oss') NOT NULL DEFAULT 'local' COMMENT '存储类型',
         hash varchar(64) NULL COMMENT '文件哈希值',
-        metadata json NULL COMMENT '文件元数据（宽高、时长等）',
+        metadata json NULL COMMENT '文件元数据',
         status enum('uploading', 'available', 'processing', 'failed') NOT NULL DEFAULT 'available' COMMENT '文件状态',
         module varchar(100) NULL COMMENT '业务模块标识',
         tags varchar(200) NULL COMMENT '业务标签（用逗号分隔）',
         isPublic tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否公开访问',
-        width int NULL COMMENT '图片宽度',
-        height int NULL COMMENT '图片高度',
-        duration int NULL COMMENT '视频或音频时长（秒）',
-        thumbnailPath varchar(500) NULL COMMENT '缩略图存储路径',
-        thumbnailUrl varchar(500) NULL COMMENT '缩略图访问URL',
         remark varchar(500) NULL COMMENT '备注信息',
         uploaderId int NULL COMMENT '上传者ID',
         createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -209,130 +204,6 @@ export class InitSchema1730000000000 implements MigrationInterface {
         KEY IDX_files_category (category),
         KEY IDX_files_filename (filename),
         KEY IDX_files_uploaderId (uploaderId)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-
-    await queryRunner.query(`
-      CREATE TABLE dict_types (
-        id int NOT NULL AUTO_INCREMENT,
-        code varchar(100) NOT NULL COMMENT '字典类型编码',
-        name varchar(100) NOT NULL COMMENT '字典类型名称',
-        description text NULL COMMENT '描述',
-        source enum('platform', 'custom') NOT NULL DEFAULT 'custom' COMMENT '字典来源',
-        isEnabled tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
-        isSystem tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否系统内置（不可删除）',
-        sort int NOT NULL DEFAULT 0 COMMENT '排序',
-        config json NULL COMMENT '扩展配置',
-        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-        createdBy varchar(50) NULL COMMENT '创建人',
-        updatedBy varchar(50) NULL COMMENT '更新人',
-        deletedAt timestamp NULL COMMENT '删除时间',
-        deletedBy varchar(50) NULL COMMENT '删除人',
-        PRIMARY KEY (id),
-        UNIQUE KEY UQ_dict_types_code (code)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-
-    await queryRunner.query(`
-      CREATE TABLE dict_items (
-        id int NOT NULL AUTO_INCREMENT,
-        dict_type_id int NOT NULL COMMENT '字典类型ID',
-        label varchar(100) NOT NULL COMMENT '字典项标签',
-        labelEn varchar(100) NULL COMMENT '字典项标签（英文）',
-        value varchar(100) NOT NULL COMMENT '字典项值',
-        color varchar(50) NULL COMMENT '标签颜色',
-        icon varchar(50) NULL COMMENT '图标',
-        description text NULL COMMENT '描述',
-        status enum('enabled', 'disabled') NOT NULL DEFAULT 'enabled' COMMENT '状态',
-        isDefault tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否默认值',
-        sort int NOT NULL DEFAULT 0 COMMENT '排序',
-        extra json NULL COMMENT '扩展数据',
-        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-        createdBy varchar(50) NULL COMMENT '创建人',
-        updatedBy varchar(50) NULL COMMENT '更新人',
-        deletedAt timestamp NULL COMMENT '删除时间',
-        deletedBy varchar(50) NULL COMMENT '删除人',
-        PRIMARY KEY (id),
-        UNIQUE KEY UQ_dict_items_type_value (dict_type_id, value),
-        KEY IDX_dict_items_type_sort (dict_type_id, sort),
-        CONSTRAINT FK_dict_items_type FOREIGN KEY (dict_type_id) REFERENCES dict_types(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-
-    await queryRunner.query(`
-      CREATE TABLE system_configs (
-        id int NOT NULL AUTO_INCREMENT,
-        configKey varchar(100) NOT NULL COMMENT '配置键名',
-        configName varchar(100) NOT NULL COMMENT '配置名称',
-        configValue text NULL COMMENT '配置值',
-        configType enum('text', 'number', 'boolean', 'json', 'array') NOT NULL DEFAULT 'text' COMMENT '配置类型',
-        configGroup enum('system', 'business', 'security', 'third_party', 'other') NOT NULL DEFAULT 'other' COMMENT '配置分组',
-        description text NULL COMMENT '配置描述',
-        defaultValue text NULL COMMENT '默认值',
-        isSystem tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否系统内置（不可删除）',
-        isEnabled tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
-        sort int NOT NULL DEFAULT 0 COMMENT '排序',
-        extra json NULL COMMENT '扩展属性',
-        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-        createdBy varchar(50) NULL COMMENT '创建人',
-        updatedBy varchar(50) NULL COMMENT '更新人',
-        deletedAt timestamp NULL COMMENT '删除时间',
-        deletedBy varchar(50) NULL COMMENT '删除人',
-        PRIMARY KEY (id),
-        UNIQUE KEY UQ_system_configs_configKey (configKey)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-
-    await queryRunner.query(`
-      CREATE TABLE task_definitions (
-        id int NOT NULL AUTO_INCREMENT,
-        code varchar(100) NOT NULL COMMENT '任务编码',
-        name varchar(150) NOT NULL COMMENT '任务名称',
-        description text NULL COMMENT '任务描述',
-        type enum('cron') NOT NULL DEFAULT 'cron' COMMENT '任务类型',
-        schedule varchar(200) NULL COMMENT 'Cron 表达式或间隔配置',
-        payload json NULL COMMENT '执行参数',
-        status enum('enabled', 'disabled') NOT NULL DEFAULT 'enabled' COMMENT '任务状态',
-        allowManual tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否允许手动触发',
-        handler varchar(100) NULL COMMENT '处理器名称',
-        lastStatus varchar(50) NULL COMMENT '上次执行状态',
-        lastRunAt timestamp NULL COMMENT '上次执行时间',
-        nextRunAt timestamp NULL COMMENT '下次执行时间',
-        retryPolicy json NULL COMMENT '重试策略配置',
-        alertConfig json NULL COMMENT '告警配置',
-        timeout int NULL DEFAULT 3600000 COMMENT '任务执行超时时间（毫秒）',
-        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-        createdBy varchar(50) NULL COMMENT '创建人',
-        updatedBy varchar(50) NULL COMMENT '更新人',
-        deletedAt timestamp NULL COMMENT '删除时间',
-        deletedBy varchar(50) NULL COMMENT '删除人',
-        PRIMARY KEY (id),
-        UNIQUE KEY UQ_task_definitions_code (code),
-        KEY IDX_task_definitions_status (status)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-
-    await queryRunner.query(`
-      CREATE TABLE task_logs (
-        id int NOT NULL AUTO_INCREMENT,
-        task_id int NOT NULL COMMENT '任务 ID',
-        status enum('success', 'failed', 'running') NOT NULL DEFAULT 'running' COMMENT '执行状态',
-        message text NULL COMMENT '执行结果或错误信息',
-        context json NULL COMMENT '上下文数据',
-        startedAt timestamp NULL COMMENT '开始时间',
-        finishedAt timestamp NULL COMMENT '结束时间',
-        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-        createdBy varchar(50) NULL COMMENT '创建人',
-        updatedBy varchar(50) NULL COMMENT '更新人',
-        PRIMARY KEY (id),
-        KEY IDX_task_logs_task_created (task_id, createdAt),
-        KEY IDX_task_logs_status (status),
-        CONSTRAINT FK_task_logs_task FOREIGN KEY (task_id) REFERENCES task_definitions(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
@@ -374,14 +245,7 @@ export class InitSchema1730000000000 implements MigrationInterface {
         id int NOT NULL AUTO_INCREMENT,
         name varchar(100) NOT NULL,
         description text NULL,
-        callbackUrl varchar(255) NULL,
-        webhookUrl varchar(255) NULL,
         scopes json NULL,
-        ipWhitelist json NULL,
-        rateLimitPerHour int NOT NULL DEFAULT 1000,
-        rateLimitPerDay int NOT NULL DEFAULT 10000,
-        totalCalls bigint NOT NULL DEFAULT 0,
-        lastCalledAt timestamp NULL,
         isActive tinyint(1) NOT NULL DEFAULT 1,
         ownerId int NULL,
         createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -418,45 +282,13 @@ export class InitSchema1730000000000 implements MigrationInterface {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
-    await queryRunner.query(`
-      CREATE TABLE api_call_logs (
-        id int NOT NULL AUTO_INCREMENT,
-        appId int NOT NULL,
-        appName varchar(100) NOT NULL,
-        keyId int NULL,
-        method varchar(10) NOT NULL,
-        endpoint varchar(255) NOT NULL,
-        statusCode int NOT NULL,
-        responseTime int NOT NULL,
-        requestSize bigint NULL,
-        responseSize bigint NULL,
-        ipAddress varchar(45) NOT NULL,
-        userAgent text NULL,
-        errorMessage text NULL,
-        metadata json NULL,
-        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-        createdBy varchar(50) NULL COMMENT '创建人',
-        updatedBy varchar(50) NULL COMMENT '更新人',
-        PRIMARY KEY (id),
-        KEY IDX_api_call_logs_app_created (appId, createdAt),
-        KEY IDX_api_call_logs_endpoint_created (endpoint, createdAt),
-        KEY IDX_api_call_logs_keyId (keyId)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query('SET FOREIGN_KEY_CHECKS = 0');
-    await queryRunner.query('DROP TABLE IF EXISTS api_call_logs');
     await queryRunner.query('DROP TABLE IF EXISTS api_keys');
     await queryRunner.query('DROP TABLE IF EXISTS api_apps');
     await queryRunner.query('DROP TABLE IF EXISTS notifications');
-    await queryRunner.query('DROP TABLE IF EXISTS task_logs');
-    await queryRunner.query('DROP TABLE IF EXISTS task_definitions');
-    await queryRunner.query('DROP TABLE IF EXISTS system_configs');
-    await queryRunner.query('DROP TABLE IF EXISTS dict_items');
-    await queryRunner.query('DROP TABLE IF EXISTS dict_types');
     await queryRunner.query('DROP TABLE IF EXISTS files');
     await queryRunner.query('DROP TABLE IF EXISTS refresh_tokens');
     await queryRunner.query('DROP TABLE IF EXISTS role_menus');

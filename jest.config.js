@@ -3,7 +3,7 @@ module.exports = {
   rootDir: 'src',
   testRegex: '.*\\.spec\\.ts$',
   transform: {
-    '^.+\\.(t|j)s$': 'ts-jest',
+    '^.+\\.(t|j)s$': ['ts-jest', {}],
   },
   collectCoverageFrom: ['**/*.(t|j)s'],
   coverageDirectory: '../coverage',
@@ -14,9 +14,4 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(@faker-js/faker)/)',
   ],
-  globals: {
-    'ts-jest': {
-      isolatedModules: true,
-    },
-  },
 };

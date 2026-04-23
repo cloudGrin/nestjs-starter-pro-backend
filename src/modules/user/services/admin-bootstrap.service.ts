@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { UserStatus } from '~/common/enums/user.enum';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { RoleCategory, RoleEntity } from '~/modules/role/entities/role.entity';
+import { MenuEntity, MenuType } from '~/modules/menu/entities/menu.entity';
 import { UserEntity } from '../entities/user.entity';
 
 @Injectable()
@@ -17,6 +18,8 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
+    @InjectRepository(MenuEntity)
+    private readonly menuRepository: Repository<MenuEntity>,
     private readonly logger: LoggerService,
   ) {
     this.logger.setContext(AdminBootstrapService.name);
@@ -30,6 +33,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     }
 
     const role = await this.ensureSuperAdminRole();
+    await this.ensureDefaultMenus();
     const password = this.generatePassword();
     const admin = this.userRepository.create({
       username: AdminBootstrapService.ADMIN_USERNAME,
@@ -64,6 +68,64 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     });
 
     return this.roleRepository.save(role);
+  }
+
+  private async ensureDefaultMenus(): Promise<void> {
+    const menuCount = await this.menuRepository.count();
+    if (menuCount > 0) {
+      return;
+    }
+
+    const menus = this.menuRepository.create([
+      {
+        name: '系统管理',
+        path: '/system',
+        type: MenuType.DIRECTORY,
+        icon: 'setting',
+        sort: 10,
+        isVisible: true,
+        isActive: true,
+        meta: { title: '系统管理', icon: 'setting' },
+      },
+      {
+        name: '用户管理',
+        path: '/system/users',
+        type: MenuType.MENU,
+        icon: 'user',
+        component: 'system/users',
+        parentId: null,
+        sort: 20,
+        isVisible: true,
+        isActive: true,
+        meta: { title: '用户管理', icon: 'user' },
+      },
+      {
+        name: '角色管理',
+        path: '/system/roles',
+        type: MenuType.MENU,
+        icon: 'team',
+        component: 'system/roles',
+        parentId: null,
+        sort: 30,
+        isVisible: true,
+        isActive: true,
+        meta: { title: '角色管理', icon: 'team' },
+      },
+      {
+        name: '菜单管理',
+        path: '/system/menus',
+        type: MenuType.MENU,
+        icon: 'menu',
+        component: 'system/menus',
+        parentId: null,
+        sort: 40,
+        isVisible: true,
+        isActive: true,
+        meta: { title: '菜单管理', icon: 'menu' },
+      },
+    ]);
+
+    await this.menuRepository.save(menus);
   }
 
   private generatePassword(length = 20): string {

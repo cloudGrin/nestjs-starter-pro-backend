@@ -87,7 +87,7 @@ export class FileEntity extends SoftDeleteBaseEntity {
   @Column({
     type: 'json',
     nullable: true,
-    comment: '文件元数据（宽高、时长等）',
+    comment: '文件元数据',
   })
   metadata?: Record<string, unknown>;
 
@@ -121,43 +121,6 @@ export class FileEntity extends SoftDeleteBaseEntity {
     comment: '是否公开访问',
   })
   isPublic: boolean;
-
-  @Column({
-    type: 'int',
-    nullable: true,
-    comment: '图片宽度',
-  })
-  width?: number;
-
-  @Column({
-    type: 'int',
-    nullable: true,
-    comment: '图片高度',
-  })
-  height?: number;
-
-  @Column({
-    type: 'int',
-    nullable: true,
-    comment: '视频或音频时长（秒）',
-  })
-  duration?: number;
-
-  @Column({
-    type: 'varchar',
-    length: 500,
-    nullable: true,
-    comment: '缩略图存储路径',
-  })
-  thumbnailPath?: string;
-
-  @Column({
-    type: 'varchar',
-    length: 500,
-    nullable: true,
-    comment: '缩略图访问URL',
-  })
-  thumbnailUrl?: string;
 
   @Column({
     type: 'varchar',

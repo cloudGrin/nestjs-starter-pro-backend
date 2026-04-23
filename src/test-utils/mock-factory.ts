@@ -24,11 +24,11 @@ export class UserMockFactory {
   static create(overrides?: Partial<UserEntity>): UserEntity {
     const user = new UserEntity();
 
-    user.id = faker.datatype.number({ min: 1, max: 10000 });
+    user.id = faker.number.int({ min: 1, max: 10000 });
     user.username = faker.internet.userName();
     user.email = faker.internet.email();
-    user.nickname = faker.name.fullName();
-    user.phone = `13${faker.datatype.number({ min: 100000000, max: 999999999 })}`;
+    user.nickname = faker.person.fullName();
+    user.phone = `13${faker.number.int({ min: 100000000, max: 999999999 })}`;
     user.password = '$2a$10$abcdefghijklmnopqrstuv'; // bcrypt hash for 'password123'
     user.avatar = faker.image.avatar();
     user.gender = faker.helpers.arrayElement([
@@ -102,12 +102,12 @@ export class RoleMockFactory {
   static create(overrides?: Partial<RoleEntity>): RoleEntity {
     const role = new RoleEntity();
 
-    role.id = faker.datatype.number({ min: 1, max: 1000 });
+    role.id = faker.number.int({ min: 1, max: 1000 });
     role.code = faker.helpers.arrayElement(['admin', 'user', 'manager', 'operator']);
     role.name = faker.helpers.arrayElement(['管理员', '普通用户', '经理', '操作员']);
     role.description = faker.lorem.sentence();
     role.isSystem = false;
-    role.sort = faker.datatype.number({ min: 0, max: 100 });
+    role.sort = faker.number.int({ min: 0, max: 100 });
     role.createdAt = faker.date.past();
     role.updatedAt = faker.date.recent();
 
@@ -147,7 +147,7 @@ export class PermissionMockFactory {
   static create(overrides?: Partial<PermissionEntity>): PermissionEntity {
     const permission = new PermissionEntity();
 
-    permission.id = faker.datatype.number({ min: 1, max: 1000 });
+    permission.id = faker.number.int({ min: 1, max: 1000 });
     permission.code = `${faker.helpers.arrayElement(['user', 'role', 'menu', 'system'])}:${faker.helpers.arrayElement(['create', 'read', 'update', 'delete'])}`;
     permission.name = faker.lorem.words(3);
     permission.description = faker.lorem.sentence();
@@ -180,11 +180,11 @@ export class PermissionMockFactory {
 export class JwtPayloadMockFactory {
   static create(overrides?: any): any {
     return {
-      sub: faker.datatype.number({ min: 1, max: 10000 }),
+      sub: faker.number.int({ min: 1, max: 10000 }),
       username: faker.internet.userName(),
       email: faker.internet.email(),
       type: 'access',
-      sessionId: faker.datatype.uuid(),
+      sessionId: faker.string.uuid(),
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600,
       ...overrides,
@@ -214,7 +214,7 @@ export class RegisterDtoMockFactory {
       username: faker.internet.userName(),
       email: faker.internet.email(),
       password: 'Password123!',
-      nickname: faker.name.fullName(),
+      nickname: faker.person.fullName(),
       ...overrides,
     };
   }

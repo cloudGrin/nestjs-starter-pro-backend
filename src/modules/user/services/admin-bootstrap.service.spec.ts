@@ -5,6 +5,7 @@ import { UserStatus } from '~/common/enums/user.enum';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { createMockLogger, createMockRepository } from '~/test-utils';
 import { RoleCategory, RoleEntity } from '~/modules/role/entities/role.entity';
+import { MenuEntity } from '~/modules/menu/entities/menu.entity';
 import { UserEntity } from '../entities/user.entity';
 import { AdminBootstrapService } from './admin-bootstrap.service';
 
@@ -12,11 +13,16 @@ describe('AdminBootstrapService', () => {
   let service: AdminBootstrapService;
   let userRepository: jest.Mocked<Repository<UserEntity>>;
   let roleRepository: jest.Mocked<Repository<RoleEntity>>;
+  let menuRepository: jest.Mocked<Repository<MenuEntity>>;
   let logger: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
     const userRepositoryMock = {
       ...createMockRepository<UserEntity>(),
+      count: jest.fn(),
+    };
+    const menuRepositoryMock = {
+      ...createMockRepository<MenuEntity>(),
       count: jest.fn(),
     };
 
@@ -32,6 +38,10 @@ describe('AdminBootstrapService', () => {
           useValue: createMockRepository<RoleEntity>(),
         },
         {
+          provide: getRepositoryToken(MenuEntity),
+          useValue: menuRepositoryMock,
+        },
+        {
           provide: LoggerService,
           useValue: createMockLogger(),
         },
@@ -41,6 +51,7 @@ describe('AdminBootstrapService', () => {
     service = module.get(AdminBootstrapService);
     userRepository = module.get(getRepositoryToken(UserEntity));
     roleRepository = module.get(getRepositoryToken(RoleEntity));
+    menuRepository = module.get(getRepositoryToken(MenuEntity));
     logger = module.get(LoggerService);
   });
 
@@ -65,6 +76,9 @@ describe('AdminBootstrapService', () => {
     roleRepository.findOne.mockResolvedValue(null);
     roleRepository.create.mockReturnValue(role);
     roleRepository.save.mockResolvedValue(role);
+    menuRepository.count.mockResolvedValue(0);
+    menuRepository.create.mockImplementation((data) => data as MenuEntity);
+    menuRepository.save.mockImplementation(async (data) => data as MenuEntity);
     userRepository.create.mockImplementation((data) => Object.assign(user, data));
     userRepository.save.mockResolvedValue(user);
 
@@ -95,6 +109,15 @@ describe('AdminBootstrapService', () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('username: admin'));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('password: '));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('shown only once'));
+    expect(menuRepository.count).toHaveBeenCalled();
+    expect(menuRepository.save).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: '系统管理',
+          path: '/system',
+        }),
+      ]),
+    );
   });
 
   it('已有用户时跳过初始化且不输出密码', async () => {

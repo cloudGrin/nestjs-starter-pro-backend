@@ -176,35 +176,13 @@ export const configValidationSchema = Joi.object({
 
   FILE_UPLOAD_DIR: Joi.string().default('uploads'),
 
-  FILE_TEMP_DIR: Joi.string().default('uploads/temp'),
-
   FILE_BASE_URL: Joi.string().default('/uploads'),
 
   FILE_MAX_SIZE: Joi.number().min(1024).default(52428800), // 50MB
 
   FILE_ALLOWED_TYPES: Joi.string().default(
-    '.jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip',
+    '.jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip',
   ),
-
-  // 文件分片配置
-  FILE_CHUNK_SIZE: Joi.number()
-    .min(1024 * 1024)
-    .default(5242880), // 5MB
-
-  FILE_CHUNK_EXPIRE: Joi.number().min(60).default(86400), // 24小时
-
-  // 图片处理配置
-  FILE_IMAGE_COMPRESS: Joi.boolean().default(false),
-
-  FILE_IMAGE_QUALITY: Joi.number().min(1).max(100).default(80),
-
-  FILE_IMAGE_MAX_WIDTH: Joi.number().min(100).default(1920),
-
-  FILE_IMAGE_THUMBNAIL_ENABLE: Joi.boolean().default(false),
-
-  FILE_IMAGE_THUMBNAIL_WIDTH: Joi.number().min(50).default(320),
-
-  FILE_IMAGE_THUMBNAIL_HEIGHT: Joi.number().min(50).default(320),
 
   // OSS 配置（可选）
   FILE_OSS_ENABLE: Joi.boolean().default(false),

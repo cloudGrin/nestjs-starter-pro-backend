@@ -109,37 +109,6 @@ export class OssStorageStrategy implements FileStorageStrategy {
     return this.buildUrl(path) || path;
   }
 
-  /**
-   * 生成临时签名 URL（用于安全下载）
-   * @param path 文件路径
-   * @param expiresIn 过期时间（秒），默认 3600（1小时）
-   * @param filename 下载时的文件名（用于 Content-Disposition）
-   * @returns 临时签名 URL
-   */
-  async generateSignedUrl(path: string, expiresIn = 3600, filename?: string): Promise<string> {
-    const client = this.ensureClient();
-
-    const options: {
-      expires: number;
-      response?: { 'content-disposition': string };
-    } = {
-      expires: expiresIn,
-    };
-
-    // 设置 Content-Disposition 以指定下载时的文件名
-    if (filename) {
-      options.response = {
-        'content-disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
-      };
-    }
-
-    const signedUrl = client.signatureUrl(path, options);
-
-    this.logger.debug(`Generated OSS signed URL for ${path}, expires in ${expiresIn}s`);
-
-    return signedUrl;
-  }
-
   private ensureClient(): OSS {
     if (!this.isEnabled() || !this.client) {
       throw new Error('OSS storage is not configured properly');

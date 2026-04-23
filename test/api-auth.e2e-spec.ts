@@ -37,9 +37,7 @@ describe('API认证模块 (e2e)', () => {
       const appData = {
         name: `Test App ${Date.now()}`,
         description: 'E2E Test Application',
-        scopes: ['read:users', 'read:statistics', 'read:orders'],
-        rateLimitPerHour: 500,
-        rateLimitPerDay: 5000,
+        scopes: ['read:users', 'read:orders'],
       };
 
       const response = await request(app.getHttpServer())
@@ -93,7 +91,7 @@ describe('API认证模块 (e2e)', () => {
       const keyData = {
         name: 'Production Key',
         environment: 'production',
-        scopes: ['read:users', 'read:statistics'],
+        scopes: ['read:users'],
       };
 
       const response = await request(app.getHttpServer())
@@ -205,20 +203,6 @@ describe('API认证模块 (e2e)', () => {
     });
   });
 
-  describe('GET /v1/open/statistics - 获取API统计', () => {
-    it('应该返回应用的使用统计', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/v1/open/statistics')
-        .set('X-API-Key', testApiKey)
-        .expect(HttpStatus.OK);
-
-      expect(response.body.data).toHaveProperty('appName');
-      expect(response.body.data).toHaveProperty('rateLimits');
-      expect(response.body.data.rateLimits).toHaveProperty('perHour');
-      expect(response.body.data.rateLimits).toHaveProperty('perDay');
-    });
-  });
-
   describe('DELETE /v1/api-apps/keys/:id - 撤销API密钥', () => {
     let keyIdToRevoke: number;
 
@@ -254,108 +238,4 @@ describe('API认证模块 (e2e)', () => {
     });
   });
 
-  describe('GET /v1/api-apps/:id/statistics - API使用统计', () => {
-    it('应该返回详细的API调用统计', async () => {
-      // 先进行几次API调用
-      await request(app.getHttpServer()).get('/v1/open/users').set('X-API-Key', testApiKey);
-
-      await request(app.getHttpServer()).get('/v1/open/users').set('X-API-Key', testApiKey);
-
-      // 获取统计
-      const response = await request(app.getHttpServer())
-        .get(`/v1/api-apps/${testAppId}/statistics?period=hour`)
-        .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
-        .expect(HttpStatus.OK);
-
-      expect(Array.isArray(response.body.data)).toBe(true);
-    });
-  });
-
-  describe('限流测试', () => {
-    let limitTestApp: number;
-    let limitTestKey: string;
-
-    beforeAll(async () => {
-      // 创建一个限流很低的应用用于测试
-      const appResponse = await request(app.getHttpServer())
-        .post('/v1/api-apps')
-        .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
-        .send({
-          name: `Rate Limit Test ${Date.now()}`,
-          scopes: ['read:users'], // 必须设置应用级别的scopes
-          rateLimitPerHour: 3, // 每小时只允许3次
-          rateLimitPerDay: 10,
-        })
-        .expect(HttpStatus.CREATED);
-
-      limitTestApp = appResponse.body.data.id;
-
-      const keyResponse = await request(app.getHttpServer())
-        .post(`/v1/api-apps/${limitTestApp}/keys`)
-        .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
-        .send({
-          name: 'Rate Limit Test Key',
-          environment: 'test',
-          scopes: ['read:users'],
-        })
-        .expect(HttpStatus.CREATED);
-
-      limitTestKey = keyResponse.body.data.key;
-    });
-
-    it('应该在超过限流后拒绝请求', async () => {
-      // 前3次应该成功
-      for (let i = 0; i < 3; i++) {
-        await request(app.getHttpServer())
-          .get('/v1/open/users')
-          .set('X-API-Key', limitTestKey)
-          .expect(HttpStatus.OK);
-      }
-
-      // 第4次应该被限流
-      await request(app.getHttpServer())
-        .get('/v1/open/users')
-        .set('X-API-Key', limitTestKey)
-        .expect(HttpStatus.UNAUTHORIZED);
-    });
-  });
-
-  describe('IP白名单测试', () => {
-    let ipTestApp: number;
-    let ipTestKey: string;
-
-    beforeAll(async () => {
-      // 创建一个配置了IP白名单的应用
-      const appResponse = await request(app.getHttpServer())
-        .post('/v1/api-apps')
-        .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
-        .send({
-          name: `IP Whitelist Test ${Date.now()}`,
-          ipWhitelist: ['192.168.1.1', '10.0.0.0/24'], // 限制特定IP
-        })
-        .expect(HttpStatus.CREATED);
-
-      ipTestApp = appResponse.body.data.id;
-
-      const keyResponse = await request(app.getHttpServer())
-        .post(`/v1/api-apps/${ipTestApp}/keys`)
-        .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
-        .send({
-          name: 'IP Test Key',
-          environment: 'test',
-          scopes: ['read:users'],
-        })
-        .expect(HttpStatus.CREATED);
-
-      ipTestKey = keyResponse.body.data.key;
-    });
-
-    it('应该拒绝不在白名单中的IP', async () => {
-      // 测试环境的IP通常不会在配置的白名单中
-      await request(app.getHttpServer())
-        .get('/v1/open/users')
-        .set('X-API-Key', ipTestKey)
-        .expect(HttpStatus.FORBIDDEN); // 应该返回403 Forbidden
-    });
-  });
 });

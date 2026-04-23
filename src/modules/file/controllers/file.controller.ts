@@ -16,7 +16,9 @@ import {
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiCreatedResponse,
   ApiConsumes,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
@@ -28,8 +30,6 @@ import { FileService } from '../services/file.service';
 import { UploadFileDto } from '../dto/upload-file.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
 import {
-  ApiPaginatedResponse,
-  ApiSuccessResponse,
   ApiCommonResponses,
   RequirePermissions,
   CurrentUser,
@@ -86,7 +86,7 @@ export class FileController {
       required: ['file'],
     },
   })
-  @ApiSuccessResponse(FileEntity)
+  @ApiCreatedResponse({ type: FileEntity })
   @ApiCommonResponses()
   @UseInterceptors(
     FileInterceptor('file', {
@@ -130,7 +130,7 @@ export class FileController {
   @Get()
   @RequirePermissions('file:read')
   @ApiOperation({ summary: '获取文件列表' })
-  @ApiPaginatedResponse(FileEntity)
+  @ApiOkResponse({ description: '获取文件列表成功' })
   @ApiCommonResponses()
   async findAll(@Query() query: QueryFileDto) {
     return this.fileService.findFiles(query);
@@ -140,7 +140,7 @@ export class FileController {
   @RequirePermissions('file:read')
   @ApiOperation({ summary: '获取文件详情' })
   @ApiParam({ name: 'id', description: '文件ID' })
-  @ApiSuccessResponse(FileEntity)
+  @ApiOkResponse({ type: FileEntity })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const file = await this.fileService.findOne(id);
     if (!file) {

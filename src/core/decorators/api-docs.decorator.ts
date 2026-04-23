@@ -1,5 +1,43 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiErrorResponse } from './api-response.decorator';
+import { ApiResponse } from '@nestjs/swagger';
+
+const errorResponse = (status: number, description: string) =>
+  ApiResponse({
+    status,
+    description,
+    schema: {
+      properties: {
+        success: {
+          type: 'boolean',
+          example: false,
+        },
+        statusCode: {
+          type: 'number',
+          example: status,
+        },
+        message: {
+          type: 'string',
+          example: description,
+        },
+        error: {
+          type: 'string',
+          example: 'Error Type',
+        },
+        timestamp: {
+          type: 'string',
+          example: new Date().toISOString(),
+        },
+        path: {
+          type: 'string',
+          example: '/api/v1/resource',
+        },
+        method: {
+          type: 'string',
+          example: 'GET',
+        },
+      },
+    },
+  });
 
 /**
  * 通用错误响应装饰器组合
@@ -7,11 +45,11 @@ import { ApiErrorResponse } from './api-response.decorator';
  */
 export const ApiCommonResponses = () => {
   return applyDecorators(
-    ApiErrorResponse(400, 'Bad Request - 参数验证失败'),
-    ApiErrorResponse(401, 'Unauthorized - 用户未认证或token已过期'),
-    ApiErrorResponse(403, 'Forbidden - 用户无权限访问该资源'),
-    ApiErrorResponse(404, 'Not Found - 请求的资源不存在'),
-    ApiErrorResponse(500, 'Internal Server Error - 服务器内部错误'),
+    errorResponse(400, 'Bad Request - 参数验证失败'),
+    errorResponse(401, 'Unauthorized - 用户未认证或token已过期'),
+    errorResponse(403, 'Forbidden - 用户无权限访问该资源'),
+    errorResponse(404, 'Not Found - 请求的资源不存在'),
+    errorResponse(500, 'Internal Server Error - 服务器内部错误'),
   );
 };
 
@@ -21,9 +59,9 @@ export const ApiCommonResponses = () => {
  */
 export const ApiAuthResponses = () => {
   return applyDecorators(
-    ApiErrorResponse(401, 'Unauthorized - 用户未认证或token已过期'),
-    ApiErrorResponse(403, 'Forbidden - 用户无权限访问该资源'),
-    ApiErrorResponse(500, 'Internal Server Error - 服务器内部错误'),
+    errorResponse(401, 'Unauthorized - 用户未认证或token已过期'),
+    errorResponse(403, 'Forbidden - 用户无权限访问该资源'),
+    errorResponse(500, 'Internal Server Error - 服务器内部错误'),
   );
 };
 
@@ -33,7 +71,7 @@ export const ApiAuthResponses = () => {
  */
 export const ApiPublicResponses = () => {
   return applyDecorators(
-    ApiErrorResponse(400, 'Bad Request - 参数验证失败'),
-    ApiErrorResponse(500, 'Internal Server Error - 服务器内部错误'),
+    errorResponse(400, 'Bad Request - 参数验证失败'),
+    errorResponse(500, 'Internal Server Error - 服务器内部错误'),
   );
 };

@@ -9,8 +9,8 @@ import {
   Query,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
-import { ApiSuccessResponse, ApiPaginatedResponse, RequirePermissions } from '~/core/decorators';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiOkResponse } from '@nestjs/swagger';
+import { RequirePermissions } from '~/core/decorators';
 import { PermissionService } from '../services/permission.service';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 import { PermissionEntity } from '../entities/permission.entity';
@@ -24,7 +24,7 @@ export class PermissionController {
   @Post()
   @RequirePermissions('permission:create')
   @ApiOperation({ summary: '创建权限（手动）' })
-  @ApiSuccessResponse(PermissionEntity)
+  @ApiOkResponse({ type: PermissionEntity })
   async create(@Body() dto: CreatePermissionDto) {
     return this.permissionService.create(dto);
   }
@@ -32,7 +32,7 @@ export class PermissionController {
   @Get()
   @RequirePermissions('permission:read')
   @ApiOperation({ summary: '获取权限列表' })
-  @ApiPaginatedResponse(PermissionEntity)
+  @ApiOkResponse({ description: '获取权限列表成功' })
   async findAll(@Query() query: QueryPermissionDto) {
     return this.permissionService.findAll(query);
   }
@@ -48,7 +48,7 @@ export class PermissionController {
   @RequirePermissions('permission:read')
   @ApiOperation({ summary: '获取权限详情' })
   @ApiParam({ name: 'id', description: '权限ID' })
-  @ApiSuccessResponse(PermissionEntity)
+  @ApiOkResponse({ type: PermissionEntity })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.permissionService.findById(id);
   }
@@ -57,7 +57,7 @@ export class PermissionController {
   @RequirePermissions('permission:update')
   @ApiOperation({ summary: '更新权限' })
   @ApiParam({ name: 'id', description: '权限ID' })
-  @ApiSuccessResponse(PermissionEntity)
+  @ApiOkResponse({ type: PermissionEntity })
   async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePermissionDto) {
     return this.permissionService.update(id, dto);
   }
@@ -70,5 +70,4 @@ export class PermissionController {
     await this.permissionService.delete(id);
     return { message: '删除成功' };
   }
-
 }

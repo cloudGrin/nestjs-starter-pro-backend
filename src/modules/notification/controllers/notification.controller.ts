@@ -10,11 +10,18 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { NotificationService } from '../services/notification.service';
 import { CreateNotificationDto } from '../dto/create-notification.dto';
 import { QueryNotificationDto } from '../dto/query-notification.dto';
-import { ApiPaginatedResponse, ApiSuccessResponse, RequirePermissions } from '~/core/decorators';
+import { RequirePermissions } from '~/core/decorators';
 import { NotificationEntity } from '../entities/notification.entity';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
@@ -29,7 +36,7 @@ export class NotificationController {
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions('notification:create')
   @ApiOperation({ summary: '创建通知（支持广播与多用户）' })
-  @ApiSuccessResponse(NotificationEntity, true)
+  @ApiCreatedResponse({ type: NotificationEntity, isArray: true })
   async create(@Body() dto: CreateNotificationDto, @CurrentUser() user: AuthenticatedUser) {
     return this.notificationService.createNotification(dto, user?.id);
   }
@@ -37,7 +44,7 @@ export class NotificationController {
   @Get()
   @RequirePermissions('notification:read')
   @ApiOperation({ summary: '获取我的通知列表' })
-  @ApiPaginatedResponse(NotificationEntity)
+  @ApiOkResponse({ description: '获取我的通知列表成功' })
   async findAll(@CurrentUser() user: AuthenticatedUser, @Query() query: QueryNotificationDto) {
     return this.notificationService.findUserNotifications(user.id, query);
   }
@@ -45,7 +52,7 @@ export class NotificationController {
   @Get('unread')
   @RequirePermissions('notification:read')
   @ApiOperation({ summary: '获取我的未读通知' })
-  @ApiSuccessResponse(NotificationEntity, true)
+  @ApiOkResponse({ type: NotificationEntity, isArray: true })
   async findUnread(@CurrentUser() user: AuthenticatedUser) {
     return this.notificationService.findUnread(user.id);
   }

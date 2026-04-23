@@ -1,11 +1,10 @@
-import { Controller, Post, Body, UseGuards, Req, HttpCode, HttpStatus, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { Controller, Post, Body, Req, HttpCode, HttpStatus, Get } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiOkResponse } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import {
-  ApiSuccessResponse,
   ApiPublicResponses,
   ApiAuthResponses,
   ApiLoginExample,
@@ -64,7 +63,7 @@ export class AuthController {
   @AllowAuthenticated()
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前用户信息' })
-  @ApiSuccessResponse(UserEntity)
+  @ApiOkResponse({ type: UserEntity })
   @ApiAuthResponses()
   async getProfile(@CurrentUser() user: AuthenticatedUser) {
     return {

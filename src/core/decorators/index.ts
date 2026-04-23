@@ -5,7 +5,6 @@
 export * from './public.decorator';
 export * from './allow-authenticated.decorator';
 export * from './require-permissions.decorator';
-export * from './api-response.decorator';
 export * from './api-docs.decorator';
 export * from './api-example.decorator';
 

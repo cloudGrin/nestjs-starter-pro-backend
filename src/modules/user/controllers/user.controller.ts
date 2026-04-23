@@ -10,7 +10,14 @@ import {
   ParseIntPipe,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiParam,
+  ApiCreatedResponse,
+  ApiOkResponse,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { UserService } from '../services/user.service';
 import { CreateUserDto } from '../dto/create-user.dto';
@@ -19,8 +26,6 @@ import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { QueryUserDto } from '../dto/query-user.dto';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto';
 import {
-  ApiSuccessResponse,
-  ApiPaginatedResponse,
   ApiCommonResponses,
   RequirePermissions,
   AllowAuthenticated,
@@ -37,7 +42,7 @@ export class UserController {
   @Post()
   @RequirePermissions('user:create')
   @ApiOperation({ summary: '创建用户' })
-  @ApiSuccessResponse(UserEntity)
+  @ApiCreatedResponse({ type: UserEntity })
   @ApiCommonResponses()
   async create(@Body() dto: CreateUserDto) {
     return this.userService.createUser(dto);
@@ -46,7 +51,7 @@ export class UserController {
   @Get()
   @RequirePermissions('user:read')
   @ApiOperation({ summary: '获取用户列表' })
-  @ApiPaginatedResponse(UserEntity)
+  @ApiOkResponse({ description: '获取用户列表成功' })
   @ApiCommonResponses()
   async findAll(@Query() query: QueryUserDto) {
     return this.userService.findUsers(query);
@@ -56,7 +61,7 @@ export class UserController {
   @Get('profile')
   @AllowAuthenticated()
   @ApiOperation({ summary: '获取当前用户信息' })
-  @ApiSuccessResponse(UserEntity)
+  @ApiOkResponse({ type: UserEntity })
   @ApiCommonResponses()
   async getProfile(@Req() req: Request) {
     const userId = (req as any).user?.id;
@@ -66,7 +71,7 @@ export class UserController {
   @Put('profile')
   @AllowAuthenticated()
   @ApiOperation({ summary: '更新当前用户信息' })
-  @ApiSuccessResponse(UserEntity)
+  @ApiOkResponse({ type: UserEntity })
   @ApiCommonResponses()
   async updateProfile(@Req() req: Request, @Body() dto: UpdateProfileDto) {
     const userId = (req as any).user?.id;
@@ -96,7 +101,7 @@ export class UserController {
   @RequirePermissions('user:read')
   @ApiOperation({ summary: '获取用户详情' })
   @ApiParam({ name: 'id', description: '用户ID' })
-  @ApiSuccessResponse(UserEntity)
+  @ApiOkResponse({ type: UserEntity })
   @ApiCommonResponses()
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.userService.findUserById(id);
@@ -106,7 +111,7 @@ export class UserController {
   @RequirePermissions('user:update')
   @ApiOperation({ summary: '更新用户' })
   @ApiParam({ name: 'id', description: '用户ID' })
-  @ApiSuccessResponse(UserEntity)
+  @ApiOkResponse({ type: UserEntity })
   @ApiCommonResponses()
   async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUserDto) {
     return this.userService.updateUser(id, dto);
@@ -135,7 +140,7 @@ export class UserController {
   @RequirePermissions('user:update')
   @ApiOperation({ summary: '启用用户' })
   @ApiParam({ name: 'id', description: '用户ID' })
-  @ApiSuccessResponse(UserEntity)
+  @ApiOkResponse({ type: UserEntity })
   async enable(@Param('id', ParseIntPipe) id: number) {
     return this.userService.enableUser(id);
   }
@@ -144,7 +149,7 @@ export class UserController {
   @RequirePermissions('user:update')
   @ApiOperation({ summary: '禁用用户' })
   @ApiParam({ name: 'id', description: '用户ID' })
-  @ApiSuccessResponse(UserEntity)
+  @ApiOkResponse({ type: UserEntity })
   async disable(@Param('id', ParseIntPipe) id: number) {
     return this.userService.disableUser(id);
   }
@@ -153,7 +158,7 @@ export class UserController {
   @RequirePermissions('user:update', 'role:assign')
   @ApiOperation({ summary: '分配角色' })
   @ApiParam({ name: 'id', description: '用户ID' })
-  @ApiSuccessResponse(UserEntity)
+  @ApiOkResponse({ type: UserEntity })
   async assignRoles(@Param('id', ParseIntPipe) id: number, @Body() roleIds: number[]) {
     return this.userService.assignRoles(id, roleIds);
   }

@@ -11,9 +11,9 @@ import {
   ParseIntPipe,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery, ApiOkResponse } from '@nestjs/swagger';
 import { Request } from 'express';
-import { AllowAuthenticated, ApiSuccessResponse, RequirePermissions } from '~/core/decorators';
+import { AllowAuthenticated, RequirePermissions } from '~/core/decorators';
 import { MenuService } from '../services/menu.service';
 import {
   CreateMenuDto,
@@ -33,7 +33,7 @@ export class MenuController {
   @Post()
   @RequirePermissions('menu:create')
   @ApiOperation({ summary: '创建菜单' })
-  @ApiSuccessResponse(MenuEntity)
+  @ApiOkResponse({ type: MenuEntity })
   async create(@Body() dto: CreateMenuDto) {
     return this.menuService.create(dto);
   }
@@ -88,7 +88,7 @@ export class MenuController {
   @RequirePermissions('menu:read')
   @ApiOperation({ summary: '获取菜单详情' })
   @ApiParam({ name: 'id', description: '菜单ID' })
-  @ApiSuccessResponse(MenuEntity)
+  @ApiOkResponse({ type: MenuEntity })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.menuService.findById(id);
   }
@@ -97,7 +97,7 @@ export class MenuController {
   @RequirePermissions('menu:update')
   @ApiOperation({ summary: '更新菜单' })
   @ApiParam({ name: 'id', description: '菜单ID' })
-  @ApiSuccessResponse(MenuEntity)
+  @ApiOkResponse({ type: MenuEntity })
   async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateMenuDto) {
     return this.menuService.update(id, dto);
   }
@@ -125,7 +125,7 @@ export class MenuController {
   @RequirePermissions('menu:update')
   @ApiOperation({ summary: '移动菜单到新的父节点' })
   @ApiParam({ name: 'id', description: '菜单ID' })
-  @ApiSuccessResponse(MenuEntity)
+  @ApiOkResponse({ type: MenuEntity })
   async moveMenu(@Param('id', ParseIntPipe) id: number, @Body() dto: MoveMenuDto) {
     return this.menuService.moveMenu(id, dto.targetParentId ?? null);
   }

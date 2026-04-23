@@ -21,7 +21,6 @@ import { UpdateUserDto } from '../dto/update-user.dto';
 import { QueryUserDto } from '../dto/query-user.dto';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto';
 import { UserStatus } from '~/common/enums/user.enum';
-import { DataSource } from 'typeorm';
 
 @Injectable()
 export class UserService extends BaseService<UserEntity> {
@@ -31,7 +30,6 @@ export class UserService extends BaseService<UserEntity> {
     private readonly userRepository: UserRepository,
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
-    private readonly dataSource: DataSource,
     logger: LoggerService,
     cache: CacheService,
   ) {
@@ -201,15 +199,6 @@ export class UserService extends BaseService<UserEntity> {
    */
   async findUserById(id: number): Promise<UserEntity> {
     this.logger.debug(`查询用户详情 id=${id}`);
-
-    // 先用原始SQL查询user_roles记录
-    const userRolesRecords = await this.dataSource.query(
-      'SELECT ur.*, r.code FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = ?',
-      [id],
-    );
-    this.logger.debug(
-      `[UserService.findUserById] 原始SQL查询user_roles: userId=${id}, recordCount=${userRolesRecords.length}, records=${JSON.stringify(userRolesRecords)}`,
-    );
 
     const user = await this.userRepository.findOne({
       where: { id },

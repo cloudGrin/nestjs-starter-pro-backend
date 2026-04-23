@@ -139,4 +139,32 @@ describe('architecture slimming', () => {
     expect(apiExamples).not.toContain('ApiPermissionErrorExample');
     expect(apiExamples).not.toContain('ApiDeleteExample');
   });
+
+  it('uses native swagger response decorators instead of a custom response wrapper layer', () => {
+    const decoratorIndex = readSource('core/decorators/index.ts');
+    const authController = readSource('modules/auth/controllers/auth.controller.ts');
+    const userController = readSource('modules/user/controllers/user.controller.ts');
+    const roleController = readSource('modules/role/controllers/role.controller.ts');
+    const permissionController = readSource('modules/permission/controllers/permission.controller.ts');
+    const menuController = readSource('modules/menu/controllers/menu.controller.ts');
+    const fileController = readSource('modules/file/controllers/file.controller.ts');
+    const notificationController = readSource('modules/notification/controllers/notification.controller.ts');
+    const apiDocs = readSource('core/decorators/api-docs.decorator.ts');
+
+    expect(existsInSource('core/decorators/api-response.decorator.ts')).toBe(false);
+    expect(decoratorIndex).not.toContain("export * from './api-response.decorator'");
+    expect(authController).not.toContain('ApiSuccessResponse');
+    expect(userController).not.toContain('ApiSuccessResponse');
+    expect(userController).not.toContain('ApiPaginatedResponse');
+    expect(roleController).not.toContain('ApiSuccessResponse');
+    expect(roleController).not.toContain('ApiPaginatedResponse');
+    expect(permissionController).not.toContain('ApiSuccessResponse');
+    expect(permissionController).not.toContain('ApiPaginatedResponse');
+    expect(menuController).not.toContain('ApiSuccessResponse');
+    expect(fileController).not.toContain('ApiSuccessResponse');
+    expect(fileController).not.toContain('ApiPaginatedResponse');
+    expect(notificationController).not.toContain('ApiSuccessResponse');
+    expect(notificationController).not.toContain('ApiPaginatedResponse');
+    expect(apiDocs).not.toContain('ApiErrorResponse');
+  });
 });

@@ -9,12 +9,12 @@ import {
   Query,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiOkResponse } from '@nestjs/swagger';
 import { RoleService } from '../services/role.service';
 import { CreateRoleDto } from '../dto/create-role.dto';
 import { AssignMenusDto } from '../dto/assign-menus.dto';
 import { RevokeMenusDto } from '../dto/revoke-menus.dto';
-import { ApiSuccessResponse, ApiPaginatedResponse, RequirePermissions } from '~/core/decorators';
+import { RequirePermissions } from '~/core/decorators';
 import { RoleEntity } from '../entities/role.entity';
 import { MenuEntity } from '~/modules/menu/entities/menu.entity';
 
@@ -27,7 +27,7 @@ export class RoleController {
   @Post()
   @RequirePermissions('role:create')
   @ApiOperation({ summary: '创建角色' })
-  @ApiSuccessResponse(RoleEntity)
+  @ApiOkResponse({ type: RoleEntity })
   async create(@Body() dto: CreateRoleDto) {
     return this.roleService.createRole(dto);
   }
@@ -35,7 +35,7 @@ export class RoleController {
   @Get()
   @RequirePermissions('role:read')
   @ApiOperation({ summary: '获取角色列表' })
-  @ApiPaginatedResponse(RoleEntity)
+  @ApiOkResponse({ description: '获取角色列表成功' })
   async findAll(
     @Query()
     query: {
@@ -52,7 +52,7 @@ export class RoleController {
   @Get('active')
   @RequirePermissions('role:read')
   @ApiOperation({ summary: '获取所有活跃角色' })
-  @ApiSuccessResponse(RoleEntity, true)
+  @ApiOkResponse({ type: RoleEntity, isArray: true })
   async findActiveRoles() {
     return this.roleService.findActiveRoles();
   }
@@ -61,7 +61,7 @@ export class RoleController {
   @RequirePermissions('role:read')
   @ApiOperation({ summary: '获取角色详情' })
   @ApiParam({ name: 'id', description: '角色ID' })
-  @ApiSuccessResponse(RoleEntity)
+  @ApiOkResponse({ type: RoleEntity })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.roleService.findRoleById(id);
   }
@@ -70,7 +70,7 @@ export class RoleController {
   @RequirePermissions('role:update')
   @ApiOperation({ summary: '更新角色' })
   @ApiParam({ name: 'id', description: '角色ID' })
-  @ApiSuccessResponse(RoleEntity)
+  @ApiOkResponse({ type: RoleEntity })
   async update(@Param('id', ParseIntPipe) id: number, @Body() dto: Partial<CreateRoleDto>) {
     return this.roleService.updateRole(id, dto);
   }
@@ -88,7 +88,7 @@ export class RoleController {
   @RequirePermissions('role:permission:assign')
   @ApiOperation({ summary: '分配权限' })
   @ApiParam({ name: 'id', description: '角色ID' })
-  @ApiSuccessResponse(RoleEntity)
+  @ApiOkResponse({ type: RoleEntity })
   async assignPermissions(@Param('id', ParseIntPipe) id: number, @Body() permissionIds: number[]) {
     return this.roleService.assignPermissions(id, permissionIds);
   }
@@ -100,7 +100,7 @@ export class RoleController {
     description: '为角色分配可访问的菜单列表',
   })
   @ApiParam({ name: 'id', description: '角色ID' })
-  @ApiSuccessResponse(RoleEntity)
+  @ApiOkResponse({ type: RoleEntity })
   async assignMenus(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignMenusDto) {
     return this.roleService.assignMenus(id, dto.menuIds);
   }
@@ -112,7 +112,7 @@ export class RoleController {
     description: '查询角色已分配的所有菜单',
   })
   @ApiParam({ name: 'id', description: '角色ID' })
-  @ApiSuccessResponse(MenuEntity, true)
+  @ApiOkResponse({ type: MenuEntity, isArray: true })
   async getRoleMenus(@Param('id', ParseIntPipe) id: number) {
     return this.roleService.getRoleMenus(id);
   }
@@ -124,7 +124,7 @@ export class RoleController {
     description: '从角色中移除指定的菜单权限',
   })
   @ApiParam({ name: 'id', description: '角色ID' })
-  @ApiSuccessResponse(RoleEntity)
+  @ApiOkResponse({ type: RoleEntity })
   async revokeMenus(@Param('id', ParseIntPipe) id: number, @Body() dto: RevokeMenusDto) {
     return this.roleService.revokeMenus(id, dto.menuIds);
   }

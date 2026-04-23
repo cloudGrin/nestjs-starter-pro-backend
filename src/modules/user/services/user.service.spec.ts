@@ -28,6 +28,7 @@ describe('UserService', () => {
   let roleRepository: jest.Mocked<any>;
   let cache: jest.Mocked<CacheService>;
   let logger: jest.Mocked<LoggerService>;
+  let dataSource: jest.Mocked<DataSource>;
 
   beforeEach(async () => {
     // 创建Mock依赖
@@ -77,6 +78,7 @@ describe('UserService', () => {
     roleRepository = module.get(getRepositoryToken(RoleEntity));
     cache = module.get(CacheService);
     logger = module.get(LoggerService);
+    dataSource = module.get(DataSource);
   });
 
   afterEach(() => {
@@ -898,6 +900,7 @@ describe('UserService', () => {
         where: { id: userId },
         relations: ['roles', 'roles.permissions'],
       });
+      expect(dataSource.query).not.toHaveBeenCalled();
     });
   });
 

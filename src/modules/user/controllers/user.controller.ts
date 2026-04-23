@@ -17,6 +17,10 @@ import {
   ApiParam,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { UserService } from '../services/user.service';
@@ -25,11 +29,7 @@ import { UpdateUserDto } from '../dto/update-user.dto';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { QueryUserDto } from '../dto/query-user.dto';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto';
-import {
-  ApiCommonResponses,
-  RequirePermissions,
-  AllowAuthenticated,
-} from '~/core/decorators';
+import { RequirePermissions, AllowAuthenticated } from '~/core/decorators';
 import { UserEntity } from '../entities/user.entity';
 
 @ApiTags('用户管理')
@@ -43,7 +43,9 @@ export class UserController {
   @RequirePermissions('user:create')
   @ApiOperation({ summary: '创建用户' })
   @ApiCreatedResponse({ type: UserEntity })
-  @ApiCommonResponses()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async create(@Body() dto: CreateUserDto) {
     return this.userService.createUser(dto);
   }
@@ -52,7 +54,9 @@ export class UserController {
   @RequirePermissions('user:read')
   @ApiOperation({ summary: '获取用户列表' })
   @ApiOkResponse({ description: '获取用户列表成功' })
-  @ApiCommonResponses()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async findAll(@Query() query: QueryUserDto) {
     return this.userService.findUsers(query);
   }
@@ -62,7 +66,9 @@ export class UserController {
   @AllowAuthenticated()
   @ApiOperation({ summary: '获取当前用户信息' })
   @ApiOkResponse({ type: UserEntity })
-  @ApiCommonResponses()
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
+  @ApiNotFoundResponse({ description: '请求的资源不存在' })
   async getProfile(@Req() req: Request) {
     const userId = (req as any).user?.id;
     return this.userService.findUserById(userId);
@@ -72,7 +78,10 @@ export class UserController {
   @AllowAuthenticated()
   @ApiOperation({ summary: '更新当前用户信息' })
   @ApiOkResponse({ type: UserEntity })
-  @ApiCommonResponses()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
+  @ApiNotFoundResponse({ description: '请求的资源不存在' })
   async updateProfile(@Req() req: Request, @Body() dto: UpdateProfileDto) {
     const userId = (req as any).user?.id;
     return this.userService.updateUser(userId, dto);
@@ -81,7 +90,9 @@ export class UserController {
   @Put('password')
   @AllowAuthenticated()
   @ApiOperation({ summary: '修改密码' })
-  @ApiCommonResponses()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async changePassword(@Req() req: Request, @Body() dto: ChangePasswordDto) {
     const userId = (req as any).user?.id;
     await this.userService.changePassword(userId, dto);
@@ -91,7 +102,9 @@ export class UserController {
   @Delete('batch')
   @RequirePermissions('user:delete')
   @ApiOperation({ summary: '批量删除用户' })
-  @ApiCommonResponses()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async removeMany(@Body() ids: number[]) {
     await this.userService.deleteUsers(ids);
     return { message: '批量删除成功' };
@@ -102,7 +115,9 @@ export class UserController {
   @ApiOperation({ summary: '获取用户详情' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: UserEntity })
-  @ApiCommonResponses()
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
+  @ApiNotFoundResponse({ description: '请求的资源不存在' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.userService.findUserById(id);
   }
@@ -112,7 +127,10 @@ export class UserController {
   @ApiOperation({ summary: '更新用户' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: UserEntity })
-  @ApiCommonResponses()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
+  @ApiNotFoundResponse({ description: '请求的资源不存在' })
   async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUserDto) {
     return this.userService.updateUser(id, dto);
   }
@@ -121,7 +139,9 @@ export class UserController {
   @RequirePermissions('user:delete')
   @ApiOperation({ summary: '删除用户' })
   @ApiParam({ name: 'id', description: '用户ID' })
-  @ApiCommonResponses()
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
+  @ApiNotFoundResponse({ description: '请求的资源不存在' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.userService.deleteUser(id);
     return { message: '删除成功' };

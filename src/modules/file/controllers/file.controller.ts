@@ -16,12 +16,16 @@ import {
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiBadRequestResponse,
   ApiCreatedResponse,
   ApiConsumes,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { memoryStorage } from 'multer';
@@ -29,11 +33,7 @@ import { StreamableFile } from '@nestjs/common';
 import { FileService } from '../services/file.service';
 import { UploadFileDto } from '../dto/upload-file.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
-import {
-  ApiCommonResponses,
-  RequirePermissions,
-  CurrentUser,
-} from '~/core/decorators';
+import { RequirePermissions, CurrentUser } from '~/core/decorators';
 import { FileEntity } from '../entities/file.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -87,7 +87,9 @@ export class FileController {
     },
   })
   @ApiCreatedResponse({ type: FileEntity })
-  @ApiCommonResponses()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -131,7 +133,9 @@ export class FileController {
   @RequirePermissions('file:read')
   @ApiOperation({ summary: '获取文件列表' })
   @ApiOkResponse({ description: '获取文件列表成功' })
-  @ApiCommonResponses()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async findAll(@Query() query: QueryFileDto) {
     return this.fileService.findFiles(query);
   }
@@ -141,6 +145,9 @@ export class FileController {
   @ApiOperation({ summary: '获取文件详情' })
   @ApiParam({ name: 'id', description: '文件ID' })
   @ApiOkResponse({ type: FileEntity })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
+  @ApiNotFoundResponse({ description: '请求的资源不存在' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const file = await this.fileService.findOne(id);
     if (!file) {

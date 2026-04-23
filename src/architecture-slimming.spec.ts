@@ -120,24 +120,10 @@ describe('architecture slimming', () => {
   it('uses DTO validation for open api user query instead of runtime-only interfaces', () => {
     const openApiController = readSource('modules/open-api/controllers/open-api.controller.ts');
     const dto = readSource('modules/open-api/dto/open-user-list-query.dto.ts');
-    const apiDocs = readSource('core/decorators/api-docs.decorator.ts');
-    const apiExamples = readSource('core/decorators/api-example.decorator.ts');
 
     expect(openApiController).not.toContain('interface UserListQuery');
     expect(openApiController).toContain('OpenUserListQueryDto');
     expect(dto).toContain('class OpenUserListQueryDto');
-    expect(apiDocs).not.toContain('ApiCreateResponse');
-    expect(apiDocs).not.toContain('ApiUpdateResponse');
-    expect(apiDocs).not.toContain('ApiDeleteResponse');
-    expect(apiDocs).not.toContain('ApiGetOneResponse');
-    expect(apiDocs).not.toContain('ApiGetManyResponse');
-    expect(apiDocs).not.toContain('ApiFileUploadResponse');
-    expect(apiDocs).not.toContain('ApiBatchOperationResponse');
-    expect(apiExamples).not.toContain('ApiCreateUserExample');
-    expect(apiExamples).not.toContain('ApiPaginationExample');
-    expect(apiExamples).not.toContain('ApiFileUploadExample');
-    expect(apiExamples).not.toContain('ApiPermissionErrorExample');
-    expect(apiExamples).not.toContain('ApiDeleteExample');
   });
 
   it('uses native swagger response decorators instead of a custom response wrapper layer', () => {
@@ -149,13 +135,19 @@ describe('architecture slimming', () => {
     const menuController = readSource('modules/menu/controllers/menu.controller.ts');
     const fileController = readSource('modules/file/controllers/file.controller.ts');
     const notificationController = readSource('modules/notification/controllers/notification.controller.ts');
-    const apiDocs = readSource('core/decorators/api-docs.decorator.ts');
-
     expect(existsInSource('core/decorators/api-response.decorator.ts')).toBe(false);
+    expect(existsInSource('core/decorators/api-docs.decorator.ts')).toBe(false);
+    expect(existsInSource('core/decorators/api-example.decorator.ts')).toBe(false);
     expect(decoratorIndex).not.toContain("export * from './api-response.decorator'");
+    expect(decoratorIndex).not.toContain("export * from './api-docs.decorator'");
+    expect(decoratorIndex).not.toContain("export * from './api-example.decorator'");
     expect(authController).not.toContain('ApiSuccessResponse');
+    expect(authController).not.toContain('ApiPublicResponses');
+    expect(authController).not.toContain('ApiAuthResponses');
+    expect(authController).not.toContain('ApiLoginExample');
     expect(userController).not.toContain('ApiSuccessResponse');
     expect(userController).not.toContain('ApiPaginatedResponse');
+    expect(userController).not.toContain('ApiCommonResponses');
     expect(roleController).not.toContain('ApiSuccessResponse');
     expect(roleController).not.toContain('ApiPaginatedResponse');
     expect(permissionController).not.toContain('ApiSuccessResponse');
@@ -163,8 +155,23 @@ describe('architecture slimming', () => {
     expect(menuController).not.toContain('ApiSuccessResponse');
     expect(fileController).not.toContain('ApiSuccessResponse');
     expect(fileController).not.toContain('ApiPaginatedResponse');
+    expect(fileController).not.toContain('ApiCommonResponses');
     expect(notificationController).not.toContain('ApiSuccessResponse');
     expect(notificationController).not.toContain('ApiPaginatedResponse');
-    expect(apiDocs).not.toContain('ApiErrorResponse');
+  });
+
+  it('keeps notification delivery to direct bark/feishu adapters without manager and token indirection', () => {
+    const notificationModule = readSource('modules/notification/notification.module.ts');
+    const notificationService = readSource('modules/notification/services/notification.service.ts');
+
+    expect(notificationModule).not.toContain('NotificationChannelManager');
+    expect(notificationModule).not.toContain('NOTIFICATION_CHANNEL_ADAPTERS');
+    expect(notificationService).not.toContain('NotificationChannelManager');
+    expect(existsInSource('modules/notification/channels/notification-channel.manager.ts')).toBe(
+      false,
+    );
+    expect(existsInSource('modules/notification/channels/notification-channel.tokens.ts')).toBe(
+      false,
+    );
   });
 });

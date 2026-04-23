@@ -8,8 +8,6 @@ import { NotificationController } from './controllers/notification.controller';
 import { UserModule } from '../user/user.module';
 import { BarkChannelAdapter } from './channels/bark.channel';
 import { FeishuChannelAdapter } from './channels/feishu.channel';
-import { NotificationChannelManager } from './channels/notification-channel.manager';
-import { NOTIFICATION_CHANNEL_ADAPTERS } from './channels/notification-channel.tokens';
 
 @Module({
   imports: [TypeOrmModule.forFeature([NotificationEntity]), UserModule, HttpModule],
@@ -19,12 +17,6 @@ import { NOTIFICATION_CHANNEL_ADAPTERS } from './channels/notification-channel.t
     NotificationService,
     BarkChannelAdapter,
     FeishuChannelAdapter,
-    {
-      provide: NOTIFICATION_CHANNEL_ADAPTERS,
-      useFactory: (bark: BarkChannelAdapter, feishu: FeishuChannelAdapter) => [bark, feishu],
-      inject: [BarkChannelAdapter, FeishuChannelAdapter],
-    },
-    NotificationChannelManager,
   ],
   exports: [NotificationService],
 })

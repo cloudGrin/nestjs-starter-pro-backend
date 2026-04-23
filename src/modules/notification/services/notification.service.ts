@@ -9,6 +9,7 @@ import {
   NotificationStatus,
   NotificationType,
   NotificationChannel,
+  NotificationDeliveryResult,
 } from '../entities/notification.entity';
 import {
   NotificationRepository,
@@ -17,7 +18,9 @@ import {
 import { CreateNotificationDto } from '../dto/create-notification.dto';
 import { QueryNotificationDto } from '../dto/query-notification.dto';
 import { UserRepository } from '~/modules/user/repositories/user.repository';
-import { NotificationChannelManager } from '../channels/notification-channel.manager';
+import { BarkChannelAdapter } from '../channels/bark.channel';
+import { FeishuChannelAdapter } from '../channels/feishu.channel';
+import { NotificationChannelAdapter } from '../channels/notification-channel.interface';
 
 export interface NotificationEventPayload {
   notifications: NotificationEntity[];
@@ -30,7 +33,8 @@ export class NotificationService extends BaseService<NotificationEntity> {
   constructor(
     private readonly notificationRepository: NotificationRepository,
     private readonly userRepository: UserRepository,
-    private readonly channelManager: NotificationChannelManager,
+    private readonly barkChannelAdapter: BarkChannelAdapter,
+    private readonly feishuChannelAdapter: FeishuChannelAdapter,
     logger: LoggerService,
     cache: CacheService,
   ) {
@@ -86,8 +90,7 @@ export class NotificationService extends BaseService<NotificationEntity> {
 
     // 单次批量写入，确保同一事件的通知具备一致的创建时间戳
     const notifications = await this.repository.createMany(payloads);
-
-    const deliveryMap = await this.channelManager.dispatch(notifications);
+    const deliveryMap = await this.dispatchExternal(notifications, sendExternalWhenOffline);
 
     await Promise.all(
       notifications.map(async (notification) => {
@@ -105,7 +108,7 @@ export class NotificationService extends BaseService<NotificationEntity> {
         `[Notification] External delivery results: ${Array.from(deliveryMap.entries())
           .map(
             ([id, items]) =>
-              `${id}:${items
+              `${id}:${(items || [])
                 .map((item) => `${item.channel}:${item.success ? 'ok' : 'fail'}`)
                 .join('|')}`,
           )
@@ -204,5 +207,101 @@ export class NotificationService extends BaseService<NotificationEntity> {
     }
     this.logger?.debug(`[Notification] Selected channels: ${list.join(', ')}`);
     return list;
+  }
+
+  private async dispatchExternal(
+    notifications: NotificationEntity[],
+    forceExternal = false,
+  ): Promise<Map<number, NotificationDeliveryResult[]>> {
+    const results = new Map<number, NotificationDeliveryResult[]>();
+    const recipientIds = Array.from(
+      new Set(
+        notifications
+          .map((notification) => notification.recipientId)
+          .filter((recipientId): recipientId is number => typeof recipientId === 'number'),
+      ),
+    );
+
+    const recipients =
+      recipientIds.length > 0 ? await this.userRepository.findByIds(recipientIds) : [];
+    const recipientMap = new Map(recipients.map((recipient) => [recipient.id, recipient]));
+
+    for (const notification of notifications) {
+      if (!notification.recipientId) {
+        continue;
+      }
+
+      const shouldSendExternal = forceExternal || notification.sendExternalWhenOffline;
+      if (!shouldSendExternal) {
+        continue;
+      }
+
+      const externalChannels =
+        notification.channels?.filter((channel) => channel !== NotificationChannel.INTERNAL) || [];
+      if (externalChannels.length === 0) {
+        continue;
+      }
+
+      const recipient = recipientMap.get(notification.recipientId);
+      if (!recipient) {
+        this.logger?.warn(
+          `[Notification] Recipient ${notification.recipientId} not found for notification ${notification.id}`,
+        );
+        continue;
+      }
+
+      const deliveryResults: NotificationDeliveryResult[] = [];
+
+      for (const channel of externalChannels) {
+        const adapter = this.getChannelAdapter(channel);
+        if (!adapter) {
+          deliveryResults.push({
+            channel,
+            success: false,
+            error: 'Channel adapter not found',
+            sentAt: new Date().toISOString(),
+          });
+          continue;
+        }
+
+        if (!adapter.isEnabled()) {
+          deliveryResults.push({
+            channel,
+            success: false,
+            error: 'Channel not enabled',
+            sentAt: new Date().toISOString(),
+          });
+          continue;
+        }
+
+        try {
+          deliveryResults.push(await adapter.send({ notification, recipient }));
+        } catch (error: any) {
+          deliveryResults.push({
+            channel,
+            success: false,
+            error: error?.message || 'Unknown channel error',
+            sentAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      if (deliveryResults.length > 0) {
+        results.set(notification.id, deliveryResults);
+      }
+    }
+
+    return results;
+  }
+
+  private getChannelAdapter(channel: NotificationChannel): NotificationChannelAdapter | null {
+    switch (channel) {
+      case NotificationChannel.BARK:
+        return this.barkChannelAdapter;
+      case NotificationChannel.FEISHU:
+        return this.feishuChannelAdapter;
+      default:
+        return null;
+    }
   }
 }

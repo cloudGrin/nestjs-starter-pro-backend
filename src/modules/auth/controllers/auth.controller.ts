@@ -1,16 +1,19 @@
 import { Controller, Post, Body, Req, HttpCode, HttpStatus, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiOkResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiBody,
+  ApiOkResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
-import {
-  ApiPublicResponses,
-  ApiAuthResponses,
-  ApiLoginExample,
-  Public,
-  AllowAuthenticated,
-} from '~/core/decorators';
+import { Public, AllowAuthenticated } from '~/core/decorators';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { AuthenticatedUser } from '../strategies/jwt.strategy';
@@ -26,8 +29,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '用户登录' })
   @ApiBody({ type: LoginDto })
-  @ApiPublicResponses()
-  @ApiLoginExample()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户名或密码错误' })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     const ipAddress = IpUtil.getRealIp(req);
     const userAgent = req.headers['user-agent'];
@@ -40,7 +43,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '刷新令牌' })
   @ApiBody({ type: RefreshTokenDto })
-  @ApiPublicResponses()
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '无效的刷新令牌' })
   async refreshToken(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto);
   }
@@ -50,7 +54,8 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '用户登出' })
-  @ApiAuthResponses()
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async logout(
     @CurrentUser() user: AuthenticatedUser,
     @Body('refreshToken') refreshToken?: string,
@@ -64,7 +69,8 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前用户信息' })
   @ApiOkResponse({ type: UserEntity })
-  @ApiAuthResponses()
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async getProfile(@CurrentUser() user: AuthenticatedUser) {
     return {
       id: user.id,

@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationService } from './notification.service';
 import { NotificationRepository } from '../repositories/notification.repository';
 import { UserRepository } from '~/modules/user/repositories/user.repository';
-import { NotificationChannelManager } from '../channels/notification-channel.manager';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import {
@@ -13,12 +12,15 @@ import {
 } from '../entities/notification.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { UserEntity } from '~/modules/user/entities/user.entity';
+import { BarkChannelAdapter } from '../channels/bark.channel';
+import { FeishuChannelAdapter } from '../channels/feishu.channel';
 
 describe('NotificationService', () => {
   let service: NotificationService;
   let notificationRepository: jest.Mocked<NotificationRepository>;
   let userRepository: jest.Mocked<UserRepository>;
-  let channelManager: jest.Mocked<NotificationChannelManager>;
+  let barkAdapter: jest.Mocked<BarkChannelAdapter>;
+  let feishuAdapter: jest.Mocked<FeishuChannelAdapter>;
   let logger: jest.Mocked<LoggerService>;
   let cache: jest.Mocked<CacheService>;
 
@@ -37,8 +39,16 @@ describe('NotificationService', () => {
       findActiveUserIds: jest.fn(),
     };
 
-    const mockChannelManager = {
-      dispatch: jest.fn().mockResolvedValue(new Map()),
+    const mockBarkAdapter = {
+      type: NotificationChannel.BARK,
+      isEnabled: jest.fn().mockReturnValue(true),
+      send: jest.fn(),
+    };
+
+    const mockFeishuAdapter = {
+      type: NotificationChannel.FEISHU,
+      isEnabled: jest.fn().mockReturnValue(true),
+      send: jest.fn(),
     };
 
     const mockLogger = {
@@ -60,7 +70,8 @@ describe('NotificationService', () => {
         NotificationService,
         { provide: NotificationRepository, useValue: mockNotificationRepository },
         { provide: UserRepository, useValue: mockUserRepository },
-        { provide: NotificationChannelManager, useValue: mockChannelManager },
+        { provide: BarkChannelAdapter, useValue: mockBarkAdapter },
+        { provide: FeishuChannelAdapter, useValue: mockFeishuAdapter },
         { provide: LoggerService, useValue: mockLogger },
         { provide: CacheService, useValue: mockCache },
       ],
@@ -69,7 +80,8 @@ describe('NotificationService', () => {
     service = module.get<NotificationService>(NotificationService);
     notificationRepository = module.get(NotificationRepository);
     userRepository = module.get(UserRepository);
-    channelManager = module.get(NotificationChannelManager);
+    barkAdapter = module.get(BarkChannelAdapter);
+    feishuAdapter = module.get(FeishuChannelAdapter);
     logger = module.get(LoggerService);
     cache = module.get(CacheService);
   });
@@ -239,7 +251,54 @@ describe('NotificationService', () => {
 
       await service.createNotification(dto);
 
-      expect(channelManager.dispatch).toHaveBeenCalledWith(mockNotifications);
+      expect(barkAdapter.send).not.toHaveBeenCalled();
+      expect(feishuAdapter.send).not.toHaveBeenCalled();
+    });
+
+    it('应该使用直接注入的渠道适配器发送站外通知', async () => {
+      const dto = {
+        title: '外部通知',
+        content: '通过 Bark 和飞书发送',
+        recipientIds: [1],
+        channels: [NotificationChannel.INTERNAL, NotificationChannel.BARK, NotificationChannel.FEISHU],
+        sendExternalWhenOffline: true,
+      };
+
+      const recipient = { id: 1, username: 'test' } as UserEntity;
+      const mockNotifications = [
+        {
+          id: 1,
+          title: dto.title,
+          content: dto.content,
+          recipientId: 1,
+          channels: dto.channels,
+          sendExternalWhenOffline: true,
+        },
+      ] as NotificationEntity[];
+
+      userRepository.findByIds.mockResolvedValue([recipient]);
+      notificationRepository.createMany.mockResolvedValue(mockNotifications);
+      barkAdapter.send.mockResolvedValue({
+        channel: NotificationChannel.BARK,
+        success: true,
+        sentAt: new Date().toISOString(),
+      });
+      feishuAdapter.send.mockResolvedValue({
+        channel: NotificationChannel.FEISHU,
+        success: true,
+        sentAt: new Date().toISOString(),
+      });
+
+      await service.createNotification(dto);
+
+      expect(barkAdapter.send).toHaveBeenCalledWith({
+        notification: mockNotifications[0],
+        recipient,
+      });
+      expect(feishuAdapter.send).toHaveBeenCalledWith({
+        notification: mockNotifications[0],
+        recipient,
+      });
     });
   });
 

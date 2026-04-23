@@ -76,24 +76,26 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       return;
     }
 
+    const systemMenu = this.menuRepository.create({
+      name: '系统管理',
+      path: '/system',
+      type: MenuType.DIRECTORY,
+      icon: 'setting',
+      sort: 10,
+      isVisible: true,
+      isActive: true,
+      meta: { title: '系统管理', icon: 'setting' },
+    });
+    const savedSystemMenu = await this.menuRepository.save(systemMenu);
+
     const menus = this.menuRepository.create([
-      {
-        name: '系统管理',
-        path: '/system',
-        type: MenuType.DIRECTORY,
-        icon: 'setting',
-        sort: 10,
-        isVisible: true,
-        isActive: true,
-        meta: { title: '系统管理', icon: 'setting' },
-      },
       {
         name: '用户管理',
         path: '/system/users',
         type: MenuType.MENU,
         icon: 'user',
         component: 'system/users',
-        parentId: null,
+        parentId: savedSystemMenu.id,
         sort: 20,
         isVisible: true,
         isActive: true,
@@ -105,7 +107,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         type: MenuType.MENU,
         icon: 'team',
         component: 'system/roles',
-        parentId: null,
+        parentId: savedSystemMenu.id,
         sort: 30,
         isVisible: true,
         isActive: true,
@@ -117,7 +119,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         type: MenuType.MENU,
         icon: 'menu',
         component: 'system/menus',
-        parentId: null,
+        parentId: savedSystemMenu.id,
         sort: 40,
         isVisible: true,
         isActive: true,

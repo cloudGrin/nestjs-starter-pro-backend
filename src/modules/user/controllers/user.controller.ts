@@ -16,6 +16,7 @@ import { Request } from 'express';
 import { UserService } from '../services/user.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
+import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { QueryUserDto } from '../dto/query-user.dto';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto';
 import {
@@ -74,7 +75,7 @@ export class UserController {
   @ApiOperation({ summary: '更新当前用户信息' })
   @ApiSuccessResponse(UserEntity)
   @ApiCommonResponses()
-  async updateProfile(@Req() req: Request, @Body() dto: UpdateUserDto) {
+  async updateProfile(@Req() req: Request, @Body() dto: UpdateProfileDto) {
     const userId = (req as any).user?.id;
     return this.userService.updateUser(userId, dto);
   }

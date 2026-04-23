@@ -200,22 +200,27 @@ describe('ApiAuthService', () => {
   describe('validateApiKey', () => {
     it('returns cached app', async () => {
       const apiKey = 'sk_live_testkey123';
-      const mockApp = createMockApp();
+      const cachedAuth = {
+        id: 1,
+        name: 'Test App',
+        scopes: ['read:users'],
+        type: 'api-app' as const,
+      };
       const keyHash = ApiKeyEntity.hashKey(apiKey);
 
-      cacheService.get.mockResolvedValue(mockApp);
+      cacheService.get.mockResolvedValue(cachedAuth);
 
       const result = await service.validateApiKey(apiKey);
 
-      expect(result).toEqual(mockApp);
+      expect(result).toEqual(cachedAuth);
       expect(cacheService.get).toHaveBeenCalledWith(`api_key:${keyHash}`);
       expect(keyRepository.findByKeyHash).not.toHaveBeenCalled();
     });
 
-    it('validates database key and caches app', async () => {
+    it('validates database key and prefers key scopes over app scopes', async () => {
       const apiKey = 'sk_live_testkey123';
-      const mockApp = createMockApp();
-      const mockKey = createMockKey({ app: mockApp });
+      const mockApp = createMockApp({ scopes: ['read:users', 'write:orders'] });
+      const mockKey = createMockKey({ app: mockApp, scopes: ['read:users'] });
       const keyHash = ApiKeyEntity.hashKey(apiKey);
 
       cacheService.get.mockResolvedValue(null);
@@ -225,9 +230,25 @@ describe('ApiAuthService', () => {
 
       const result = await service.validateApiKey(apiKey);
 
-      expect(result).toEqual(mockApp);
+      expect(result).toEqual({
+        id: mockApp.id,
+        name: mockApp.name,
+        ownerId: mockApp.ownerId,
+        scopes: ['read:users'],
+        type: 'api-app',
+      });
       expect(keyRepository.findByKeyHash).toHaveBeenCalledWith(keyHash);
-      expect(cacheService.set).toHaveBeenCalledWith(`api_key:${keyHash}`, mockApp, 300);
+      expect(cacheService.set).toHaveBeenCalledWith(
+        `api_key:${keyHash}`,
+        {
+          id: mockApp.id,
+          name: mockApp.name,
+          ownerId: mockApp.ownerId,
+          scopes: ['read:users'],
+          type: 'api-app',
+        },
+        300,
+      );
       expect(keyRepository.updateUsageStats).toHaveBeenCalledWith(mockKey.id);
     });
 

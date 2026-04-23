@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateApiAppDto {
@@ -25,12 +25,4 @@ export class CreateApiAppDto {
   @IsArray()
   @IsString({ each: true })
   scopes?: string[];
-
-  @ApiPropertyOptional({
-    description: '所有者用户ID',
-    example: 1,
-  })
-  @IsOptional()
-  @IsNumber()
-  ownerId?: number;
 }

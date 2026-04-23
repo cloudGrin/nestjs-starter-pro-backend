@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { configuration } from './config/configuration';
 import { configValidationSchema } from './config/config.validation';
 import { SharedModule } from './shared/shared.module';
@@ -88,6 +88,11 @@ import { MenuModule } from './modules/menu/menu.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
+    },
+    // 全局JWT认证守卫（必须在权限守卫之前）
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
     // 全局JWT认证守卫（必须在权限守卫之前）
     {

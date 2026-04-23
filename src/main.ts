@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { LoggerService } from './shared/logger/logger.service';
+import { buildCorsOptions } from './bootstrap/cors-options';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -22,10 +23,12 @@ async function bootstrap() {
   app.use(helmet());
 
   // 启用 CORS
-  app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN', '*'),
-    credentials: configService.get<boolean>('CORS_CREDENTIALS', true),
-  });
+  app.enableCors(
+    buildCorsOptions(
+      configService.get<string>('CORS_ORIGIN', '*'),
+      configService.get<boolean>('CORS_CREDENTIALS', true),
+    ),
+  );
 
   // 设置全局前缀
   const apiPrefix = configService.get<string>('API_PREFIX', 'api');

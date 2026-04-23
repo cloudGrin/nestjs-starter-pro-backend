@@ -25,12 +25,7 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
       }
 
       // 返回应用信息供后续使用
-      return {
-        id: app.id,
-        name: app.name,
-        scopes: app.scopes || [],
-        type: 'api-app',
-      };
+      return app;
     } catch (error) {
       throw error;
     }

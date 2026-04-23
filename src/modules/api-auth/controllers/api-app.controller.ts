@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '~/modules/auth/guards/jwt-auth.guard';
 import { ApiAuthService } from '../services/api-auth.service';
 import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
+import { UpdateApiAppDto } from '../dto/update-api-app.dto';
 import { AuthenticatedRequest } from '../types/request.types';
 import { RequirePermissions } from '~/core/decorators';
 
@@ -55,7 +56,7 @@ export class ApiAppController {
   @Put(':appId')
   @RequirePermissions('api-app:update')
   @ApiOperation({ summary: '更新API应用' })
-  async updateApp(@Param('appId') appId: number, @Body() dto: Partial<CreateApiAppDto>) {
+  async updateApp(@Param('appId') appId: number, @Body() dto: UpdateApiAppDto) {
     return this.apiAuthService.updateApp(appId, dto);
   }
 

@@ -55,7 +55,7 @@ describe('AdminBootstrapService', () => {
     logger = module.get(LoggerService);
   });
 
-  it('空库启动时创建 admin 超级管理员并只在日志输出随机密码', async () => {
+  it('空库启动时创建 admin 超级管理员并生成正确的默认菜单树', async () => {
     const role = Object.assign(new RoleEntity(), {
       id: 1,
       code: 'super_admin',
@@ -78,7 +78,15 @@ describe('AdminBootstrapService', () => {
     roleRepository.save.mockResolvedValue(role);
     menuRepository.count.mockResolvedValue(0);
     menuRepository.create.mockImplementation((data) => data as MenuEntity);
-    menuRepository.save.mockImplementation(async (data) => data as MenuEntity);
+    menuRepository.save
+      .mockResolvedValueOnce(
+        Object.assign(new MenuEntity(), {
+          id: 10,
+          name: '系统管理',
+          path: '/system',
+        }),
+      )
+      .mockImplementationOnce(async (data) => data as MenuEntity[]);
     userRepository.create.mockImplementation((data) => Object.assign(user, data));
     userRepository.save.mockResolvedValue(user);
 
@@ -110,11 +118,27 @@ describe('AdminBootstrapService', () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('password: '));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('shown only once'));
     expect(menuRepository.count).toHaveBeenCalled();
-    expect(menuRepository.save).toHaveBeenCalledWith(
+    expect(menuRepository.save).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        name: '系统管理',
+        path: '/system',
+      }),
+    );
+    expect(menuRepository.save).toHaveBeenNthCalledWith(
+      2,
       expect.arrayContaining([
         expect.objectContaining({
-          name: '系统管理',
-          path: '/system',
+          name: '用户管理',
+          parentId: 10,
+        }),
+        expect.objectContaining({
+          name: '角色管理',
+          parentId: 10,
+        }),
+        expect.objectContaining({
+          name: '菜单管理',
+          parentId: 10,
         }),
       ]),
     );

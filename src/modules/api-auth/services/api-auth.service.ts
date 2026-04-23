@@ -13,6 +13,14 @@ const API_AUTH_CONSTANTS = {
   KEY_CACHE_TTL: 300, // 密钥缓存时间（秒）
 } as const;
 
+export interface ValidatedApiApp {
+  id: number;
+  name: string;
+  ownerId?: number;
+  scopes: string[];
+  type: 'api-app';
+}
+
 @Injectable()
 export class ApiAuthService {
   constructor(
@@ -60,7 +68,7 @@ export class ApiAuthService {
   /**
    * 创建API应用
    */
-  async createApp(dto: CreateApiAppDto): Promise<ApiAppEntity> {
+  async createApp(dto: CreateApiAppDto & { ownerId?: number }): Promise<ApiAppEntity> {
     // 检查名称是否存在
     if (await this.appRepository.isNameExist(dto.name)) {
       throw new BadRequestException('应用名称已存在');
@@ -136,10 +144,10 @@ export class ApiAuthService {
   /**
    * 验证API密钥
    */
-  async validateApiKey(apiKey: string): Promise<ApiAppEntity | null> {
+  async validateApiKey(apiKey: string): Promise<ValidatedApiApp | null> {
     const keyHash = ApiKeyEntity.hashKey(apiKey);
     const cacheKey = `api_key:${keyHash}`;
-    const cached = await this.cacheService.get<ApiAppEntity>(cacheKey);
+    const cached = await this.cacheService.get<ValidatedApiApp>(cacheKey);
     if (cached) {
       return cached;
     }
@@ -161,13 +169,21 @@ export class ApiAuthService {
       return null;
     }
 
+    const validatedApp: ValidatedApiApp = {
+      id: key.app.id,
+      name: key.app.name,
+      ownerId: key.app.ownerId,
+      scopes: key.scopes ?? key.app.scopes ?? [],
+      type: 'api-app',
+    };
+
     // 更新最后使用时间（异步，不等待）
     this.keyRepository.updateUsageStats(key.id);
 
     // 缓存密钥验证结果
-    await this.cacheService.set(cacheKey, key.app, API_AUTH_CONSTANTS.KEY_CACHE_TTL);
+    await this.cacheService.set(cacheKey, validatedApp, API_AUTH_CONSTANTS.KEY_CACHE_TTL);
 
-    return key.app;
+    return validatedApp;
   }
 
   /**

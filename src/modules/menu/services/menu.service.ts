@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
@@ -192,64 +192,6 @@ export class MenuService extends BaseService<MenuEntity> {
   }
 
   /**
-   * 获取用户菜单（根据权限过滤）
-   */
-  async getUserMenus(userPermissions: string[]): Promise<any[]> {
-    this.logger.debug(`根据权限获取用户菜单，权限数量=${userPermissions.length}`);
-    const allMenus = await this.menuRepo.find({
-      where: { isActive: true, isVisible: true },
-      order: { sort: 'ASC' },
-    });
-
-    this.logger.debug(`查询可见菜单总数=${allMenus.length}`);
-
-    // 过滤用户有权限访问的菜单
-    const accessibleMenus = allMenus.filter((menu) => {
-      // 如果菜单没有设置显示条件，默认所有人可见
-      if (!menu.displayCondition) {
-        return true;
-      }
-
-      const { requireAnyPermission, requireAllPermissions } = menu.displayCondition;
-
-      // 检查 requireAnyPermission（满足任一即可）
-      if (requireAnyPermission && requireAnyPermission.length > 0) {
-        const hasAny = requireAnyPermission.some((perm) => userPermissions.includes(perm));
-        if (!hasAny) {
-          return false;
-        }
-      }
-
-      // 检查 requireAllPermissions（需要全部满足）
-      if (requireAllPermissions && requireAllPermissions.length > 0) {
-        const hasAll = requireAllPermissions.every((perm) => userPermissions.includes(perm));
-        if (!hasAll) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    this.logger.debug(`根据权限过滤后菜单数量=${accessibleMenus.length}`);
-
-    // 转换为树形结构
-    const menuTree = TreeUtil.arrayToTree(accessibleMenus, {
-      idKey: 'id',
-      parentKey: 'parentId',
-      childrenKey: 'children',
-    });
-    this.logger.debug(
-      `过滤菜单转换为树形结构，根节点数量=${Array.isArray(menuTree) ? menuTree.length : 0}`,
-    );
-
-    // 转换为前端路由格式
-    const routes = this.transformToRoutes(menuTree);
-    this.logger.debug(`转换为路由数据完成，路由数量=${routes.length}`);
-    return routes;
-  }
-
-  /**
    * 转换为前端路由格式
    */
   private transformToRoutes(menus: MenuEntity[]): any[] {
@@ -341,7 +283,11 @@ export class MenuService extends BaseService<MenuEntity> {
   /**
    * 循环依赖检测
    */
-  async checkCircularDependency(menuId: number, targetParentId: number): Promise<boolean> {
+  async checkCircularDependency(
+    menuId: number,
+    targetParentId: number,
+    menuRepository: Pick<MenuRepository, 'findOne'> = this.menuRepo,
+  ): Promise<boolean> {
     this.logger.debug(`检查菜单循环依赖 menuId=${menuId}, targetParentId=${targetParentId}`);
 
     if (menuId === targetParentId) {
@@ -366,7 +312,7 @@ export class MenuService extends BaseService<MenuEntity> {
       }
 
       // 查询父节点
-      const parent = await this.menuRepo.findOne({
+      const parent = await menuRepository.findOne({
         where: { id: currentId },
         select: ['id', 'parentId'],
       });
@@ -379,19 +325,15 @@ export class MenuService extends BaseService<MenuEntity> {
   }
 
   /**
-   * 移动菜单（带事务和悲观锁）
+   * 移动菜单
    */
   async moveMenu(id: number, targetParentId: number | null): Promise<MenuEntity> {
     this.logger.debug(`准备移动菜单 id=${id}, targetParentId=${targetParentId}`);
 
-    // 使用事务确保操作原子性
     return await this.menuRepo.transaction(async (transactionalRepo) => {
-      // ✅ 使用悲观锁（FOR UPDATE）锁定要移动的菜单，防止并发修改
-      const menu = await transactionalRepo
-        .createQueryBuilder('menu')
-        .setLock('pessimistic_write')
-        .where('menu.id = :id', { id })
-        .getOne();
+      const menu = await transactionalRepo.findOne({
+        where: { id },
+      });
 
       if (!menu) {
         this.logger.debug(`移动菜单失败，菜单不存在 id=${id}`);
@@ -399,12 +341,9 @@ export class MenuService extends BaseService<MenuEntity> {
       }
 
       if (targetParentId !== null) {
-        // 检查目标父节点是否存在（也加锁）
-        const parent = await transactionalRepo
-          .createQueryBuilder('menu')
-          .setLock('pessimistic_write')
-          .where('menu.id = :id', { id: targetParentId })
-          .getOne();
+        const parent = await transactionalRepo.findOne({
+          where: { id: targetParentId },
+        });
 
         if (!parent) {
           this.logger.debug(
@@ -413,12 +352,7 @@ export class MenuService extends BaseService<MenuEntity> {
           throw new NotFoundException(`父菜单 ID ${targetParentId} 不存在`);
         }
 
-        // 检查循环依赖（在事务内，使用锁定的数据）
-        const hasCircular = await this.checkCircularDependencyInTransaction(
-          transactionalRepo,
-          id,
-          targetParentId,
-        );
+        const hasCircular = await this.checkCircularDependency(id, targetParentId, transactionalRepo);
         if (hasCircular) {
           this.logger.debug(
             `移动菜单失败，检测到循环依赖 id=${id}, targetParentId=${targetParentId}`,
@@ -429,16 +363,13 @@ export class MenuService extends BaseService<MenuEntity> {
       }
 
       const oldParentId = menu.parentId;
-      // ✅ 修复：允许设置为 null（顶级菜单），不要转换成 undefined
       menu.parentId = targetParentId;
 
-      // 保存修改
       const saved = await transactionalRepo.save(menu);
       this.logger.debug(
         `菜单移动保存成功 id=${id}, oldParentId=${oldParentId ?? '无'}, newParentId=${saved.parentId ?? '无'}`,
       );
 
-      // 清理缓存（事务提交后会自动执行）
       await this.clearCache();
       await this.clearMenuRelatedCache();
 
@@ -446,54 +377,6 @@ export class MenuService extends BaseService<MenuEntity> {
 
       return saved;
     });
-  }
-
-  /**
-   * 循环依赖检测（事务版本 - 使用悲观锁）
-   */
-  private async checkCircularDependencyInTransaction(
-    transactionalRepo: any,
-    menuId: number,
-    targetParentId: number,
-  ): Promise<boolean> {
-    this.logger.debug(
-      `检查菜单循环依赖（事务内） menuId=${menuId}, targetParentId=${targetParentId}`,
-    );
-
-    if (menuId === targetParentId) {
-      this.logger.debug('检测到直接循环依赖（自身作为父节点）');
-      return true;
-    }
-
-    const visited = new Set<number>();
-    let currentId: number | null = targetParentId;
-
-    while (currentId !== null) {
-      if (visited.has(currentId)) {
-        this.logger.debug(`检测到循环依赖 visitedId=${currentId}`);
-        return true;
-      }
-
-      visited.add(currentId);
-
-      if (currentId === menuId) {
-        this.logger.debug(`检测到循环依赖，目标节点是当前节点的子孙 currentId=${currentId}`);
-        return true;
-      }
-
-      // 查询父节点（使用悲观读锁）
-      const parent = await transactionalRepo
-        .createQueryBuilder('menu')
-        .setLock('pessimistic_read')
-        .where('menu.id = :id', { id: currentId })
-        .select(['menu.id', 'menu.parentId'])
-        .getOne();
-
-      currentId = parent?.parentId || null;
-    }
-
-    this.logger.debug('循环依赖检测通过');
-    return false;
   }
 
   /**

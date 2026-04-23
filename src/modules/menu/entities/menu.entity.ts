@@ -107,16 +107,6 @@ export class MenuEntity extends SoftDeleteBaseEntity {
   @Column({
     type: 'json',
     nullable: true,
-    comment: '菜单显示条件（需要的权限）',
-  })
-  displayCondition?: {
-    requireAnyPermission?: string[]; // 满足任一权限即显示
-    requireAllPermissions?: string[]; // 需要全部权限才显示
-  };
-
-  @Column({
-    type: 'json',
-    nullable: true,
     comment: '路由元数据',
   })
   meta?: {

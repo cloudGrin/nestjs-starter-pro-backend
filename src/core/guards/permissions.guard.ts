@@ -1,15 +1,12 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { InjectEntityManager } from '@nestjs/typeorm';
-import { EntityManager } from 'typeorm';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 import { CacheService } from '~/shared/cache/cache.service';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { RoleRepository } from '~/modules/role/repositories/role.repository';
-import { PermissionRepository } from '~/modules/permission/repositories/permission.repository';
-import { CACHE_KEYS, CACHE_TTL } from '~/common/constants/cache.constants';
+import { CACHE_KEYS } from '~/common/constants/cache.constants';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ALLOW_AUTHENTICATED_KEY } from '../decorators/allow-authenticated.decorator';
+import { UserService } from '~/modules/user/services/user.service';
 
 /**
  * 权限守卫（简化版 - 轻量级实现）
@@ -29,10 +26,7 @@ import { ALLOW_AUTHENTICATED_KEY } from '../decorators/allow-authenticated.decor
 export class PermissionsGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly roleRepository: RoleRepository,
-    private readonly permissionRepository: PermissionRepository,
-    @InjectEntityManager()
-    private readonly entityManager: EntityManager,
+    private readonly userService: UserService,
     private readonly cacheService: CacheService,
     private readonly logger: LoggerService,
   ) {
@@ -97,7 +91,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // 4. 获取用户的所有权限
-    const userPermissions = await this.getUserPermissions(user.id);
+    const userPermissions = await this.userService.getUserPermissions(user.id);
 
     // 5. 检查通配符权限
     if (userPermissions.includes('*') || userPermissions.includes('*:*:*')) {
@@ -125,70 +119,6 @@ export class PermissionsGuard implements CanActivate {
     this.logger.debug(`用户 ${user.username}(${user.id}) 权限检查通过，访问 ${request.url}`);
 
     return true;
-  }
-
-  /**
-   * 获取用户的所有权限（简化版）
-   *
-   * 简化说明：
-   * 1. 只查询用户直接通过角色获得的权限
-   * 2. 不再支持权限组
-   * 3. 不再支持权限继承
-   * 4. 使用简单的JOIN查询，性能更好
-   */
-  private async getUserPermissions(userId: number): Promise<string[]> {
-    const startTime = Date.now();
-    const cacheKey = CACHE_KEYS.USER_PERMISSIONS(userId);
-
-    const permissions = await this.cacheService.getOrSet(
-      cacheKey,
-      async () => {
-        const dbQueryStartTime = Date.now();
-        this.logger.debug(`用户 ${userId} 权限缓存未命中，查询数据库`);
-
-        try {
-          const queryStartTime = Date.now();
-
-          const result = await this.permissionRepository
-            .createQueryBuilder('p')
-            .select('DISTINCT p.code', 'code')
-            .innerJoin('role_permissions', 'rp', 'p.id = rp.permission_id')
-            .innerJoin('user_roles', 'ur', 'rp.role_id = ur.role_id')
-            .innerJoin('roles', 'r', 'ur.role_id = r.id')
-            .where('ur.user_id = :userId', { userId })
-            .andWhere('p.isActive = :isActive', { isActive: true })
-            .andWhere('r.isActive = :isActive', { isActive: true })
-            .getRawMany();
-
-          const queryTime = Date.now() - queryStartTime;
-          const permissions = result.map((row: any) => row.code);
-          const totalDbTime = Date.now() - dbQueryStartTime;
-
-          this.logger.debug(
-            `用户 ${userId} 权限查询完成: db=${queryTime}ms, total=${totalDbTime}ms, count=${permissions.length}`,
-          );
-
-          return permissions;
-        } catch (error) {
-          this.logger.error(`用户 ${userId} 权限查询失败: ${error.message}`, error.stack);
-          return [];
-        }
-      },
-      CACHE_TTL.MEDIUM, // 使用统一的缓存TTL（30分钟）
-    );
-
-    const totalTime = Date.now() - startTime;
-
-    // 记录整体性能（包含缓存命中的情况）
-    if (totalTime > 100) {
-      this.logger.warn(`⚠️ 用户 ${userId} 权限获取耗时过长: ${totalTime}ms（阈值: 100ms）`);
-    } else {
-      this.logger.debug(
-        `✅ 用户 ${userId} 权限获取完成: 总耗时=${totalTime}ms, 权限数量=${permissions.length}`,
-      );
-    }
-
-    return permissions;
   }
 
   /**

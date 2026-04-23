@@ -14,6 +14,7 @@ import { createMockRepository } from '~/test-utils';
 describe('MenuService', () => {
   let service: MenuService;
   let menuRepo: jest.Mocked<MenuRepository>;
+  let roleRepository: { createQueryBuilder: jest.Mock };
   let logger: jest.Mocked<LoggerService>;
   let cache: jest.Mocked<CacheService>;
 
@@ -50,6 +51,7 @@ describe('MenuService', () => {
             softDelete: jest.fn(),
             findByParentId: jest.fn(),
             findWithQuery: jest.fn(),
+            transaction: jest.fn(),
           },
         },
         {
@@ -80,6 +82,7 @@ describe('MenuService', () => {
 
     service = module.get<MenuService>(MenuService);
     menuRepo = module.get(MenuRepository) as jest.Mocked<MenuRepository>;
+    roleRepository = module.get(getRepositoryToken(RoleEntity));
     logger = module.get(LoggerService) as jest.Mocked<LoggerService>;
     cache = module.get(CacheService) as jest.Mocked<CacheService>;
   });
@@ -341,89 +344,38 @@ describe('MenuService', () => {
     });
   });
 
-  describe('getUserMenus', () => {
-    it('应该返回用户有权限访问的菜单', async () => {
-      const userPermissions = ['user:view', 'role:view'];
-      const menu1 = createMockMenu({
-        id: 1,
-        isVisible: true,
-        displayCondition: {
-          requireAnyPermission: ['user:view'],
-        },
-      });
-      const menu2 = createMockMenu({
-        id: 2,
-        isVisible: true,
-        displayCondition: {
-          requireAnyPermission: ['admin:view'], // 用户没有此权限
-        },
-      });
-      const menu3 = createMockMenu({
-        id: 3,
-        isVisible: true,
-        displayCondition: undefined, // 无显示条件，所有人可见
-      });
+  describe('getUserMenusByRoles', () => {
+    it('应该基于角色返回用户菜单', async () => {
+      const createQueryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([
+          {
+            code: 'editor',
+            menus: [
+              createMockMenu({
+                id: 1,
+                name: '用户管理',
+                path: '/user',
+                component: 'views/user/index',
+                icon: 'user-icon',
+                isVisible: true,
+              }),
+            ],
+          },
+        ]),
+      };
+      roleRepository.createQueryBuilder = jest.fn().mockReturnValue(createQueryBuilder);
 
-      menuRepo.find.mockResolvedValue([menu1, menu2, menu3]);
+      const result = await service.getUserMenusByRoles(1, ['editor']);
 
-      const result = await service.getUserMenus(userPermissions);
-
-      expect(result).toBeDefined();
+      expect(roleRepository.createQueryBuilder).toHaveBeenCalledWith('role');
       expect(Array.isArray(result)).toBe(true);
-      // menu2 应该被过滤掉，因为用户没有权限
+      expect(result[0]).toHaveProperty('path', '/user');
     });
 
-    it('应该支持requireAllPermissions条件', async () => {
-      const userPermissions = ['user:view', 'user:edit'];
-      const menu = createMockMenu({
-        id: 1,
-        isVisible: true,
-        displayCondition: {
-          requireAllPermissions: ['user:view', 'user:edit'],
-        },
-      });
-
-      menuRepo.find.mockResolvedValue([menu]);
-
-      const result = await service.getUserMenus(userPermissions);
-
-      expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
-    });
-
-    it('当用户没有全部必需权限时应该过滤掉菜单', async () => {
-      const userPermissions = ['user:view']; // 只有一个权限
-      const menu = createMockMenu({
-        id: 1,
-        isVisible: true,
-        displayCondition: {
-          requireAllPermissions: ['user:view', 'user:edit'], // 需要两个权限
-        },
-      });
-
-      menuRepo.find.mockResolvedValue([menu]);
-
-      const result = await service.getUserMenus(userPermissions);
-
-      expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
-    });
-
-    it('应该只返回可见的菜单', async () => {
-      const userPermissions = ['user:view'];
-
-      menuRepo.find.mockResolvedValue([]);
-
-      await service.getUserMenus(userPermissions);
-
-      expect(menuRepo.find).toHaveBeenCalledWith({
-        where: { isActive: true, isVisible: true },
-        order: { sort: 'ASC' },
-      });
-    });
-
-    it('应该转换为前端路由格式', async () => {
-      const userPermissions = ['user:view'];
+    it('super_admin 应该直接读取所有可见菜单', async () => {
       const menu = createMockMenu({
         id: 1,
         name: '用户管理',
@@ -435,17 +387,35 @@ describe('MenuService', () => {
 
       menuRepo.find.mockResolvedValue([menu]);
 
-      const result = await service.getUserMenus(userPermissions);
+      const result = await service.getUserMenusByRoles(1, ['super_admin']);
 
-      expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
-      if (result.length > 0) {
-        expect(result[0]).toHaveProperty('id');
-        expect(result[0]).toHaveProperty('name');
-        expect(result[0]).toHaveProperty('path');
-        expect(result[0]).toHaveProperty('component');
-        expect(result[0]).toHaveProperty('meta');
-      }
+      expect(menuRepo.find).toHaveBeenCalledWith({
+        where: { isActive: true, isVisible: true },
+        order: { sort: 'ASC' },
+      });
+      expect(result[0]).toHaveProperty('meta');
+    });
+  });
+
+  describe('moveMenu', () => {
+    it('should move menu without relying on pessimistic locks', async () => {
+      const menu = createMockMenu({ id: 1, parentId: 2 });
+      const parent = createMockMenu({ id: 3, parentId: null });
+      const transactionalRepo = {
+        findOne: jest
+          .fn()
+          .mockResolvedValueOnce(menu)
+          .mockResolvedValueOnce(parent)
+          .mockResolvedValueOnce(parent),
+        save: jest.fn().mockImplementation(async (entity) => entity),
+      };
+
+      menuRepo.transaction.mockImplementation(async (callback) => callback(transactionalRepo as any));
+
+      const result = await service.moveMenu(1, 3);
+
+      expect(result.parentId).toBe(3);
+      expect(transactionalRepo.save).toHaveBeenCalledWith(expect.objectContaining({ parentId: 3 }));
     });
   });
 });

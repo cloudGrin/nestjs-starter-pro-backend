@@ -84,4 +84,18 @@ describe('architecture slimming', () => {
     expect(cacheModule).not.toContain('CacheClearService');
     expect(existsInSource('shared/cache/cache-clear.service.ts')).toBe(false);
   });
+
+  it('keeps menu authorization to role-menu mapping only, without display conditions or lock-heavy moves', () => {
+    const menuEntity = readSource('modules/menu/entities/menu.entity.ts');
+    const createMenuDto = readSource('modules/menu/dto/create-menu.dto.ts');
+    const menuService = readSource('modules/menu/services/menu.service.ts');
+    const migration = readSource('migrations/1730000000000-InitSchema.ts');
+
+    expect(menuEntity).not.toContain('displayCondition');
+    expect(createMenuDto).not.toContain('displayCondition');
+    expect(menuService).not.toContain('async getUserMenus(');
+    expect(menuService).not.toContain('pessimistic_write');
+    expect(menuService).not.toContain('pessimistic_read');
+    expect(migration).not.toContain('displayCondition json');
+  });
 });

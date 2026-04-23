@@ -101,7 +101,6 @@ export class InitSchema1730000000000 implements MigrationInterface {
         isActive tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
         isExternal tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否外链',
         isCache tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否缓存页面',
-        displayCondition json NULL COMMENT '菜单显示条件（需要的权限）',
         meta json NULL COMMENT '路由元数据',
         remark text NULL COMMENT '备注',
         createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

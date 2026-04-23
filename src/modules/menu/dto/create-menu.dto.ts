@@ -63,13 +63,6 @@ export class CreateMenuDto {
   @IsBoolean()
   isCache?: boolean;
 
-  @ApiPropertyOptional({ description: '菜单显示条件（需要的权限）' })
-  @IsOptional()
-  displayCondition?: {
-    requireAnyPermission?: string[];
-    requireAllPermissions?: string[];
-  };
-
   @ApiPropertyOptional({ description: '路由元数据' })
   @IsOptional()
   meta?: {

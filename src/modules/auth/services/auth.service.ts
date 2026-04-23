@@ -1,7 +1,6 @@
 import {
   Injectable,
   UnauthorizedException,
-  ConflictException,
   BadRequestException,
   HttpException,
   HttpStatus,
@@ -18,7 +17,6 @@ import { UserEntity } from '~/modules/user/entities/user.entity';
 import { RefreshTokenEntity } from '../entities/refresh-token.entity';
 import { RefreshTokenRepository } from '../repositories/refresh-token.repository';
 import { LoginDto } from '../dto/login.dto';
-import { RegisterDto } from '../dto/register.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserStatus } from '~/common/enums/user.enum';
 import { CryptoUtil, StringUtil } from '~/common/utils';
@@ -191,37 +189,6 @@ export class AuthService {
         isSuperAdmin, // ← 前端权限判断需要
         roleCode, // ← 前端权限判断需要
       },
-      tokens,
-    };
-  }
-
-  /**
-   * 用户注册
-   */
-  async register(dto: RegisterDto): Promise<AuthResponse> {
-    // 检查用户名是否存在
-    if (await this.userRepository.isUsernameExist(dto.username)) {
-      throw new ConflictException('用户名已存在');
-    }
-
-    // 检查邮箱是否存在
-    if (await this.userRepository.isEmailExist(dto.email)) {
-      throw new ConflictException('邮箱已被注册');
-    }
-
-    // 创建用户
-    const user = await this.userService.createUser({
-      ...dto,
-      status: UserStatus.ACTIVE, // 默认激活状态，实际项目中可能需要邮箱验证
-    });
-
-    const sessionId = StringUtil.shortUuid();
-    const tokens = await this.generateTokens(user, undefined, undefined, sessionId);
-
-    this.logger.log(`New user registered: ${user.username}`);
-
-    return {
-      user,
       tokens,
     };
   }

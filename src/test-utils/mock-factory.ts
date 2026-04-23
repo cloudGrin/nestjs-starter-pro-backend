@@ -204,18 +204,3 @@ export class LoginDtoMockFactory {
     };
   }
 }
-
-/**
- * 注册DTO Mock数据工厂
- */
-export class RegisterDtoMockFactory {
-  static create(overrides?: any): any {
-    return {
-      username: faker.internet.userName(),
-      email: faker.internet.email(),
-      password: 'Password123!',
-      nickname: faker.person.fullName(),
-      ...overrides,
-    };
-  }
-}

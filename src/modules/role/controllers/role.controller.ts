@@ -17,12 +17,10 @@ import { RevokeMenusDto } from '../dto/revoke-menus.dto';
 import { ApiSuccessResponse, ApiPaginatedResponse, RequirePermissions } from '~/core/decorators';
 import { RoleEntity } from '../entities/role.entity';
 import { MenuEntity } from '~/modules/menu/entities/menu.entity';
-import { AdminOnly } from '~/modules/auth/decorators/roles.decorator';
 
 @ApiTags('角色管理')
 @ApiBearerAuth()
 @Controller('roles')
-@AdminOnly() // 只有管理员可以管理角色
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}
 

@@ -5,11 +5,7 @@ import { UserService } from '~/modules/user/services/user.service';
 import { ApiKeyGuard } from '~/modules/api-auth/guards/api-key.guard';
 import { RequireApiScopes } from '~/modules/api-auth/decorators/api-scopes.decorator';
 import { ApiRequest } from '../types/request.types';
-
-interface UserListQuery {
-  page?: number;
-  pageSize?: number;
-}
+import { OpenUserListQueryDto } from '../dto/open-user-list-query.dto';
 
 @ApiTags('开放API')
 @ApiHeader({
@@ -26,7 +22,7 @@ export class OpenApiController {
   @Get('users')
   @RequireApiScopes('read:users')
   @ApiOperation({ summary: '获取用户列表', description: '需要 read:users 权限' })
-  async getUsers(@Query() query: UserListQuery, @Req() req: ApiRequest) {
+  async getUsers(@Query() query: OpenUserListQueryDto, @Req() req: ApiRequest) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
     const result = await this.userService.findUsers({
@@ -56,5 +52,4 @@ export class OpenApiController {
       },
     };
   }
-
 }

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException, ConflictException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserService } from '~/modules/user/services/user.service';
 import { UserRepository } from '~/modules/user/repositories/user.repository';
@@ -11,7 +11,6 @@ import { UserEntity } from '~/modules/user/entities/user.entity';
 import { RefreshTokenEntity } from '../entities/refresh-token.entity';
 import { RefreshTokenRepository } from '../repositories/refresh-token.repository';
 import { LoginDto } from '../dto/login.dto';
-import { RegisterDto } from '../dto/register.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserStatus } from '~/common/enums/user.enum';
 import { faker } from '@faker-js/faker';
@@ -297,77 +296,6 @@ describe('AuthService', () => {
       await expect(service.login(mockLoginDto, mockIp, mockUserAgent)).rejects.toThrow(
         '账户未激活',
       );
-    });
-  });
-
-  describe('register', () => {
-    const mockRegisterDto: RegisterDto = {
-      username: 'newuser',
-      password: 'Password123!',
-      email: 'newuser@example.com',
-      realName: '新用户',
-    };
-
-    it('应该成功注册并自动登录返回令牌', async () => {
-      // Arrange
-      const mockUser = createMockUser({
-        username: mockRegisterDto.username,
-        email: mockRegisterDto.email,
-        realName: mockRegisterDto.realName,
-      });
-      const mockAccessToken = 'mock-access-token';
-      const mockRefreshToken = 'mock-refresh-token';
-
-      userRepository.isUsernameExist.mockResolvedValue(false);
-      userRepository.isEmailExist.mockResolvedValue(false);
-      userService.createUser.mockResolvedValue(mockUser);
-      jwtService.signAsync
-        .mockResolvedValueOnce(mockAccessToken)
-        .mockResolvedValueOnce(mockRefreshToken);
-      refreshTokenRepository.create.mockReturnValue(createMockRefreshToken());
-      refreshTokenRepository.save.mockResolvedValue(createMockRefreshToken());
-
-      // Act
-      const result = await service.register(mockRegisterDto);
-
-      // Assert
-      expect(result).toHaveProperty('user');
-      expect(result).toHaveProperty('tokens');
-      expect(result.tokens).toHaveProperty('accessToken', mockAccessToken);
-      expect(result.tokens).toHaveProperty('refreshToken', mockRefreshToken);
-
-      expect(userRepository.isUsernameExist).toHaveBeenCalledWith(mockRegisterDto.username);
-      expect(userRepository.isEmailExist).toHaveBeenCalledWith(mockRegisterDto.email);
-      expect(userService.createUser).toHaveBeenCalledWith(
-        expect.objectContaining({
-          username: mockRegisterDto.username,
-          email: mockRegisterDto.email,
-          status: UserStatus.ACTIVE,
-        }),
-      );
-    });
-
-    it('当用户名已存在时应该抛出ConflictException', async () => {
-      // Arrange
-      userRepository.isUsernameExist.mockResolvedValue(true);
-
-      // Act & Assert
-      await expect(service.register(mockRegisterDto)).rejects.toThrow(ConflictException);
-      await expect(service.register(mockRegisterDto)).rejects.toThrow('用户名已存在');
-
-      expect(userService.createUser).not.toHaveBeenCalled();
-    });
-
-    it('当邮箱已存在时应该抛出ConflictException', async () => {
-      // Arrange
-      userRepository.isUsernameExist.mockResolvedValue(false);
-      userRepository.isEmailExist.mockResolvedValue(true);
-
-      // Act & Assert
-      await expect(service.register(mockRegisterDto)).rejects.toThrow(ConflictException);
-      await expect(service.register(mockRegisterDto)).rejects.toThrow('邮箱已被注册');
-
-      expect(userService.createUser).not.toHaveBeenCalled();
     });
   });
 

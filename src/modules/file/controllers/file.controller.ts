@@ -30,7 +30,6 @@ import { QueryFileDto } from '../dto/query-file.dto';
 import {
   ApiPaginatedResponse,
   ApiSuccessResponse,
-  ApiFileUploadResponse,
   ApiCommonResponses,
   RequirePermissions,
   CurrentUser,
@@ -88,7 +87,7 @@ export class FileController {
     },
   })
   @ApiSuccessResponse(FileEntity)
-  @ApiFileUploadResponse('上传文件')
+  @ApiCommonResponses()
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),

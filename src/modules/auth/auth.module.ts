@@ -9,7 +9,6 @@ import { RefreshTokenRepository } from './repositories/refresh-token.repository'
 import { AuthService } from './services/auth.service';
 import { AuthController } from './controllers/auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { RolesGuard } from './guards/roles.guard';
 
 @Global()
 @Module({
@@ -32,7 +31,6 @@ import { RolesGuard } from './guards/roles.guard';
     RefreshTokenRepository,
     AuthService,
     JwtStrategy,
-    RolesGuard,
     // JwtAuthGuard 和 PermissionsGuard 已在 app.module.ts 中全局注册，此处无需重复注册
   ],
   exports: [AuthService, JwtModule],

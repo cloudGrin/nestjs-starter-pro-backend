@@ -8,7 +8,6 @@ import {
   ApiSuccessResponse,
   ApiPublicResponses,
   ApiAuthResponses,
-  ApiCommonResponses,
   ApiLoginExample,
   Public,
   AllowAuthenticated,

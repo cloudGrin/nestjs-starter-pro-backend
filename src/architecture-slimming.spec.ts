@@ -98,4 +98,45 @@ describe('architecture slimming', () => {
     expect(menuService).not.toContain('pessimistic_read');
     expect(migration).not.toContain('displayCondition json');
   });
+
+  it('removes parallel role-guard auth, stale register flow, and unused CRUD scaffold', () => {
+    const authModule = readSource('modules/auth/auth.module.ts');
+    const roleController = readSource('modules/role/controllers/role.controller.ts');
+    const authService = readSource('modules/auth/services/auth.service.ts');
+    const authController = readSource('modules/auth/controllers/auth.controller.ts');
+    const mockFactory = readSource('test-utils/mock-factory.ts');
+
+    expect(authModule).not.toContain('RolesGuard');
+    expect(roleController).not.toContain('AdminOnly');
+    expect(authService).not.toContain('async register(');
+    expect(authController).not.toContain("@Post('register')");
+    expect(mockFactory).not.toContain('RegisterDtoMockFactory');
+    expect(existsInSource('modules/auth/guards/roles.guard.ts')).toBe(false);
+    expect(existsInSource('modules/auth/decorators/roles.decorator.ts')).toBe(false);
+    expect(existsInSource('modules/auth/dto/register.dto.ts')).toBe(false);
+    expect(existsInSource('core/base/crud.controller.ts')).toBe(false);
+  });
+
+  it('uses DTO validation for open api user query instead of runtime-only interfaces', () => {
+    const openApiController = readSource('modules/open-api/controllers/open-api.controller.ts');
+    const dto = readSource('modules/open-api/dto/open-user-list-query.dto.ts');
+    const apiDocs = readSource('core/decorators/api-docs.decorator.ts');
+    const apiExamples = readSource('core/decorators/api-example.decorator.ts');
+
+    expect(openApiController).not.toContain('interface UserListQuery');
+    expect(openApiController).toContain('OpenUserListQueryDto');
+    expect(dto).toContain('class OpenUserListQueryDto');
+    expect(apiDocs).not.toContain('ApiCreateResponse');
+    expect(apiDocs).not.toContain('ApiUpdateResponse');
+    expect(apiDocs).not.toContain('ApiDeleteResponse');
+    expect(apiDocs).not.toContain('ApiGetOneResponse');
+    expect(apiDocs).not.toContain('ApiGetManyResponse');
+    expect(apiDocs).not.toContain('ApiFileUploadResponse');
+    expect(apiDocs).not.toContain('ApiBatchOperationResponse');
+    expect(apiExamples).not.toContain('ApiCreateUserExample');
+    expect(apiExamples).not.toContain('ApiPaginationExample');
+    expect(apiExamples).not.toContain('ApiFileUploadExample');
+    expect(apiExamples).not.toContain('ApiPermissionErrorExample');
+    expect(apiExamples).not.toContain('ApiDeleteExample');
+  });
 });

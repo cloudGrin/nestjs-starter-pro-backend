@@ -7,7 +7,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { PermissionEntity } from '../entities/permission.entity';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
@@ -18,7 +17,6 @@ export class PermissionService {
     @InjectRepository(PermissionEntity)
     private readonly permissionRepo: Repository<PermissionEntity>,
     private readonly logger: LoggerService,
-    private readonly cache: CacheService,
   ) {
     this.logger.setContext(PermissionService.name);
   }
@@ -39,9 +37,6 @@ export class PermissionService {
     this.logger.debug(`权限实体构建完成，准备保存 code=${entity.code}`);
     const saved = await this.permissionRepo.save(entity);
     this.logger.debug(`权限保存成功 id=${saved.id}, code=${saved.code}`);
-
-    await this.clearPermissionCache();
-    this.logger.debug('创建权限后清理缓存完成');
 
     this.logger.log(`创建权限: ${saved.name} (${saved.code})`);
 
@@ -70,9 +65,6 @@ export class PermissionService {
     this.logger.debug(`权限信息合并完成，准备保存 id=${id}`);
     const updated = await this.permissionRepo.save(entity);
     this.logger.debug(`权限更新保存成功 id=${updated.id}`);
-
-    await this.clearPermissionCache();
-    this.logger.debug(`更新权限后清理缓存完成 permissionId=${updated.id}`);
 
     this.logger.log(`更新权限: ${updated.name} (ID: ${id})`);
 
@@ -110,9 +102,6 @@ export class PermissionService {
 
     await this.permissionRepo.delete(id);
     this.logger.debug(`权限删除完成 id=${id}`);
-
-    await this.clearPermissionCache();
-    this.logger.debug(`删除权限后清理缓存完成 permissionId=${id}`);
 
     this.logger.log(`删除权限: ${entity.name} (ID: ${id})`);
   }
@@ -196,15 +185,6 @@ export class PermissionService {
     });
     this.logger.debug(`批量查询权限完成，请求数量=${ids.length}, 返回数量=${result.length}`);
     return result;
-  }
-
-  private async clearPermissionCache(permissionId?: number): Promise<void> {
-    if (permissionId !== undefined) {
-      await this.cache.del(`Permission:findOne:${permissionId}`);
-      return;
-    }
-
-    await this.cache.delByPattern('Permission:*');
   }
 
   private async isCodeExist(code: string, excludeId?: number): Promise<boolean> {

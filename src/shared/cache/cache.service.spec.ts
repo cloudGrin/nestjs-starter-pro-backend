@@ -46,32 +46,9 @@ describe('CacheService', () => {
     await expect(service.get('short-key')).resolves.toBeNull();
   });
 
-  it('supports getOrSet without external dependencies', async () => {
-    const factory = jest.fn().mockResolvedValue('computed');
-
-    await expect(service.getOrSet('computed-key', factory, 60)).resolves.toBe('computed');
-    await expect(service.getOrSet('computed-key', factory, 60)).resolves.toBe('computed');
-    expect(factory).toHaveBeenCalledTimes(1);
-  });
-
-  it('increments and decrements counters in memory', async () => {
-    await expect(service.increment('counter')).resolves.toBe(1);
-    await expect(service.increment('counter')).resolves.toBe(2);
-    await expect(service.decrement('counter')).resolves.toBe(1);
-  });
-
-  it('decrement never goes below zero', async () => {
-    await expect(service.decrement('counter')).resolves.toBe(0);
-  });
-
-  it('preserves existing TTL when decrementing counters', async () => {
-    jest.useFakeTimers();
-    await service.set('limited-counter', 2, 1);
-
-    await expect(service.decrement('limited-counter')).resolves.toBe(1);
-    jest.advanceTimersByTime(1001);
-
-    await expect(service.get('limited-counter')).resolves.toBeNull();
+  it('increments counters in memory', async () => {
+    await expect(service.incr('counter')).resolves.toBe(1);
+    await expect(service.incr('counter')).resolves.toBe(2);
   });
 
   it('deletes keys by simple wildcard pattern', async () => {

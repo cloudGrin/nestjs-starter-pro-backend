@@ -5,19 +5,19 @@
 ### 1. 初始化数据库结构
 
 ```bash
-npm run build
-npm run migration:run
+pnpm run build
+pnpm run migration:run
 ```
 
 ### 2. 启动服务器
 
 ```bash
 # 开发模式
-npm run start:dev
+pnpm run start:dev
 
 # 生产模式
-npm run build
-npm run start:prod
+pnpm run build
+pnpm run start:prod
 ```
 
 ## 📋 核心功能清单

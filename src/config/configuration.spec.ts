@@ -1,4 +1,5 @@
 import { configuration, getDatabaseConfig } from './configuration';
+import { configValidationSchema } from './config.validation';
 
 describe('configuration', () => {
   const originalEnv = process.env;
@@ -31,5 +32,25 @@ describe('configuration', () => {
     });
     expect(config.extra).not.toHaveProperty('acquireTimeout');
     expect(config.extra).not.toHaveProperty('timeout');
+  });
+
+  it('disables Swagger by default in production', () => {
+    process.env = { NODE_ENV: 'production' } as NodeJS.ProcessEnv;
+
+    const config = configuration();
+
+    expect(config.swagger.enable).toBe(false);
+  });
+
+  it('rejects removed or misspelled environment variables', () => {
+    const result = configValidationSchema.validate(
+      {
+        NODE_ENV: 'test',
+        REDIS_HOST: 'localhost',
+      },
+      { allowUnknown: false },
+    );
+
+    expect(result.error?.message).toContain('REDIS_HOST');
   });
 });

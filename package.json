@@ -41,9 +41,9 @@
     "test:env:clean": "./scripts/test-env-clean.sh",
     "typeorm": "typeorm-ts-node-esm -d ./src/config/data-source.ts",
     "typeorm:compiled": "typeorm -d ./dist/config/data-source.js",
-    "migration:generate": "npm run typeorm:compiled -- migration:generate",
-    "migration:run": "npm run typeorm:compiled -- migration:run",
-    "migration:revert": "npm run typeorm:compiled -- migration:revert"
+    "migration:generate": "pnpm run typeorm:compiled -- migration:generate",
+    "migration:run": "pnpm run typeorm:compiled -- migration:run",
+    "migration:revert": "pnpm run typeorm:compiled -- migration:revert"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.0",

@@ -2,19 +2,16 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PermissionsGuard } from './permissions.guard';
-import { CacheService } from '~/shared/cache/cache.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { UserService } from '~/modules/user/services/user.service';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ALLOW_AUTHENTICATED_KEY } from '../decorators/allow-authenticated.decorator';
-import { CACHE_KEYS } from '~/common/constants/cache.constants';
 
 describe('PermissionsGuard', () => {
   let guard: PermissionsGuard;
   let reflector: jest.Mocked<Reflector>;
   let userService: jest.Mocked<UserService>;
-  let cacheService: jest.Mocked<CacheService>;
   let logger: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
@@ -34,12 +31,6 @@ describe('PermissionsGuard', () => {
           },
         },
         {
-          provide: CacheService,
-          useValue: {
-            del: jest.fn(),
-          },
-        },
-        {
           provide: LoggerService,
           useValue: {
             setContext: jest.fn(),
@@ -55,7 +46,6 @@ describe('PermissionsGuard', () => {
     guard = module.get(PermissionsGuard);
     reflector = module.get(Reflector);
     userService = module.get(UserService);
-    cacheService = module.get(CacheService);
     logger = module.get(LoggerService);
   });
 
@@ -185,15 +175,6 @@ describe('PermissionsGuard', () => {
       userService.getUserPermissions.mockResolvedValue(['user:*']);
 
       await expect(guard.canActivate(mockContext)).resolves.toBe(true);
-    });
-  });
-
-  describe('clearUserPermissionsCache', () => {
-    it('应该清除指定用户的权限缓存', async () => {
-      await guard.clearUserPermissionsCache(333);
-
-      expect(cacheService.del).toHaveBeenCalledWith(CACHE_KEYS.USER_PERMISSIONS(333));
-      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('清除用户权限缓存完成'));
     });
   });
 });

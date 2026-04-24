@@ -29,8 +29,8 @@ RUN pnpm install --prod --frozen-lockfile
 # ==========================================
 FROM node:20-alpine
 
-# 安装dumb-init（优雅处理进程信号）
-RUN apk add --no-cache dumb-init
+# 安装dumb-init（优雅处理进程信号）和 pnpm（用于容器启动时运行 migration）
+RUN apk add --no-cache dumb-init && npm install -g pnpm@10
 
 # 创建非root用户
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001

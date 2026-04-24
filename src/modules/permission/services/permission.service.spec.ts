@@ -3,7 +3,6 @@ import { ConflictException, NotFoundException, BadRequestException } from '@nest
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { PermissionService } from './permission.service';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { CacheService } from '~/shared/cache/cache.service';
 import { PermissionEntity, PermissionType } from '../entities/permission.entity';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 import { faker } from '@faker-js/faker';
@@ -26,7 +25,6 @@ describe('PermissionService', () => {
   let service: PermissionService;
   let permissionRepo: any;
   let logger: jest.Mocked<LoggerService>;
-  let cache: jest.Mocked<CacheService>;
 
   const createMockPermission = (overrides?: Partial<PermissionEntity>): PermissionEntity => {
     const permission = new PermissionEntity();
@@ -62,26 +60,17 @@ describe('PermissionService', () => {
       debug: jest.fn(),
     };
 
-    const mockCache = {
-      get: jest.fn(),
-      set: jest.fn(),
-      del: jest.fn(),
-      delByPattern: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PermissionService,
         { provide: getRepositoryToken(PermissionEntity), useValue: mockPermissionRepo },
         { provide: LoggerService, useValue: mockLogger },
-        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
 
     service = module.get<PermissionService>(PermissionService);
     permissionRepo = module.get(getRepositoryToken(PermissionEntity));
     logger = module.get(LoggerService);
-    cache = module.get(CacheService);
   });
 
   afterEach(() => {
@@ -114,7 +103,6 @@ describe('PermissionService', () => {
       expect(result).toEqual(mockPermission);
       expect(permissionRepo.create).toHaveBeenCalledWith(mockCreateDto);
       expect(permissionRepo.save).toHaveBeenCalledWith(mockPermission);
-      expect(cache.delByPattern).toHaveBeenCalled();
       expect(logger.log).toHaveBeenCalledWith(
         expect.stringContaining(`创建权限: ${mockPermission.name}`),
       );
@@ -158,7 +146,6 @@ describe('PermissionService', () => {
         where: { id: permissionId },
       });
       expect(permissionRepo.save).toHaveBeenCalled();
-      expect(cache.delByPattern).toHaveBeenCalled();
     });
 
     it('当权限不存在时应该抛出NotFoundException', async () => {
@@ -204,7 +191,6 @@ describe('PermissionService', () => {
         relations: ['roles'],
       });
       expect(permissionRepo.delete).toHaveBeenCalledWith(permissionId);
-      expect(cache.delByPattern).toHaveBeenCalled();
     });
 
     it('当权限不存在时应该抛出NotFoundException', async () => {

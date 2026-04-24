@@ -4,7 +4,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FileService } from './file.service';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { CacheService } from '~/shared/cache/cache.service';
 import { FileStorageFactory } from '../storage/storage.factory';
 import { FileEntity, FileStatus, FileStorageType } from '../entities/file.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
@@ -12,14 +11,12 @@ import {
   createMockRepository,
   createMockConfigService,
   createMockLogger,
-  createMockCacheService,
 } from '~/test-utils';
 
 describe('FileService', () => {
   let service: FileService;
   let repository: jest.Mocked<Repository<FileEntity>>;
   let storageFactory: jest.Mocked<FileStorageFactory>;
-  let cache: jest.Mocked<CacheService>;
   let logger: jest.Mocked<LoggerService>;
 
   const createMockFile = (overrides?: Partial<Express.Multer.File>): Express.Multer.File => ({
@@ -60,7 +57,6 @@ describe('FileService', () => {
     const mockStorageFactory = {
       getStrategy: jest.fn().mockReturnValue(mockStorageStrategy),
     } as unknown as jest.Mocked<FileStorageFactory>;
-    const mockCache = createMockCacheService();
     const mockLogger = createMockLogger();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -69,7 +65,6 @@ describe('FileService', () => {
         { provide: getRepositoryToken(FileEntity), useValue: mockRepository },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: FileStorageFactory, useValue: mockStorageFactory },
-        { provide: CacheService, useValue: mockCache },
         { provide: LoggerService, useValue: mockLogger },
       ],
     }).compile();
@@ -77,7 +72,6 @@ describe('FileService', () => {
     service = module.get(FileService);
     repository = module.get(getRepositoryToken(FileEntity));
     storageFactory = module.get(FileStorageFactory);
-    cache = module.get(CacheService);
     logger = module.get(LoggerService);
   });
 
@@ -184,7 +178,6 @@ describe('FileService', () => {
         file.path,
       );
       expect(repository.delete).toHaveBeenCalledWith(1);
-      expect(cache.del).toHaveBeenCalledWith('file:id:1');
     });
   });
 });

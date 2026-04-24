@@ -5,7 +5,7 @@
 echo "🛑 停止E2E测试环境..."
 
 # 停止并删除容器
-docker-compose -f docker-compose.test.yml down
+docker compose -f docker-compose.test.yml down
 
 echo "✅ E2E测试环境已停止"
 echo ""

@@ -7,7 +7,6 @@ import { createHash } from 'crypto';
 import { Repository } from 'typeorm';
 import dayjs from 'dayjs';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { CacheService } from '~/shared/cache/cache.service';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileUtil } from '~/common/utils';
 import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
@@ -47,7 +46,6 @@ export class FileService {
     private readonly configService: ConfigService,
     private readonly storageFactory: FileStorageFactory,
     private readonly logger: LoggerService,
-    private readonly cache: CacheService,
   ) {
     this.logger.setContext(FileService.name);
 
@@ -134,8 +132,6 @@ export class FileService {
       }),
     );
 
-    await this.clearFileCache();
-
     return entity;
   }
 
@@ -202,7 +198,7 @@ export class FileService {
    * 删除文件（包含物理删除）
    */
   async remove(id: number): Promise<void> {
-    const entity = await this.findById(id); // 使用带缓存的查询方法
+    const entity = await this.findById(id);
     const storage = this.getStorageStrategy(entity.storage);
 
     if (entity.path) {
@@ -213,14 +209,13 @@ export class FileService {
     if (!deleteResult.affected) {
       throw BusinessException.notFound('File', id);
     }
-    await this.clearFileCache(id);
   }
 
   /**
    * 获取文件下载流
    */
   async getDownloadStream(id: number): Promise<NodeJS.ReadableStream> {
-    const entity = await this.findById(id); // 使用带缓存的查询方法
+    const entity = await this.findById(id);
     const storage = this.getStorageStrategy(entity.storage);
 
     return storage.getStream(entity.path);
@@ -357,16 +352,6 @@ export class FileService {
     }
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : defaultValue;
-  }
-
-  private async clearFileCache(fileId?: number): Promise<void> {
-    if (fileId !== undefined) {
-      await this.cache.del(`file:id:${fileId}`);
-      await this.cache.del(`File:findOne:${fileId}`);
-      return;
-    }
-
-    await this.cache.delByPattern?.('File:*');
   }
 
   private async findByIdOrFail(id: number): Promise<FileEntity> {

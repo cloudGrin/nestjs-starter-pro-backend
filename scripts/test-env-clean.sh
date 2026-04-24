@@ -5,11 +5,11 @@
 echo "🧹 清理E2E测试环境..."
 
 # 停止容器
-docker-compose -f docker-compose.test.yml down
+docker compose -f docker-compose.test.yml down
 
 # 删除数据卷
 echo "🗑️  删除数据卷..."
-docker-compose -f docker-compose.test.yml down -v
+docker compose -f docker-compose.test.yml down -v
 
 echo "✅ E2E测试环境已完全清理"
 echo ""

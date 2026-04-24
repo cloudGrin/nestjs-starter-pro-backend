@@ -290,6 +290,31 @@ describe('architecture slimming', () => {
     expect(notificationController).not.toContain("message: '所有通知已标记为已读'");
   });
 
+  it('keeps command responses in explicit DTOs instead of hand-written controller objects', () => {
+    const authController = readSource('modules/auth/controllers/auth.controller.ts');
+    const userController = readSource('modules/user/controllers/user.controller.ts');
+    const roleController = readSource('modules/role/controllers/role.controller.ts');
+    const permissionController = readSource('modules/permission/controllers/permission.controller.ts');
+    const menuController = readSource('modules/menu/controllers/menu.controller.ts');
+
+    for (const controller of [
+      authController,
+      userController,
+      roleController,
+      permissionController,
+      menuController,
+    ]) {
+      expect(controller).not.toContain('return { message:');
+    }
+
+    expect(userController).not.toContain('return { permissions }');
+    expect(userController).toContain('UserPermissionsResponseDto');
+    expect(authController).toContain('MessageResponseDto');
+    expect(roleController).toContain('MessageResponseDto');
+    expect(permissionController).toContain('MessageResponseDto');
+    expect(menuController).toContain('MessageResponseDto');
+  });
+
   it('keeps api app pagination calculation in the service instead of controller', () => {
     const apiAppController = readSource('modules/api-auth/controllers/api-app.controller.ts');
 
@@ -445,5 +470,64 @@ describe('architecture slimming', () => {
     expect(existsInSource('modules/user/repositories/user.repository.ts')).toBe(false);
     expect(existsInSource('modules/role/repositories/role.repository.ts')).toBe(false);
     expect(existsInSource('modules/permission/repositories/permission.repository.ts')).toBe(false);
+  });
+
+  it('keeps Docker deployment migration-based without init.sql or obsolete compose syntax', () => {
+    const compose = readProject('docker-compose.yml');
+    const testCompose = readProject('docker-compose.test.yml');
+
+    expect(compose).not.toContain("version: '3.8'");
+    expect(testCompose).not.toContain("version: '3.8'");
+    expect(compose).not.toContain('init.sql');
+    expect(compose).toContain('pnpm run migration:run');
+    expect(compose).toContain('node dist/main');
+  });
+
+  it('removes stale redis captcha excel and removed file-processing env examples', () => {
+    const env = readProject('.env');
+    const envTest = readProject('.env.test');
+    const envExample = readProject('.env.example');
+
+    for (const content of [env, envTest, envExample]) {
+      expect(content).not.toMatch(/REDIS_|Redis|CAPTCHA|captcha/);
+      expect(content).not.toMatch(/DB_SYNCHRONIZE|DB_ACQUIRE_TIMEOUT|DB_QUERY_TIMEOUT/);
+      expect(content).not.toMatch(/FILE_CHUNK|FILE_IMAGE/);
+      expect(content).not.toMatch(/\.xls|\.xlsx/);
+    }
+  });
+
+  it('keeps process memory cache API minimal for the current single-server design', () => {
+    const cacheService = readSource('shared/cache/cache.service.ts');
+
+    for (const method of ['getOrSet', 'mget', 'mset', 'keys', 'increment', 'decrement']) {
+      expect(cacheService).not.toContain(`async ${method}(`);
+    }
+  });
+
+  it('removes cache invalidation calls that no longer have matching read paths', () => {
+    const fileService = readSource('modules/file/services/file.service.ts');
+    const notificationService = readSource('modules/notification/services/notification.service.ts');
+    const permissionService = readSource('modules/permission/services/permission.service.ts');
+    const menuService = readSource('modules/menu/services/menu.service.ts');
+    const roleService = readSource('modules/role/services/role.service.ts');
+
+    expect(fileService).not.toContain('clearFileCache');
+    expect(notificationService).not.toContain('clearNotificationCache');
+    expect(permissionService).not.toContain('clearPermissionCache');
+    expect(menuService).not.toContain('clearMenuCache');
+    expect(menuService).not.toContain('clearMenuRelatedCache');
+    expect(roleService).not.toContain('clearRoleCache');
+    expect(roleService).not.toContain('clearUserMenuCache');
+    expect(roleService).toContain('clearUserPermissionCache');
+  });
+
+  it('keeps permission lookup in PermissionsGuard/UserService rather than JwtStrategy', () => {
+    const jwtStrategy = readSource('modules/auth/strategies/jwt.strategy.ts');
+    const permissionsGuard = readSource('core/guards/permissions.guard.ts');
+
+    expect(jwtStrategy).not.toContain('getUserPermissions');
+    expect(jwtStrategy).not.toContain('permissions:');
+    expect(permissionsGuard).toContain('getUserPermissions');
+    expect(permissionsGuard).not.toContain('clearUserPermissionsCache');
   });
 });

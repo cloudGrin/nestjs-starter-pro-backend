@@ -52,75 +52,10 @@ export class CacheService {
     }
   }
 
-  async getOrSet<T>(key: string, factory: () => Promise<T>, ttl?: number): Promise<T> {
-    const cached = await this.get<T>(key);
-    if (cached !== null) {
-      return cached;
-    }
-
-    const value = await factory();
-    if (value !== null && value !== undefined) {
-      await this.set(key, value, ttl);
-    }
-    return value;
-  }
-
-  async mget<T>(keys: string[]): Promise<Map<string, T>> {
-    const result = new Map<string, T>();
-    await Promise.all(
-      keys.map(async (key) => {
-        const value = await this.get<T>(key);
-        if (value !== null) {
-          result.set(key, value);
-        }
-      }),
-    );
-    return result;
-  }
-
-  async mset<T>(items: Array<{ key: string; value: T; ttl?: number }>): Promise<void> {
-    await Promise.all(items.map((item) => this.set(item.key, item.value, item.ttl)));
-  }
-
-  async keys(pattern: string): Promise<string[]> {
-    const regex = this.patternToRegExp(pattern);
-    const result: string[] = [];
-    for (const key of this.store.keys()) {
-      if ((await this.get(key)) !== null && regex.test(key)) {
-        result.push(key);
-      }
-    }
-    return result;
-  }
-
   async incr(key: string, ttl?: number): Promise<number> {
     const current = (await this.get<number>(key)) ?? 0;
     const next = current + 1;
     await this.set(key, next, ttl);
-    return next;
-  }
-
-  async increment(key: string, ttl?: number): Promise<number> {
-    return this.incr(key, ttl);
-  }
-
-  async decrement(key: string): Promise<number> {
-    const entry = this.store.get(key);
-    if (!entry) {
-      return 0;
-    }
-
-    if (entry.expiresAt && entry.expiresAt <= Date.now()) {
-      this.store.delete(key);
-      return 0;
-    }
-
-    const current = typeof entry.value === 'number' ? entry.value : 0;
-    const next = Math.max(0, current - 1);
-    this.store.set(key, {
-      value: next,
-      expiresAt: entry.expiresAt,
-    });
     return next;
   }
 

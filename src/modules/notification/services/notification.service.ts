@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { CacheService } from '~/shared/cache/cache.service';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { UserStatus } from '~/common/enums/user.enum';
 import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
@@ -19,10 +18,6 @@ import { UserEntity } from '~/modules/user/entities/user.entity';
 import { BarkChannelAdapter } from '../channels/bark.channel';
 import { FeishuChannelAdapter } from '../channels/feishu.channel';
 import { NotificationChannelAdapter } from '../channels/notification-channel.interface';
-
-export interface NotificationEventPayload {
-  notifications: NotificationEntity[];
-}
 
 interface NotificationQueryOptions {
   status?: NotificationStatus;
@@ -44,7 +39,6 @@ export class NotificationService {
     private readonly barkChannelAdapter: BarkChannelAdapter,
     private readonly feishuChannelAdapter: FeishuChannelAdapter,
     private readonly logger: LoggerService,
-    private readonly cache: CacheService,
   ) {
     this.logger.setContext(NotificationService.name);
   }
@@ -122,8 +116,6 @@ export class NotificationService {
       );
     }
 
-    await this.clearNotificationCache();
-
     this.logger?.log(
       `Created ${notifications.length} notifications by sender ${senderId ?? 'system'}`,
     );
@@ -180,7 +172,6 @@ export class NotificationService {
     if (!result.affected) {
       throw BusinessException.notFound('通知', id);
     }
-    await this.clearNotificationCache(userId);
     this.logger?.debug(`[Notification] User ${userId} mark notification ${id} as read`);
   }
 
@@ -196,7 +187,6 @@ export class NotificationService {
       },
     );
     const affected = result.affected || 0;
-    await this.clearNotificationCache(userId);
     this.logger?.log(`[Notification] User ${userId} mark ${affected} notifications as read`);
     return affected;
   }
@@ -323,14 +313,6 @@ export class NotificationService {
       default:
         return null;
     }
-  }
-
-  private async clearNotificationCache(userId?: number): Promise<void> {
-    if (userId !== undefined) {
-      await this.cache.del(`notification:user:${userId}`);
-    }
-
-    await this.cache.delByPattern?.('Notification:*');
   }
 
   private async findUsersByIds(ids: number[]): Promise<UserEntity[]> {

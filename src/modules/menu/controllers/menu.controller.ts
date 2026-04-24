@@ -27,10 +27,12 @@ import {
   BatchUpdateMenuStatusDto,
   MoveMenuDto,
   ValidateMenuPathDto,
+  ValidateMenuPathResponseDto,
 } from '../dto';
 import { MenuEntity } from '../entities/menu.entity';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
+import { MessageResponseDto } from '~/common/dto/message-response.dto';
 
 @ApiTags('菜单管理')
 @ApiBearerAuth()
@@ -80,9 +82,10 @@ export class MenuController {
     type: Number,
     required: false,
   })
+  @ApiOkResponse({ type: ValidateMenuPathResponseDto })
   async validatePath(@Query() query: ValidateMenuPathDto) {
     const isUnique = await this.menuService.validatePath(query.path, query.excludeId);
-    return { isUnique };
+    return ValidateMenuPathResponseDto.of(isUnique);
   }
 
   @Get(':id')
@@ -107,9 +110,10 @@ export class MenuController {
   @RequirePermissions('menu:delete')
   @ApiOperation({ summary: '删除菜单' })
   @ApiParam({ name: 'id', description: '菜单ID' })
+  @ApiOkResponse({ type: MessageResponseDto })
   async delete(@Param('id', ParseIntPipe) id: number) {
     await this.menuService.delete(id);
-    return { message: '删除成功' };
+    return MessageResponseDto.of('删除成功');
   }
 
   // ==================== 🆕 新增接口 ====================
@@ -117,9 +121,10 @@ export class MenuController {
   @Patch('batch-status')
   @RequirePermissions('menu:update')
   @ApiOperation({ summary: '批量启用/禁用菜单' })
+  @ApiOkResponse({ type: MessageResponseDto })
   async batchUpdateStatus(@Body() dto: BatchUpdateMenuStatusDto) {
     await this.menuService.batchUpdateStatus(dto.menuIds, dto.isActive);
-    return { message: '批量更新成功' };
+    return MessageResponseDto.of('批量更新成功');
   }
 
   @Patch(':id/move')

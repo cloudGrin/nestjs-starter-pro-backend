@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from './logger.service';
+import * as winston from 'winston';
 
 const loggerMock = {
   info: jest.fn(),
@@ -49,5 +50,20 @@ describe('LoggerService', () => {
     logger.log('created');
 
     expect(loggerMock.info).toHaveBeenCalledWith('created', { context: undefined });
+  });
+
+  it('keeps console logging enabled in production so bootstrap credentials are visible in container logs', () => {
+    new LoggerService({
+      get: jest.fn((key: string, defaultValue?: unknown) => {
+        const config = {
+          'logging.level': 'info',
+          'logging.dir': './logs',
+          isDevelopment: false,
+        };
+        return config[key] ?? defaultValue;
+      }),
+    } as unknown as ConfigService);
+
+    expect(winston.transports.Console).toHaveBeenCalled();
   });
 });

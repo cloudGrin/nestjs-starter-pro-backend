@@ -4,6 +4,7 @@ import {
   ApiOperation,
   ApiBearerAuth,
   ApiBody,
+  ApiOkResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiForbiddenResponse,
@@ -16,6 +17,7 @@ import { Public, AllowAuthenticated } from '~/core/decorators';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { AuthenticatedUser } from '../strategies/jwt.strategy';
 import { IpUtil } from '~/common/utils';
+import { MessageResponseDto } from '~/common/dto/message-response.dto';
 
 @ApiTags('认证')
 @Controller('auth')
@@ -52,6 +54,7 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '用户登出' })
+  @ApiOkResponse({ type: MessageResponseDto })
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async logout(
@@ -59,6 +62,6 @@ export class AuthController {
     @Body('refreshToken') refreshToken?: string,
   ) {
     await this.authService.logout(user.id, user.sessionId || undefined, refreshToken);
-    return { message: '登出成功' };
+    return MessageResponseDto.of('登出成功');
   }
 }

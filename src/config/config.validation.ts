@@ -200,4 +200,4 @@ export const configValidationSchema = Joi.object({
 
   NOTIFY_FEISHU_ENABLE: Joi.boolean().default(false),
   NOTIFY_FEISHU_WEBHOOK: Joi.string().optional(),
-}).unknown(true); // 允许未声明的环境变量
+});

@@ -5,18 +5,16 @@ import { Repository } from 'typeorm';
 import { faker } from '@faker-js/faker';
 import { MenuService } from './menu.service';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { CacheService } from '~/shared/cache/cache.service';
 import { MenuEntity, MenuType } from '../entities/menu.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { CreateMenuDto, UpdateMenuDto, QueryMenuDto } from '../dto';
-import { createMockRepository, createMockLogger, createMockCacheService } from '~/test-utils';
+import { createMockRepository, createMockLogger } from '~/test-utils';
 
 describe('MenuService', () => {
   let service: MenuService;
   let menuRepository: jest.Mocked<Repository<MenuEntity>>;
   let roleRepository: jest.Mocked<Repository<RoleEntity>>;
   let logger: jest.Mocked<LoggerService>;
-  let cache: jest.Mocked<CacheService>;
 
   const createMockMenu = (overrides?: Partial<MenuEntity>): MenuEntity => {
     const menu = new MenuEntity();
@@ -41,7 +39,6 @@ describe('MenuService', () => {
     const mockMenuRepository = createMockRepository<MenuEntity>();
     const mockRoleRepository = createMockRepository<RoleEntity>();
     const mockLogger = createMockLogger();
-    const mockCache = createMockCacheService();
 
     (mockMenuRepository as any).manager = {
       transaction: jest.fn(),
@@ -53,7 +50,6 @@ describe('MenuService', () => {
         { provide: getRepositoryToken(MenuEntity), useValue: mockMenuRepository },
         { provide: getRepositoryToken(RoleEntity), useValue: mockRoleRepository },
         { provide: LoggerService, useValue: mockLogger },
-        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
 
@@ -61,7 +57,6 @@ describe('MenuService', () => {
     menuRepository = module.get(getRepositoryToken(MenuEntity));
     roleRepository = module.get(getRepositoryToken(RoleEntity));
     logger = module.get(LoggerService);
-    cache = module.get(CacheService);
   });
 
   afterEach(() => {
@@ -251,7 +246,6 @@ describe('MenuService', () => {
 
       expect(result.parentId).toBe(3);
       expect(transactionalRepo.save).toHaveBeenCalledWith(expect.objectContaining({ parentId: 3 }));
-      expect(cache.delByPattern).toHaveBeenCalled();
     });
   });
 });

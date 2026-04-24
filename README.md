@@ -156,17 +156,17 @@ git clone <your-repo-url>
 cd home-admin
 
 # Install dependencies
-npm install
+pnpm install
 
 # Copy environment variables
 cp .env.example .env
 # Edit .env with your database credentials
 
 # Initialize database schema
-npm run migration:run
+pnpm run migration:run
 
 # Start development server
-npm run start:dev
+pnpm run start:dev
 ```
 
 **Access**:
@@ -270,14 +270,14 @@ export class AuthController {
 
 ```bash
 # Generate a migration from entity changes when you intentionally evolve schema
-npm run build
-npm run migration:generate -- migrations/AddUserPhoneNumber
+pnpm run build
+pnpm run migration:generate -- migrations/AddUserPhoneNumber
 
 # Apply migrations
-npm run migration:run
+pnpm run migration:run
 
 # Rollback last migration
-npm run migration:revert
+pnpm run migration:revert
 ```
 
 ---
@@ -495,17 +495,17 @@ git clone <your-repo-url>
 cd home-admin
 
 # 安装依赖
-npm install
+pnpm install
 
 # 配置环境变量
 cp .env.example .env
 # 编辑 .env 填入数据库信息
 
 # 初始化数据库结构
-npm run migration:run
+pnpm run migration:run
 
 # 启动开发服务器
-npm run start:dev
+pnpm run start:dev
 ```
 
 访问：

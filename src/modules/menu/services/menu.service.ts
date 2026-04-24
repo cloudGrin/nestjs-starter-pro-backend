@@ -2,8 +2,6 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { CacheService } from '~/shared/cache/cache.service';
-import { CACHE_KEYS } from '~/common/constants/cache.constants';
 import { TreeUtil } from '~/common/utils/tree.util';
 import { MenuEntity } from '../entities/menu.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
@@ -17,7 +15,6 @@ export class MenuService {
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
     private readonly logger: LoggerService,
-    private readonly cache: CacheService,
   ) {
     this.logger.setContext(MenuService.name);
   }
@@ -46,10 +43,6 @@ export class MenuService {
     this.logger.debug(`菜单实体构建完成，准备保存 name=${entity.name}`);
     const saved = await this.menuRepository.save(entity);
     this.logger.debug(`菜单保存成功 id=${saved.id}, name=${saved.name}`);
-
-    await this.clearMenuCache();
-    await this.clearMenuRelatedCache();
-    this.logger.debug('创建菜单后清理菜单缓存完成');
 
     this.logger.log(`创建菜单: ${saved.name}`);
 
@@ -96,10 +89,6 @@ export class MenuService {
     const updated = await this.menuRepository.save(entity);
     this.logger.debug(`菜单更新保存成功 id=${updated.id}`);
 
-    await this.clearMenuCache();
-    await this.clearMenuRelatedCache();
-    this.logger.debug(`更新菜单后清理缓存完成 menuId=${updated.id}`);
-
     this.logger.log(`更新菜单: ${updated.name} (ID: ${id})`);
 
     return updated;
@@ -125,10 +114,6 @@ export class MenuService {
       throw new NotFoundException('菜单不存在');
     }
     this.logger.debug(`菜单软删除完成 id=${id}`);
-
-    await this.clearMenuCache();
-    await this.clearMenuRelatedCache();
-    this.logger.debug(`删除菜单后清理缓存完成 menuId=${id}`);
 
     this.logger.log(`删除菜单: ${entity.name} (ID: ${id})`);
   }
@@ -370,9 +355,6 @@ export class MenuService {
         `菜单移动保存成功 id=${id}, oldParentId=${oldParentId ?? '无'}, newParentId=${saved.parentId ?? '无'}`,
       );
 
-      await this.clearMenuCache();
-      await this.clearMenuRelatedCache();
-
       this.logger.log(`移动菜单: ${menu.name} (ID: ${id}) 到父节点 ${targetParentId}`);
 
       return saved;
@@ -391,9 +373,6 @@ export class MenuService {
       .whereInIds(menuIds)
       .execute();
 
-    await this.clearMenuCache();
-    await this.clearMenuRelatedCache();
-
     this.logger.log(`批量${isActive ? '启用' : '禁用'} ${menuIds.length} 个菜单`);
   }
 
@@ -411,23 +390,6 @@ export class MenuService {
     const count = await qb.getCount();
     this.logger.debug(`菜单路径唯一性检查完成 path=${path}, count=${count}`);
     return count === 0;
-  }
-
-  private async clearMenuRelatedCache(): Promise<void> {
-    await Promise.all([
-      this.cache.del(CACHE_KEYS.MENU_TREE()),
-      this.cache.delByPattern(CACHE_KEYS.PATTERN_MENU_ALL()),
-      this.cache.delByPattern(CACHE_KEYS.PATTERN_USER_MENUS()),
-    ]);
-  }
-
-  private async clearMenuCache(menuId?: number): Promise<void> {
-    if (menuId !== undefined) {
-      await this.cache.del(`Menu:findOne:${menuId}`);
-      return;
-    }
-
-    await this.cache.delByPattern('Menu:*');
   }
 
   private async findChildrenByParentId(parentId: number): Promise<MenuEntity[]> {

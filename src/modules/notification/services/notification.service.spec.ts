@@ -3,7 +3,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotificationService } from './notification.service';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { CacheService } from '~/shared/cache/cache.service';
 import {
   NotificationEntity,
   NotificationStatus,
@@ -15,7 +14,7 @@ import { UserEntity } from '~/modules/user/entities/user.entity';
 import { UserStatus } from '~/common/enums/user.enum';
 import { BarkChannelAdapter } from '../channels/bark.channel';
 import { FeishuChannelAdapter } from '../channels/feishu.channel';
-import { createMockRepository, createMockLogger, createMockCacheService } from '~/test-utils';
+import { createMockRepository, createMockLogger } from '~/test-utils';
 
 describe('NotificationService', () => {
   let service: NotificationService;
@@ -24,7 +23,6 @@ describe('NotificationService', () => {
   let barkAdapter: jest.Mocked<BarkChannelAdapter>;
   let feishuAdapter: jest.Mocked<FeishuChannelAdapter>;
   let logger: jest.Mocked<LoggerService>;
-  let cache: jest.Mocked<CacheService>;
 
   beforeEach(async () => {
     const mockNotificationRepository = createMockRepository<NotificationEntity>();
@@ -40,7 +38,6 @@ describe('NotificationService', () => {
       send: jest.fn(),
     } as unknown as jest.Mocked<FeishuChannelAdapter>;
     const mockLogger = createMockLogger();
-    const mockCache = createMockCacheService();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -50,7 +47,6 @@ describe('NotificationService', () => {
         { provide: BarkChannelAdapter, useValue: mockBarkAdapter },
         { provide: FeishuChannelAdapter, useValue: mockFeishuAdapter },
         { provide: LoggerService, useValue: mockLogger },
-        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
 
@@ -60,7 +56,6 @@ describe('NotificationService', () => {
     barkAdapter = module.get(BarkChannelAdapter);
     feishuAdapter = module.get(FeishuChannelAdapter);
     logger = module.get(LoggerService);
-    cache = module.get(CacheService);
   });
 
   afterEach(() => {
@@ -190,7 +185,6 @@ describe('NotificationService', () => {
         { id: 1, recipientId: 2, status: NotificationStatus.UNREAD },
         { status: NotificationStatus.READ, readAt: expect.any(Function) },
       );
-      expect(cache.del).toHaveBeenCalledWith('notification:user:2');
     });
 
     it('通知不存在时应该抛出异常', async () => {
@@ -211,7 +205,6 @@ describe('NotificationService', () => {
         { recipientId: 1, status: NotificationStatus.UNREAD },
         { status: NotificationStatus.READ, readAt: expect.any(Function) },
       );
-      expect(cache.del).toHaveBeenCalledWith('notification:user:1');
     });
   });
 

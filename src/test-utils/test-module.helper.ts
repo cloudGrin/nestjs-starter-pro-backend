@@ -129,15 +129,6 @@ export function createMockCacheService(): jest.Mocked<CacheService> {
       cache.set(key, newValue);
       return newValue;
     }),
-    decrement: jest.fn(async (key: string): Promise<number> => {
-      const current = cache.get(key) || 0;
-      const newValue = Math.max(0, current - 1);
-      cache.set(key, newValue);
-      return newValue;
-    }),
-    keys: jest.fn(async (pattern: string): Promise<string[]> => {
-      return Array.from(cache.keys()).filter((key) => key.includes(pattern));
-    }),
     delByPattern: jest.fn(async (pattern: string): Promise<void> => {
       for (const key of Array.from(cache.keys())) {
         if (key.includes(pattern.replace('*', ''))) {
@@ -145,7 +136,6 @@ export function createMockCacheService(): jest.Mocked<CacheService> {
         }
       }
     }),
-    __cache: cache, // 用于测试中访问内部状态
   } as any;
 }
 

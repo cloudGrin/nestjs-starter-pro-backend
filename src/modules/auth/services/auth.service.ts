@@ -284,22 +284,18 @@ export class AuthService {
    * 登出
    */
   async logout(userId: number, sessionId?: string, refreshToken?: string): Promise<void> {
-    try {
-      if (refreshToken) {
-        // 撤销指定的刷新令牌
-        await this.refreshTokenRepository.update({ token: refreshToken }, { isRevoked: true });
-      } else {
-        // 撤销该用户的所有刷新令牌
-        await this.refreshTokenRepository.update({ userId, isRevoked: false }, { isRevoked: true });
-      }
-
-      // 清除缓存
-      await this.clearUserCache(userId);
-
-      this.logger.log(`User ${userId} logged out`);
-    } catch (error) {
-      this.logger.error(`Failed to logout user ${userId}`, error.stack);
+    if (refreshToken) {
+      // 撤销指定的刷新令牌
+      await this.refreshTokenRepository.update({ token: refreshToken }, { isRevoked: true });
+    } else {
+      // 撤销该用户的所有刷新令牌
+      await this.refreshTokenRepository.update({ userId, isRevoked: false }, { isRevoked: true });
     }
+
+    // 清除缓存
+    await this.clearUserCache(userId);
+
+    this.logger.log(`User ${userId} logged out`);
   }
 
   /**

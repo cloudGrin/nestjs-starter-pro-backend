@@ -319,5 +319,13 @@ describe('AuthService', () => {
       );
       expect(cacheService.del).toHaveBeenCalledWith('user:permissions:1');
     });
+
+    it('撤销刷新令牌失败时应该向调用方抛出异常', async () => {
+      refreshTokenRepository.update.mockRejectedValue(new Error('database unavailable'));
+
+      await expect(service.logout(1, undefined, 'refresh-token')).rejects.toThrow(
+        'database unavailable',
+      );
+    });
   });
 });

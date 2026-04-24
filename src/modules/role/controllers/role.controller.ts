@@ -20,6 +20,7 @@ import { RevokeMenusDto } from '../dto/revoke-menus.dto';
 import { RequirePermissions } from '~/core/decorators';
 import { RoleEntity } from '../entities/role.entity';
 import { MenuEntity } from '~/modules/menu/entities/menu.entity';
+import { MessageResponseDto } from '~/common/dto/message-response.dto';
 
 @ApiTags('角色管理')
 @ApiBearerAuth()
@@ -73,9 +74,10 @@ export class RoleController {
   @RequirePermissions('role:delete')
   @ApiOperation({ summary: '删除角色' })
   @ApiParam({ name: 'id', description: '角色ID' })
+  @ApiOkResponse({ type: MessageResponseDto })
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.roleService.deleteRole(id);
-    return { message: '删除成功' };
+    return MessageResponseDto.of('删除成功');
   }
 
   @Put(':id/permissions')

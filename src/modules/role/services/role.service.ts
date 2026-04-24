@@ -78,10 +78,6 @@ export class RoleService {
     const savedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色保存成功 id=${savedRole.id}, code=${savedRole.code}`);
 
-    // 清除缓存
-    await this.clearRoleCache();
-    this.logger.debug('创建角色后清理缓存完成');
-
     this.logger.log(`Created role: ${savedRole.name} (${savedRole.code})`);
 
     return savedRole;
@@ -148,10 +144,9 @@ export class RoleService {
     const updatedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色更新保存成功 roleId=${updatedRole.id}`);
 
-    // 清除相关缓存（包括拥有该角色的用户权限缓存）
-    await this.clearRoleCache();
+    // 清除拥有该角色的用户权限缓存
     await this.clearUserPermissionCache();
-    this.logger.debug(`更新角色后清理缓存完成 roleId=${updatedRole.id}`);
+    this.logger.debug(`更新角色后清理用户权限缓存完成 roleId=${updatedRole.id}`);
 
     this.logger.log(`Updated role: ${updatedRole.name} (ID: ${updatedRole.id})`);
 
@@ -187,10 +182,6 @@ export class RoleService {
     }
 
     await this.roleRepository.softDelete(id);
-
-    // 清除缓存
-    await this.clearRoleCache();
-    this.logger.debug(`删除角色后清理缓存完成 roleId=${id}`);
 
     this.logger.log(`Deleted role: ${role.name} (ID: ${id})`);
   }
@@ -358,11 +349,6 @@ export class RoleService {
     const updatedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色菜单保存成功 roleId=${roleId}`);
 
-    // 清除缓存
-    await this.clearRoleCache();
-    await this.clearUserMenuCache();
-    this.logger.debug(`分配菜单后清理缓存完成 roleId=${roleId}`);
-
     this.logger.log(`分配 ${menus.length} 个菜单给角色 ${roleId}`);
 
     return updatedRole;
@@ -416,32 +402,9 @@ export class RoleService {
     const updatedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色菜单移除后保存成功 roleId=${roleId}`);
 
-    // 清除缓存
-    await this.clearRoleCache();
-    await this.clearUserMenuCache();
-    this.logger.debug(`移除菜单后清理缓存完成 roleId=${roleId}`);
-
     this.logger.log(`移除角色 ${roleId} 的 ${menuIds.length} 个菜单`);
 
     return updatedRole;
-  }
-
-  /**
-   * 清除用户菜单缓存
-   */
-  private async clearUserMenuCache(): Promise<void> {
-    await this.cache.delByPattern('menu:user:*');
-    await this.cache.delByPattern('menu:role:*');
-    this.logger.debug('已清除用户/角色菜单缓存');
-  }
-
-  private async clearRoleCache(roleId?: number): Promise<void> {
-    if (roleId !== undefined) {
-      await this.cache.del(`Role:findOne:${roleId}`);
-      return;
-    }
-
-    await this.cache.delByPattern('Role:*');
   }
 
   private async isCodeExist(code: string, excludeId?: number): Promise<boolean> {

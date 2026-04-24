@@ -14,6 +14,7 @@ import { RequirePermissions } from '~/core/decorators';
 import { PermissionService } from '../services/permission.service';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 import { PermissionEntity } from '../entities/permission.entity';
+import { MessageResponseDto } from '~/common/dto/message-response.dto';
 
 @ApiTags('权限管理')
 @ApiBearerAuth()
@@ -66,8 +67,9 @@ export class PermissionController {
   @RequirePermissions('permission:delete')
   @ApiOperation({ summary: '删除权限' })
   @ApiParam({ name: 'id', description: '权限ID' })
+  @ApiOkResponse({ type: MessageResponseDto })
   async delete(@Param('id', ParseIntPipe) id: number) {
     await this.permissionService.delete(id);
-    return { message: '删除成功' };
+    return MessageResponseDto.of('删除成功');
   }
 }

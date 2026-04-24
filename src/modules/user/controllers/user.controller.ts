@@ -33,6 +33,8 @@ import { RequirePermissions, AllowAuthenticated } from '~/core/decorators';
 import { UserEntity } from '../entities/user.entity';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
+import { MessageResponseDto } from '~/common/dto/message-response.dto';
+import { UserPermissionsResponseDto } from '../dto/user-permissions-response.dto';
 
 @ApiTags('用户管理')
 @ApiBearerAuth()
@@ -90,23 +92,25 @@ export class UserController {
   @Put('password')
   @AllowAuthenticated()
   @ApiOperation({ summary: '修改密码' })
+  @ApiOkResponse({ type: MessageResponseDto })
   @ApiBadRequestResponse({ description: '参数验证失败' })
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async changePassword(@CurrentUser() user: AuthenticatedUser, @Body() dto: ChangePasswordDto) {
     await this.userService.changePassword(user.id, dto);
-    return { message: '密码修改成功' };
+    return MessageResponseDto.of('密码修改成功');
   }
 
   @Delete('batch')
   @RequirePermissions('user:delete')
   @ApiOperation({ summary: '批量删除用户' })
+  @ApiOkResponse({ type: MessageResponseDto })
   @ApiBadRequestResponse({ description: '参数验证失败' })
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   async removeMany(@Body() dto: DeleteUsersDto) {
     await this.userService.deleteUsers(dto.ids);
-    return { message: '批量删除成功' };
+    return MessageResponseDto.of('批量删除成功');
   }
 
   @Get(':id')
@@ -138,21 +142,23 @@ export class UserController {
   @RequirePermissions('user:delete')
   @ApiOperation({ summary: '删除用户' })
   @ApiParam({ name: 'id', description: '用户ID' })
+  @ApiOkResponse({ type: MessageResponseDto })
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   @ApiNotFoundResponse({ description: '请求的资源不存在' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.userService.deleteUser(id);
-    return { message: '删除成功' };
+    return MessageResponseDto.of('删除成功');
   }
 
   @Put(':id/password/reset')
   @RequirePermissions('user:update', 'admin')
   @ApiOperation({ summary: '重置用户密码（管理员）' })
   @ApiParam({ name: 'id', description: '用户ID' })
+  @ApiOkResponse({ type: MessageResponseDto })
   async resetPassword(@Param('id', ParseIntPipe) id: number, @Body() dto: ResetPasswordDto) {
     await this.userService.resetPassword(id, dto);
-    return { message: '密码重置成功' };
+    return MessageResponseDto.of('密码重置成功');
   }
 
   @Put(':id/enable')
@@ -186,8 +192,9 @@ export class UserController {
   @RequirePermissions('user:read', 'permission:read')
   @ApiOperation({ summary: '获取用户权限' })
   @ApiParam({ name: 'id', description: '用户ID' })
+  @ApiOkResponse({ type: UserPermissionsResponseDto })
   async getPermissions(@Param('id', ParseIntPipe) id: number) {
     const permissions = await this.userService.getUserPermissions(id);
-    return { permissions };
+    return UserPermissionsResponseDto.of(permissions);
   }
 }

@@ -10,7 +10,6 @@ export interface AuthenticatedUser {
   username: string;
   email: string;
   roles: string[];
-  permissions: string[];
   sessionId: string;
   /** 是否为超级管理员（拥有 super_admin 角色） */
   isSuperAdmin?: boolean;
@@ -56,9 +55,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User account is not active');
     }
 
-    // 获取用户权限
-    const permissions = await this.userService.getUserPermissions(user.id);
-
     // 提取角色码
     const roleCodes = user.roles?.map((role) => role.code) || [];
 
@@ -73,7 +69,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       username: user.username,
       email: user.email,
       roles: roleCodes,
-      permissions,
       sessionId: payload.sessionId || '',
       isSuperAdmin,
       roleCode,
@@ -85,7 +80,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       roleCodes,
       isSuperAdmin,
       roleCode,
-      permissionCount: permissions.length,
     });
 
     return authUser;

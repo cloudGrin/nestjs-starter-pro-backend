@@ -561,7 +561,7 @@ export class UserController {
   @ApiOperation({ summary: '删除用户' })
   async remove(@Param('id') id: string) {
     await this.userService.remove(id);
-    return { message: '删除成功' };
+    return MessageResponseDto.of('删除成功');
   }
 }
 ```
@@ -717,8 +717,8 @@ medicine:record:view       // 查看药品记录
 当前项目尚未发布，不保留历史增量迁移；修改实体后优先同步更新初始化迁移，避免迁移目录膨胀。真正上线并产生历史数据后，再恢复“一次结构变更一个迁移”的规则。
 
 ```bash
-npm run build
-npm run migration:run
+pnpm run build
+pnpm run migration:run
 ```
 
 空库首次启动时，`AdminBootstrapService` 会自动创建 `admin` 超级管理员账号，并把随机密码输出到应用日志一次。不要把默认密码写入源码、migration 或文档。
@@ -1419,7 +1419,7 @@ npm install
 mysql -u root -p
 
 # 初始化结构
-npm run migration:run
+pnpm run migration:run
 ```
 
 #### 3. 权限检查失败
@@ -1459,10 +1459,10 @@ POST /api/v1/roles/{roleId}/permissions
 
 ```bash
 # 1. 查看详细日志
-npm run start:dev
+pnpm run start:dev
 
 # 2. 初始化数据库结构
-npm run migration:run
+pnpm run migration:run
 
 # 3. 检查环境配置
 node -p "require('./dist/config/configuration').default()"

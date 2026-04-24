@@ -1,9 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
-import { CacheService } from '~/shared/cache/cache.service';
 import { LoggerService } from '~/shared/logger/logger.service';
-import { CACHE_KEYS } from '~/common/constants/cache.constants';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ALLOW_AUTHENTICATED_KEY } from '../decorators/allow-authenticated.decorator';
 import { UserService } from '~/modules/user/services/user.service';
@@ -27,7 +25,6 @@ export class PermissionsGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly userService: UserService,
-    private readonly cacheService: CacheService,
     private readonly logger: LoggerService,
   ) {
     this.logger.setContext(PermissionsGuard.name);
@@ -193,13 +190,4 @@ export class PermissionsGuard implements CanActivate {
     return false;
   }
 
-  /**
-   * 清除用户权限缓存
-   */
-  async clearUserPermissionsCache(userId: number): Promise<void> {
-    const cacheKey = CACHE_KEYS.USER_PERMISSIONS(userId);
-    await this.cacheService.del(cacheKey);
-    this.logger.debug(`清除用户权限缓存完成 userId=${userId}`);
-    this.logger.log(`清除用户 ${userId} 的权限缓存`);
-  }
 }

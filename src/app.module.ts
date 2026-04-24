@@ -37,7 +37,8 @@ import { MenuModule } from './modules/menu/menu.module';
       load: [configuration],
       validationSchema: configValidationSchema, // 添加 Joi 验证
       validationOptions: {
-        allowUnknown: false, // ⚠️  严格模式：环境变量拼写错误会报错
+        // 允许 PATH、HOME 等宿主环境变量通过；项目配置键仍由 schema 和架构测试约束。
+        allowUnknown: true,
         abortEarly: false, // 显示所有验证错误
       },
     }),

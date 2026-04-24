@@ -27,6 +27,8 @@ import { UpdateUserDto } from '../dto/update-user.dto';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { QueryUserDto } from '../dto/query-user.dto';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto';
+import { DeleteUsersDto } from '../dto/delete-users.dto';
+import { AssignUserRolesDto } from '../dto/assign-user-roles.dto';
 import { RequirePermissions, AllowAuthenticated } from '~/core/decorators';
 import { UserEntity } from '../entities/user.entity';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
@@ -102,8 +104,8 @@ export class UserController {
   @ApiBadRequestResponse({ description: '参数验证失败' })
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
-  async removeMany(@Body() ids: number[]) {
-    await this.userService.deleteUsers(ids);
+  async removeMany(@Body() dto: DeleteUsersDto) {
+    await this.userService.deleteUsers(dto.ids);
     return { message: '批量删除成功' };
   }
 
@@ -176,8 +178,8 @@ export class UserController {
   @ApiOperation({ summary: '分配角色' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: UserEntity })
-  async assignRoles(@Param('id', ParseIntPipe) id: number, @Body() roleIds: number[]) {
-    return this.userService.assignRoles(id, roleIds);
+  async assignRoles(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignUserRolesDto) {
+    return this.userService.assignRoles(id, dto.roleIds);
   }
 
   @Get(':id/permissions')

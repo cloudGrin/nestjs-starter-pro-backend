@@ -223,6 +223,43 @@ describe('architecture slimming', () => {
     expect(fileController).not.toContain("BusinessException.notFound('文件', id)");
   });
 
+  it('keeps api app and notification command responses in explicit response DTOs', () => {
+    const apiAppController = readSource('modules/api-auth/controllers/api-app.controller.ts');
+    const notificationController = readSource('modules/notification/controllers/notification.controller.ts');
+
+    expect(apiAppController).toContain('ApiAppDeleteResponseDto');
+    expect(apiAppController).toContain('ApiKeyCreatedResponseDto');
+    expect(apiAppController).toContain('ApiKeyListItemDto');
+    expect(apiAppController).toContain('ApiKeyRevokeResponseDto');
+    expect(apiAppController).not.toContain('return keys.map((key) => ({');
+    expect(apiAppController).not.toContain("return { success: true, message: 'API应用已删除' }");
+    expect(apiAppController).not.toContain("message: 'API密钥已撤销'");
+    expect(notificationController).toContain('MarkNotificationReadResponseDto');
+    expect(notificationController).toContain('MarkAllNotificationsReadResponseDto');
+    expect(notificationController).not.toContain("return { message: '通知已标记为已读' }");
+    expect(notificationController).not.toContain("message: '所有通知已标记为已读'");
+  });
+
+  it('keeps api app pagination calculation in the service instead of controller', () => {
+    const apiAppController = readSource('modules/api-auth/controllers/api-app.controller.ts');
+
+    expect(apiAppController).toContain('this.apiAuthService.getApps(query)');
+    expect(apiAppController).not.toContain('const skip =');
+    expect(apiAppController).not.toContain('{ skip, take: limit }');
+    expect(apiAppController).toContain('this.apiAuthService.createApp(dto, user.id)');
+    expect(apiAppController).not.toContain('const dtoWithOwner');
+    expect(apiAppController).not.toContain('ownerId: user.id');
+  });
+
+  it('uses DTOs for user controller array request bodies instead of bare arrays', () => {
+    const userController = readSource('modules/user/controllers/user.controller.ts');
+
+    expect(userController).toContain('DeleteUsersDto');
+    expect(userController).toContain('AssignUserRolesDto');
+    expect(userController).not.toContain('@Body() ids: number[]');
+    expect(userController).not.toContain('@Body() roleIds: number[]');
+  });
+
   it('removes BaseService inheritance from business services', () => {
     const userService = readSource('modules/user/services/user.service.ts');
     const roleService = readSource('modules/role/services/role.service.ts');

@@ -90,6 +90,25 @@ describe('ApiAuthService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('getApps', () => {
+    it('uses query pagination inside the service', async () => {
+      const apps = [createMockApp({ id: 1 }), createMockApp({ id: 2 })];
+      appRepository.findAndCount.mockResolvedValue([apps, 12]);
+
+      await expect(service.getApps({ page: 2, limit: 5 })).resolves.toEqual({
+        items: apps,
+        total: 12,
+        page: 2,
+        limit: 5,
+      });
+      expect(appRepository.findAndCount).toHaveBeenCalledWith({
+        skip: 5,
+        take: 5,
+        order: { createdAt: 'DESC' },
+      });
+    });
+  });
+
   describe('createApp', () => {
     it('creates API app', async () => {
       const dto: CreateApiAppDto = {
@@ -108,6 +127,24 @@ describe('ApiAuthService', () => {
       expect(result).toEqual(mockApp);
       expect(appRepository.count).toHaveBeenCalledWith({ where: { name: dto.name } });
       expect(appRepository.save).toHaveBeenCalledWith(mockApp);
+    });
+
+    it('sets owner id when provided by the authenticated user context', async () => {
+      const dto: CreateApiAppDto = {
+        name: 'Owned App',
+        scopes: ['read:users'],
+      };
+      const mockApp = createMockApp({ name: dto.name, ownerId: 7 });
+
+      appRepository.count.mockResolvedValue(0);
+      appRepository.create.mockReturnValue(mockApp);
+      appRepository.save.mockResolvedValue(mockApp);
+
+      await expect(service.createApp(dto, 7)).resolves.toEqual(mockApp);
+      expect(appRepository.create).toHaveBeenCalledWith({
+        ...dto,
+        ownerId: 7,
+      });
     });
 
     it('rejects duplicate app name', async () => {

@@ -25,6 +25,10 @@ import { RequirePermissions } from '~/core/decorators';
 import { NotificationEntity } from '../entities/notification.entity';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
+import {
+  MarkAllNotificationsReadResponseDto,
+  MarkNotificationReadResponseDto,
+} from '../dto/notification-read-response.dto';
 
 @ApiTags('通知管理')
 @ApiBearerAuth()
@@ -63,7 +67,7 @@ export class NotificationController {
   @ApiParam({ name: 'id', description: '通知ID' })
   async markAsRead(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
     await this.notificationService.markAsRead(id, user.id);
-    return { message: '通知已标记为已读' };
+    return MarkNotificationReadResponseDto.success();
   }
 
   @Put('read-all')
@@ -71,9 +75,6 @@ export class NotificationController {
   @ApiOperation({ summary: '将所有通知标记为已读' })
   async markAllAsRead(@CurrentUser() user: AuthenticatedUser) {
     const affected = await this.notificationService.markAllAsRead(user.id);
-    return {
-      message: '所有通知已标记为已读',
-      affected,
-    };
+    return MarkAllNotificationsReadResponseDto.success(affected);
   }
 }

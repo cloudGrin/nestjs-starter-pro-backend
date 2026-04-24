@@ -7,6 +7,7 @@ import { CacheService } from '~/shared/cache/cache.service';
 import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 import { UpdateApiAppDto } from '../dto/update-api-app.dto';
+import { QueryApiAppsDto } from '../dto/query-api-apps.dto';
 import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
 
 // 配置常量
@@ -36,12 +37,13 @@ export class ApiAuthService {
   /**
    * 获取API应用列表
    */
-  async getApps(options: { skip?: number; take?: number }) {
-    const page = Math.floor((options.skip || 0) / (options.take || 10)) + 1;
+  async getApps(query: QueryApiAppsDto = {}) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
     const result = await this.paginateApps(
       {
         page,
-        limit: options.take || 10,
+        limit,
       },
       {
         order: { createdAt: 'DESC' },
@@ -74,13 +76,13 @@ export class ApiAuthService {
   /**
    * 创建API应用
    */
-  async createApp(dto: CreateApiAppDto & { ownerId?: number }): Promise<ApiAppEntity> {
+  async createApp(dto: CreateApiAppDto, ownerId?: number): Promise<ApiAppEntity> {
     // 检查名称是否存在
     if (await this.isAppNameExist(dto.name)) {
       throw new BadRequestException('应用名称已存在');
     }
 
-    const app = this.appRepository.create(dto);
+    const app = this.appRepository.create(ownerId === undefined ? dto : { ...dto, ownerId });
     return this.appRepository.save(app);
   }
 

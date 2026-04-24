@@ -13,6 +13,8 @@ import { RoleEntity } from '../entities/role.entity';
 import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 import { MenuEntity } from '~/modules/menu/entities/menu.entity';
 import { CreateRoleDto } from '../dto/create-role.dto';
+import { UpdateRoleDto } from '../dto/update-role.dto';
+import { QueryRoleDto } from '../dto/query-role.dto';
 
 @Injectable()
 export class RoleService {
@@ -88,7 +90,7 @@ export class RoleService {
   /**
    * 更新角色
    */
-  async updateRole(id: number, dto: Partial<CreateRoleDto>): Promise<RoleEntity> {
+  async updateRole(id: number, dto: UpdateRoleDto): Promise<RoleEntity> {
     this.logger.debug(`准备更新角色 id=${id}, payload=${JSON.stringify(dto)}`);
 
     const role = await this.roleRepository.findOne({
@@ -228,13 +230,7 @@ export class RoleService {
   /**
    * 查询角色列表
    */
-  async findRoles(query: {
-    name?: string;
-    code?: string;
-    isActive?: boolean;
-    page?: number;
-    limit?: number;
-  }): Promise<PaginationResult<RoleEntity>> {
+  async findRoles(query: QueryRoleDto): Promise<PaginationResult<RoleEntity>> {
     this.logger.debug(`查询角色列表，过滤条件=${JSON.stringify(query)}`);
 
     const [items, totalItems] = await this.findRolesWithQuery(query);

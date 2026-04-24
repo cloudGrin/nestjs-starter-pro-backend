@@ -195,6 +195,17 @@ describe('architecture slimming', () => {
     expect(existsInSource('modules/api-auth/types/request.types.ts')).toBe(false);
   });
 
+  it('uses real DTOs for role controller query and mutation payloads instead of runtime-only inline types', () => {
+    const roleController = readSource('modules/role/controllers/role.controller.ts');
+
+    expect(roleController).toContain('QueryRoleDto');
+    expect(roleController).toContain('UpdateRoleDto');
+    expect(roleController).toContain('AssignPermissionsDto');
+    expect(roleController).not.toContain('query: {');
+    expect(roleController).not.toContain('Partial<CreateRoleDto>');
+    expect(roleController).not.toContain('@Body() permissionIds: number[]');
+  });
+
   it('removes BaseService inheritance from business services', () => {
     const userService = readSource('modules/user/services/user.service.ts');
     const roleService = readSource('modules/role/services/role.service.ts');

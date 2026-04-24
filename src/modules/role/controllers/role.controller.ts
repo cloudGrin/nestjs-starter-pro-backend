@@ -12,6 +12,9 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiOkResponse } from '@nestjs/swagger';
 import { RoleService } from '../services/role.service';
 import { CreateRoleDto } from '../dto/create-role.dto';
+import { UpdateRoleDto } from '../dto/update-role.dto';
+import { QueryRoleDto } from '../dto/query-role.dto';
+import { AssignPermissionsDto } from '../dto/assign-permissions.dto';
 import { AssignMenusDto } from '../dto/assign-menus.dto';
 import { RevokeMenusDto } from '../dto/revoke-menus.dto';
 import { RequirePermissions } from '~/core/decorators';
@@ -36,16 +39,7 @@ export class RoleController {
   @RequirePermissions('role:read')
   @ApiOperation({ summary: '获取角色列表' })
   @ApiOkResponse({ description: '获取角色列表成功' })
-  async findAll(
-    @Query()
-    query: {
-      name?: string;
-      code?: string;
-      isActive?: boolean;
-      page?: number;
-      limit?: number;
-    },
-  ) {
+  async findAll(@Query() query: QueryRoleDto) {
     return this.roleService.findRoles(query);
   }
 
@@ -71,7 +65,7 @@ export class RoleController {
   @ApiOperation({ summary: '更新角色' })
   @ApiParam({ name: 'id', description: '角色ID' })
   @ApiOkResponse({ type: RoleEntity })
-  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: Partial<CreateRoleDto>) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateRoleDto) {
     return this.roleService.updateRole(id, dto);
   }
 
@@ -89,8 +83,8 @@ export class RoleController {
   @ApiOperation({ summary: '分配权限' })
   @ApiParam({ name: 'id', description: '角色ID' })
   @ApiOkResponse({ type: RoleEntity })
-  async assignPermissions(@Param('id', ParseIntPipe) id: number, @Body() permissionIds: number[]) {
-    return this.roleService.assignPermissions(id, permissionIds);
+  async assignPermissions(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignPermissionsDto) {
+    return this.roleService.assignPermissions(id, dto.permissionIds);
   }
 
   @Post(':id/menus')

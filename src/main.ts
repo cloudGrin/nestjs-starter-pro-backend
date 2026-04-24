@@ -25,13 +25,13 @@ async function bootstrap() {
   // 启用 CORS
   app.enableCors(
     buildCorsOptions(
-      configService.get<string>('CORS_ORIGIN', '*'),
-      configService.get<boolean>('CORS_CREDENTIALS', true),
+      configService.get<string | string[]>('cors.origin', '*'),
+      configService.get<boolean>('cors.credentials', false),
     ),
   );
 
   // 设置全局前缀
-  const apiPrefix = configService.get<string>('API_PREFIX', 'api');
+  const apiPrefix = configService.get<string>('app.apiPrefix', 'api');
   app.setGlobalPrefix(apiPrefix, {
     exclude: ['healthz', 'readyz'],
   });
@@ -39,7 +39,7 @@ async function bootstrap() {
   // 启用版本控制
   app.enableVersioning({
     type: VersioningType.URI,
-    defaultVersion: configService.get<string>('API_VERSION', '1'),
+    defaultVersion: configService.get<string>('app.apiVersion', '1'),
   });
 
   // 全局验证管道
@@ -55,34 +55,33 @@ async function bootstrap() {
   );
 
   // Swagger 文档
-  if (configService.get<boolean>('SWAGGER_ENABLE', true)) {
+  const swaggerEnabled = configService.get<boolean>('swagger.enable', true);
+  const swaggerTitle = configService.get<string>('swagger.title', 'home API');
+  const swaggerDescription = configService.get<string>('swagger.description', 'home Backend Management System API Documentation');
+  const swaggerVersion = configService.get<string>('swagger.version', '1.0.0');
+  const swaggerPath = configService.get<string>('swagger.path', 'api-docs');
+
+  if (swaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle(configService.get<string>('SWAGGER_TITLE', 'home API'))
-      .setDescription(
-        configService.get<string>(
-          'SWAGGER_DESCRIPTION',
-          'home Backend Management System API Documentation',
-        ),
-      )
-      .setVersion(configService.get<string>('SWAGGER_VERSION', '1.0.0'))
+      .setTitle(swaggerTitle)
+      .setDescription(swaggerDescription)
+      .setVersion(swaggerVersion)
       .addBearerAuth()
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
-    const swaggerPath = configService.get<string>('SWAGGER_PATH', 'api-docs');
     SwaggerModule.setup(swaggerPath, app, document);
   }
 
   // 优雅关闭
   app.enableShutdownHooks();
 
-  const port = configService.get<number>('PORT', 3000);
+  const port = configService.get<number>('app.port', 3000);
   await app.listen(port);
 
   logger.log(`🚀 Application is running on: http://localhost:${port}/${apiPrefix}`);
 
-  if (configService.get<boolean>('SWAGGER_ENABLE', true)) {
-    const swaggerPath = configService.get<string>('SWAGGER_PATH', 'api-docs');
+  if (swaggerEnabled) {
     logger.log(`📚 Swagger documentation available at: http://localhost:${port}/${swaggerPath}`);
   }
 }

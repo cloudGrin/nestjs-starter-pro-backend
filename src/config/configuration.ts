@@ -117,7 +117,7 @@ export const configuration = (): Configuration => ({
    */
   swagger: {
     /** 是否启用 Swagger（默认 true，生产环境建议关闭） */
-    enable: process.env.SWAGGER_ENABLE === 'true',
+    enable: process.env.SWAGGER_ENABLE !== 'false',
     /** 文档标题 */
     title: process.env.SWAGGER_TITLE || 'home API',
     /** 文档描述 */

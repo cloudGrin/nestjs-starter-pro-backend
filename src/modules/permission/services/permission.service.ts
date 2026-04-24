@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
-import { PaginationResult } from '~/core/base/base.repository';
+import { PaginationResult } from '~/common/types/pagination.types';
 import { PermissionEntity } from '../entities/permission.entity';
 import { PermissionRepository } from '../repositories/permission.repository';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';

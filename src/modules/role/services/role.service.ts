@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
-import { PaginationResult } from '~/core/base/base.repository';
+import { PaginationResult } from '~/common/types/pagination.types';
 import { RoleEntity } from '../entities/role.entity';
 import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 import { MenuEntity } from '~/modules/menu/entities/menu.entity';

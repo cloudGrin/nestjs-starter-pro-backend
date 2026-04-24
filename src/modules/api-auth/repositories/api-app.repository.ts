@@ -1,16 +1,66 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { BaseRepository } from '~/core/base/base.repository';
+import { Repository, DeepPartial, FindManyOptions } from 'typeorm';
+import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
 import { ApiAppEntity } from '../entities/api-app.entity';
 
 @Injectable()
-export class ApiAppRepository extends BaseRepository<ApiAppEntity> {
+export class ApiAppRepository {
   constructor(
     @InjectRepository(ApiAppEntity)
-    repository: Repository<ApiAppEntity>,
-  ) {
-    super(repository);
+    private readonly repository: Repository<ApiAppEntity>,
+  ) {}
+
+  create(data: DeepPartial<ApiAppEntity>): ApiAppEntity {
+    return this.repository.create(data);
+  }
+
+  async save(entity: DeepPartial<ApiAppEntity>): Promise<ApiAppEntity> {
+    return this.repository.save(entity);
+  }
+
+  async findById(id: number): Promise<ApiAppEntity | null> {
+    return this.repository.findOne({
+      where: { id },
+    });
+  }
+
+  async update(id: number, data: Partial<ApiAppEntity>): Promise<ApiAppEntity> {
+    await this.repository.update(id, data);
+    const entity = await this.findById(id);
+    if (!entity) {
+      throw new Error(`ApiApp ${id} not found after update`);
+    }
+    return entity;
+  }
+
+  async paginate(
+    options: PaginationOptions,
+    findOptions?: FindManyOptions<ApiAppEntity>,
+  ): Promise<PaginationResult<ApiAppEntity>> {
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.min(100, Math.max(1, options.limit || 10));
+    const skip = (page - 1) * limit;
+
+    const [items, totalItems] = await this.repository.findAndCount({
+      ...findOptions,
+      skip,
+      take: limit,
+      order: options.sort
+        ? ({ [options.sort]: options.order || 'ASC' } as FindManyOptions<ApiAppEntity>['order'])
+        : findOptions?.order,
+    });
+
+    return {
+      items,
+      meta: {
+        totalItems,
+        itemCount: items.length,
+        itemsPerPage: limit,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+      },
+    };
   }
 
   /**

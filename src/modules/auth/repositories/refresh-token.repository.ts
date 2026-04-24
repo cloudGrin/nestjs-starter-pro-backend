@@ -1,16 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
-import { BaseRepository } from '~/core/base/base.repository';
+import { Repository, LessThan, MoreThan, DeepPartial, FindManyOptions } from 'typeorm';
 import { RefreshTokenEntity } from '../entities/refresh-token.entity';
 
 @Injectable()
-export class RefreshTokenRepository extends BaseRepository<RefreshTokenEntity> {
+export class RefreshTokenRepository {
   constructor(
     @InjectRepository(RefreshTokenEntity)
-    repository: Repository<RefreshTokenEntity>,
-  ) {
-    super(repository);
+    private readonly repository: Repository<RefreshTokenEntity>,
+  ) {}
+
+  create(data: DeepPartial<RefreshTokenEntity>): RefreshTokenEntity {
+    return this.repository.create(data);
+  }
+
+  async save(entity: DeepPartial<RefreshTokenEntity>): Promise<RefreshTokenEntity> {
+    return this.repository.save(entity);
+  }
+
+  async find(options?: FindManyOptions<RefreshTokenEntity>): Promise<RefreshTokenEntity[]> {
+    return this.repository.find(options);
   }
 
   /**

@@ -1,18 +1,59 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, In, FindManyOptions } from 'typeorm';
-import { BaseRepository } from '~/core/base/base.repository';
+import {
+  Repository,
+  In,
+  FindManyOptions,
+  FindOneOptions,
+  FindOptionsWhere,
+  DeepPartial,
+} from 'typeorm';
+import { BusinessException } from '~/common/exceptions/business.exception';
 import { UserEntity } from '../entities/user.entity';
 import { QueryUserDto } from '../dto/query-user.dto';
 import { UserStatus } from '~/common/enums/user.enum';
 
 @Injectable()
-export class UserRepository extends BaseRepository<UserEntity> {
+export class UserRepository {
   constructor(
     @InjectRepository(UserEntity)
-    repository: Repository<UserEntity>,
-  ) {
-    super(repository);
+    private readonly repository: Repository<UserEntity>,
+  ) {}
+
+  create(data: DeepPartial<UserEntity>): UserEntity {
+    return this.repository.create(data);
+  }
+
+  async save(entity: DeepPartial<UserEntity>): Promise<UserEntity> {
+    return this.repository.save(entity);
+  }
+
+  async count(options?: FindManyOptions<UserEntity>): Promise<number> {
+    return this.repository.count(options);
+  }
+
+  async findOne(options: FindOneOptions<UserEntity>): Promise<UserEntity | null> {
+    return this.repository.findOne(options);
+  }
+
+  async findByIdOrFail(id: number, options?: FindOneOptions<UserEntity>): Promise<UserEntity> {
+    const entity = await this.repository.findOne({
+      ...options,
+      where: { id } as FindOptionsWhere<UserEntity>,
+    });
+
+    if (!entity) {
+      throw BusinessException.notFound('User', id);
+    }
+
+    return entity;
+  }
+
+  async softDelete(id: number): Promise<void> {
+    const result = await this.repository.softDelete(id);
+    if (result.affected === 0) {
+      throw BusinessException.notFound('User', id);
+    }
   }
 
   /**
@@ -170,6 +211,10 @@ export class UserRepository extends BaseRepository<UserEntity> {
    * 批量查找用户
    */
   async findByIds(ids: number[]): Promise<UserEntity[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
     return this.repository.find({
       where: { id: In(ids) },
       relations: ['roles'],

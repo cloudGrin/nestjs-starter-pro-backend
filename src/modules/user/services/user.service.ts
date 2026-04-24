@@ -9,7 +9,7 @@ import { Repository, In } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '~/common/constants/cache.constants';
-import { PaginationResult } from '~/core/base/base.repository';
+import { PaginationResult } from '~/common/types/pagination.types';
 import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { UserRepository } from '../repositories/user.repository';

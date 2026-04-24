@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder, UpdateResult } from 'typeorm';
-import { BaseRepository, PaginationOptions, PaginationResult } from '~/core/base/base.repository';
+import { Repository, SelectQueryBuilder, UpdateResult, DeepPartial } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
+import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
 import {
   NotificationEntity,
   NotificationStatus,
@@ -17,12 +18,27 @@ export interface NotificationQueryOptions {
 }
 
 @Injectable()
-export class NotificationRepository extends BaseRepository<NotificationEntity> {
+export class NotificationRepository {
   constructor(
     @InjectRepository(NotificationEntity)
     private readonly notificationRepository: Repository<NotificationEntity>,
-  ) {
-    super(notificationRepository);
+  ) {}
+
+  async createMany(data: DeepPartial<NotificationEntity>[]): Promise<NotificationEntity[]> {
+    const entities = this.notificationRepository.create(data);
+    return this.notificationRepository.save(entities);
+  }
+
+  async update(
+    id: number,
+    data: QueryDeepPartialEntity<NotificationEntity>,
+  ): Promise<NotificationEntity> {
+    await this.notificationRepository.update(id, data);
+    const entity = await this.notificationRepository.findOne({ where: { id } });
+    if (!entity) {
+      throw new Error(`Notification ${id} not found after update`);
+    }
+    return entity;
   }
 
   /**
@@ -136,12 +152,5 @@ export class NotificationRepository extends BaseRepository<NotificationEntity> {
     );
 
     return result.affected || 0;
-  }
-
-  /**
-   * 获取实体名称
-   */
-  getEntityName(): string {
-    return 'Notification';
   }
 }

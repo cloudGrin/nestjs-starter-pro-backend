@@ -1,17 +1,56 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
-import { BaseRepository } from '~/core/base/base.repository';
+import {
+  Repository,
+  IsNull,
+  FindManyOptions,
+  FindOneOptions,
+  SelectQueryBuilder,
+  DeepPartial,
+} from 'typeorm';
+import { BusinessException } from '~/common/exceptions/business.exception';
 import { MenuEntity } from '../entities/menu.entity';
 import { QueryMenuDto } from '../dto/query-menu.dto';
 
 @Injectable()
-export class MenuRepository extends BaseRepository<MenuEntity> {
+export class MenuRepository {
   constructor(
     @InjectRepository(MenuEntity)
     private readonly menuRepo: Repository<MenuEntity>,
-  ) {
-    super(menuRepo);
+  ) {}
+
+  create(data: DeepPartial<MenuEntity>): MenuEntity {
+    return this.menuRepo.create(data);
+  }
+
+  async save(entity: DeepPartial<MenuEntity>): Promise<MenuEntity> {
+    return this.menuRepo.save(entity);
+  }
+
+  async find(options?: FindManyOptions<MenuEntity>): Promise<MenuEntity[]> {
+    return this.menuRepo.find(options);
+  }
+
+  async findOne(options: FindOneOptions<MenuEntity>): Promise<MenuEntity | null> {
+    return this.menuRepo.findOne(options);
+  }
+
+  async softDelete(id: number): Promise<void> {
+    const result = await this.menuRepo.softDelete(id);
+    if (result.affected === 0) {
+      throw BusinessException.notFound('Menu', id);
+    }
+  }
+
+  createQueryBuilder(alias?: string): SelectQueryBuilder<MenuEntity> {
+    return this.menuRepo.createQueryBuilder(alias);
+  }
+
+  async transaction<R>(runInTransaction: (repository: Repository<MenuEntity>) => Promise<R>): Promise<R> {
+    return this.menuRepo.manager.transaction(async (manager) => {
+      const transactionalRepository = manager.getRepository(MenuEntity);
+      return runInTransaction(transactionalRepository);
+    });
   }
 
   /**

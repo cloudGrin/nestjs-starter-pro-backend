@@ -208,4 +208,61 @@ describe('architecture slimming', () => {
       expect(service).not.toContain("from '~/core/base/base.service'");
     }
   });
+
+  it('removes BaseRepository inheritance from repositories and keeps only shared pagination types', () => {
+    const userRepository = readSource('modules/user/repositories/user.repository.ts');
+    const roleRepository = readSource('modules/role/repositories/role.repository.ts');
+    const menuRepository = readSource('modules/menu/repositories/menu.repository.ts');
+    const permissionRepository = readSource('modules/permission/repositories/permission.repository.ts');
+    const fileRepository = readSource('modules/file/repositories/file.repository.ts');
+    const notificationRepository = readSource(
+      'modules/notification/repositories/notification.repository.ts',
+    );
+    const apiAppRepository = readSource('modules/api-auth/repositories/api-app.repository.ts');
+    const apiKeyRepository = readSource('modules/api-auth/repositories/api-key.repository.ts');
+    const refreshTokenRepository = readSource(
+      'modules/auth/repositories/refresh-token.repository.ts',
+    );
+
+    expect(existsInSource('core/base/base.repository.ts')).toBe(false);
+    for (const repository of [
+      userRepository,
+      roleRepository,
+      menuRepository,
+      permissionRepository,
+      fileRepository,
+      notificationRepository,
+      apiAppRepository,
+      apiKeyRepository,
+      refreshTokenRepository,
+    ]) {
+      expect(repository).not.toContain('extends BaseRepository');
+      expect(repository).not.toContain("from '~/core/base/base.repository'");
+    }
+  });
+
+  it('reads bootstrap settings from structured config paths instead of raw env keys', () => {
+    const main = readSource('main.ts');
+
+    expect(main).toContain("configService.get<string | string[]>('cors.origin'");
+    expect(main).toContain("configService.get<boolean>('cors.credentials'");
+    expect(main).toContain("configService.get<string>('app.apiPrefix'");
+    expect(main).toContain("configService.get<string>('app.apiVersion'");
+    expect(main).toContain("configService.get<boolean>('swagger.enable'");
+    expect(main).toContain("configService.get<string>('swagger.title'");
+    expect(main).toContain("configService.get<string>('swagger.description'");
+    expect(main).toContain("configService.get<string>('swagger.version'");
+    expect(main).toContain("configService.get<string>('swagger.path'");
+    expect(main).toContain("configService.get<number>('app.port'");
+    expect(main).not.toContain("configService.get<string>('CORS_ORIGIN'");
+    expect(main).not.toContain("configService.get<boolean>('CORS_CREDENTIALS'");
+    expect(main).not.toContain("configService.get<string>('API_PREFIX'");
+    expect(main).not.toContain("configService.get<string>('API_VERSION'");
+    expect(main).not.toContain("configService.get<boolean>('SWAGGER_ENABLE'");
+    expect(main).not.toContain("configService.get<string>('SWAGGER_TITLE'");
+    expect(main).not.toContain("configService.get<string>('SWAGGER_DESCRIPTION'");
+    expect(main).not.toContain("configService.get<string>('SWAGGER_VERSION'");
+    expect(main).not.toContain("configService.get<string>('SWAGGER_PATH'");
+    expect(main).not.toContain("configService.get<number>('PORT'");
+  });
 });

@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
-import { BaseRepository, PaginationResult, PaginationOptions } from '~/core/base/base.repository';
+import {
+  Repository,
+  FindOneOptions,
+  FindOptionsWhere,
+  SelectQueryBuilder,
+  DeepPartial,
+} from 'typeorm';
+import { BusinessException } from '~/common/exceptions/business.exception';
+import { PaginationResult, PaginationOptions } from '~/common/types/pagination.types';
 import { FileEntity, FileStatus, FileStorageType } from '../entities/file.entity';
 
 export interface FileQueryOptions {
@@ -14,12 +21,39 @@ export interface FileQueryOptions {
 }
 
 @Injectable()
-export class FileRepository extends BaseRepository<FileEntity> {
+export class FileRepository {
   constructor(
     @InjectRepository(FileEntity)
     private readonly fileRepository: Repository<FileEntity>,
-  ) {
-    super(fileRepository);
+  ) {}
+
+  create(data: DeepPartial<FileEntity>): FileEntity {
+    return this.fileRepository.create(data);
+  }
+
+  async findByIdOrFail(id: number, options?: FindOneOptions<FileEntity>): Promise<FileEntity> {
+    const entity = await this.fileRepository.findOne({
+      ...options,
+      where: { id } as FindOptionsWhere<FileEntity>,
+    });
+
+    if (!entity) {
+      throw BusinessException.notFound('File', id);
+    }
+
+    return entity;
+  }
+
+  async createAndSave(data: DeepPartial<FileEntity>): Promise<FileEntity> {
+    const entity = this.create(data);
+    return this.fileRepository.save(entity);
+  }
+
+  async delete(id: number): Promise<void> {
+    const result = await this.fileRepository.delete(id);
+    if (result.affected === 0) {
+      throw BusinessException.notFound('File', id);
+    }
   }
 
   /**
@@ -106,12 +140,5 @@ export class FileRepository extends BaseRepository<FileEntity> {
         currentPage: page,
       },
     };
-  }
-
-  /**
-   * 获取实体名称（用于日志）
-   */
-  getEntityName(): string {
-    return 'File';
   }
 }

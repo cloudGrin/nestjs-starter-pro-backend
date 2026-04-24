@@ -1,16 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
-import { BaseRepository } from '~/core/base/base.repository';
+import { Repository, LessThan, DeepPartial } from 'typeorm';
 import { ApiKeyEntity } from '../entities/api-key.entity';
 
 @Injectable()
-export class ApiKeyRepository extends BaseRepository<ApiKeyEntity> {
+export class ApiKeyRepository {
   constructor(
     @InjectRepository(ApiKeyEntity)
-    repository: Repository<ApiKeyEntity>,
-  ) {
-    super(repository);
+    private readonly repository: Repository<ApiKeyEntity>,
+  ) {}
+
+  create(data: DeepPartial<ApiKeyEntity>): ApiKeyEntity {
+    return this.repository.create(data);
+  }
+
+  async save(entity: DeepPartial<ApiKeyEntity>): Promise<ApiKeyEntity> {
+    return this.repository.save(entity);
+  }
+
+  async findById(id: number): Promise<ApiKeyEntity | null> {
+    return this.repository.findOne({
+      where: { id },
+    });
   }
 
   /**

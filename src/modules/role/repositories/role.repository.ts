@@ -1,16 +1,37 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
-import { BaseRepository } from '~/core/base/base.repository';
+import { Repository, FindManyOptions, FindOneOptions, DeepPartial } from 'typeorm';
+import { BusinessException } from '~/common/exceptions/business.exception';
 import { RoleEntity } from '../entities/role.entity';
 
 @Injectable()
-export class RoleRepository extends BaseRepository<RoleEntity> {
+export class RoleRepository {
   constructor(
     @InjectRepository(RoleEntity)
-    repository: Repository<RoleEntity>,
-  ) {
-    super(repository);
+    private readonly repository: Repository<RoleEntity>,
+  ) {}
+
+  create(data: DeepPartial<RoleEntity>): RoleEntity {
+    return this.repository.create(data);
+  }
+
+  async save(entity: DeepPartial<RoleEntity>): Promise<RoleEntity> {
+    return this.repository.save(entity);
+  }
+
+  async findOne(options: FindOneOptions<RoleEntity>): Promise<RoleEntity | null> {
+    return this.repository.findOne(options);
+  }
+
+  async find(options?: FindManyOptions<RoleEntity>): Promise<RoleEntity[]> {
+    return this.repository.find(options);
+  }
+
+  async softDelete(id: number): Promise<void> {
+    const result = await this.repository.softDelete(id);
+    if (result.affected === 0) {
+      throw BusinessException.notFound('Role', id);
+    }
   }
 
   /**

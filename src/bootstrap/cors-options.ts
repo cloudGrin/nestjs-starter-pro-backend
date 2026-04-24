@@ -1,9 +1,9 @@
 export interface CorsOptions {
-  origin: string;
+  origin: string | string[];
   credentials: boolean;
 }
 
-export function buildCorsOptions(origin: string, credentials: boolean): CorsOptions {
+export function buildCorsOptions(origin: string | string[], credentials: boolean): CorsOptions {
   return {
     origin,
     credentials: origin === '*' ? false : credentials,

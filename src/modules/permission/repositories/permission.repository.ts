@@ -1,17 +1,44 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
-import { BaseRepository } from '~/core/base/base.repository';
+import { Repository, In, FindOneOptions, DeepPartial } from 'typeorm';
+import { BusinessException } from '~/common/exceptions/business.exception';
 import { PermissionEntity } from '../entities/permission.entity';
 import { QueryPermissionDto } from '../dto/query-permission.dto';
 
 @Injectable()
-export class PermissionRepository extends BaseRepository<PermissionEntity> {
+export class PermissionRepository {
   constructor(
     @InjectRepository(PermissionEntity)
     private readonly permissionRepo: Repository<PermissionEntity>,
-  ) {
-    super(permissionRepo);
+  ) {}
+
+  create(data: DeepPartial<PermissionEntity>): PermissionEntity {
+    return this.permissionRepo.create(data);
+  }
+
+  async save(entity: DeepPartial<PermissionEntity>): Promise<PermissionEntity> {
+    return this.permissionRepo.save(entity);
+  }
+
+  async findOne(options: FindOneOptions<PermissionEntity>): Promise<PermissionEntity | null> {
+    return this.permissionRepo.findOne(options);
+  }
+
+  async delete(id: number): Promise<void> {
+    const result = await this.permissionRepo.delete(id);
+    if (result.affected === 0) {
+      throw BusinessException.notFound('Permission', id);
+    }
+  }
+
+  async findByIds(ids: number[]): Promise<PermissionEntity[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.permissionRepo.find({
+      where: { id: In(ids) },
+    });
   }
 
   /**

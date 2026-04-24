@@ -6,16 +6,16 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
 import { TooManyRequestsException } from '../exceptions/too-many-requests.exception';
 import { ConfigService } from '@nestjs/config';
-import { In } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { UserService } from '~/modules/user/services/user.service';
 import { UserRepository } from '~/modules/user/repositories/user.repository';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { RefreshTokenEntity } from '../entities/refresh-token.entity';
-import { RefreshTokenRepository } from '../repositories/refresh-token.repository';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserStatus } from '~/common/enums/user.enum';
@@ -55,7 +55,8 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly userRepository: UserRepository,
-    private readonly refreshTokenRepository: RefreshTokenRepository,
+    @InjectRepository(RefreshTokenEntity)
+    private readonly refreshTokenRepository: Repository<RefreshTokenEntity>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly logger: LoggerService,
@@ -204,7 +205,10 @@ export class AuthService {
       const payload = await this.verifyRefreshToken(refreshToken);
 
       // 查找存储的刷新令牌
-      const storedToken = await this.refreshTokenRepository.findByToken(refreshToken);
+      const storedToken = await this.refreshTokenRepository.findOne({
+        where: { token: refreshToken },
+        relations: ['user', 'user.roles', 'user.roles.permissions'],
+      });
 
       if (!storedToken) {
         throw new UnauthorizedException('无效的刷新令牌');
@@ -283,10 +287,13 @@ export class AuthService {
     try {
       if (refreshToken) {
         // 撤销指定的刷新令牌
-        await this.refreshTokenRepository.revokeToken(refreshToken);
+        await this.refreshTokenRepository.update({ token: refreshToken }, { isRevoked: true });
       } else {
         // 撤销该用户的所有刷新令牌
-        await this.refreshTokenRepository.revokeAllByUserId(userId);
+        await this.refreshTokenRepository.update(
+          { userId, isRevoked: false },
+          { isRevoked: true },
+        );
       }
 
       // 清除缓存
@@ -451,7 +458,7 @@ export class AuthService {
 
       // 批量撤销旧token
       for (const token of tokensToRevoke) {
-        await this.refreshTokenRepository.revokeToken(token.token);
+        await this.refreshTokenRepository.update({ token: token.token }, { isRevoked: true });
       }
     }
   }
@@ -461,7 +468,10 @@ export class AuthService {
    */
   async cleanupExpiredTokens(): Promise<void> {
     try {
-      const count = await this.refreshTokenRepository.cleanupExpiredTokens();
+      const result = await this.refreshTokenRepository.delete({
+        expiresAt: LessThan(new Date()),
+      });
+      const count = result.affected || 0;
 
       if (count > 0) {
         this.logger.log(`Cleaned up ${count} expired refresh tokens`);

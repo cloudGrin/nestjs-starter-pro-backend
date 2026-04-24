@@ -218,13 +218,11 @@ describe('architecture slimming', () => {
     const notificationRepository = readSource(
       'modules/notification/repositories/notification.repository.ts',
     );
-    const apiAppRepository = readSource('modules/api-auth/repositories/api-app.repository.ts');
-    const apiKeyRepository = readSource('modules/api-auth/repositories/api-key.repository.ts');
-    const refreshTokenRepository = readSource(
-      'modules/auth/repositories/refresh-token.repository.ts',
-    );
 
     expect(existsInSource('core/base/base.repository.ts')).toBe(false);
+    expect(existsInSource('modules/api-auth/repositories/api-app.repository.ts')).toBe(false);
+    expect(existsInSource('modules/api-auth/repositories/api-key.repository.ts')).toBe(false);
+    expect(existsInSource('modules/auth/repositories/refresh-token.repository.ts')).toBe(false);
     for (const repository of [
       userRepository,
       roleRepository,
@@ -232,9 +230,6 @@ describe('architecture slimming', () => {
       permissionRepository,
       fileRepository,
       notificationRepository,
-      apiAppRepository,
-      apiKeyRepository,
-      refreshTokenRepository,
     ]) {
       expect(repository).not.toContain('extends BaseRepository');
       expect(repository).not.toContain("from '~/core/base/base.repository'");
@@ -264,5 +259,22 @@ describe('architecture slimming', () => {
     expect(main).not.toContain("configService.get<string>('SWAGGER_VERSION'");
     expect(main).not.toContain("configService.get<string>('SWAGGER_PATH'");
     expect(main).not.toContain("configService.get<number>('PORT'");
+  });
+
+  it('injects direct TypeORM repositories for auth/api-auth instead of extra thin repository wrappers', () => {
+    const apiAuthModule = readSource('modules/api-auth/api-auth.module.ts');
+    const apiAuthService = readSource('modules/api-auth/services/api-auth.service.ts');
+    const authModule = readSource('modules/auth/auth.module.ts');
+    const authService = readSource('modules/auth/services/auth.service.ts');
+
+    expect(apiAuthModule).not.toContain('ApiAppRepository');
+    expect(apiAuthModule).not.toContain('ApiKeyRepository');
+    expect(apiAuthService).not.toContain('ApiAppRepository');
+    expect(apiAuthService).not.toContain('ApiKeyRepository');
+    expect(authModule).not.toContain('RefreshTokenRepository');
+    expect(authService).not.toContain('RefreshTokenRepository');
+    expect(existsInSource('modules/api-auth/repositories/api-app.repository.ts')).toBe(false);
+    expect(existsInSource('modules/api-auth/repositories/api-key.repository.ts')).toBe(false);
+    expect(existsInSource('modules/auth/repositories/refresh-token.repository.ts')).toBe(false);
   });
 });

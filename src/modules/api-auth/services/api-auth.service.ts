@@ -1,12 +1,13 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ApiAppEntity } from '../entities/api-app.entity';
 import { ApiKeyEntity } from '../entities/api-key.entity';
-import { ApiAppRepository } from '../repositories/api-app.repository';
-import { ApiKeyRepository } from '../repositories/api-key.repository';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 import { UpdateApiAppDto } from '../dto/update-api-app.dto';
+import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
 
 // 配置常量
 const API_AUTH_CONSTANTS = {
@@ -25,8 +26,10 @@ export interface ValidatedApiApp {
 @Injectable()
 export class ApiAuthService {
   constructor(
-    private readonly appRepository: ApiAppRepository,
-    private readonly keyRepository: ApiKeyRepository,
+    @InjectRepository(ApiAppEntity)
+    private readonly appRepository: Repository<ApiAppEntity>,
+    @InjectRepository(ApiKeyEntity)
+    private readonly keyRepository: Repository<ApiKeyEntity>,
     private readonly cacheService: CacheService,
   ) {}
 
@@ -35,7 +38,7 @@ export class ApiAuthService {
    */
   async getApps(options: { skip?: number; take?: number }) {
     const page = Math.floor((options.skip || 0) / (options.take || 10)) + 1;
-    const result = await this.appRepository.paginate(
+    const result = await this.paginateApps(
       {
         page,
         limit: options.take || 10,
@@ -57,7 +60,9 @@ export class ApiAuthService {
    * 获取API应用详情
    */
   async getApp(appId: number): Promise<ApiAppEntity> {
-    const app = await this.appRepository.findById(appId);
+    const app = await this.appRepository.findOne({
+      where: { id: appId },
+    });
 
     if (!app) {
       throw new BadRequestException('应用不存在');
@@ -71,7 +76,7 @@ export class ApiAuthService {
    */
   async createApp(dto: CreateApiAppDto & { ownerId?: number }): Promise<ApiAppEntity> {
     // 检查名称是否存在
-    if (await this.appRepository.isNameExist(dto.name)) {
+    if (await this.isAppNameExist(dto.name)) {
       throw new BadRequestException('应用名称已存在');
     }
 
@@ -96,9 +101,12 @@ export class ApiAuthService {
     await this.appRepository.update(appId, { isActive: false });
 
     // 删除应用时，禁用所有相关密钥
-    const keys = await this.keyRepository.findByAppId(appId);
+    const keys = await this.keyRepository.find({
+      where: { appId },
+      order: { createdAt: 'DESC' },
+    });
     for (const key of keys) {
-      await this.keyRepository.revokeKey(key.id);
+      await this.keyRepository.update(key.id, { isActive: false });
       await this.cacheService.del(`api_key:${key.keyHash}`);
     }
   }
@@ -111,14 +119,19 @@ export class ApiAuthService {
       throw new BadRequestException('应用ID不能为空');
     }
 
-    const app = await this.appRepository.findById(dto.appId);
+    const app = await this.appRepository.findOne({
+      where: { id: dto.appId },
+    });
 
     if (!app || !app.isActive) {
       throw new BadRequestException('应用不存在或已禁用');
     }
 
     // 检查密钥数量限制
-    const activeKeys = await this.keyRepository.findActiveKeysByAppId(dto.appId);
+    const activeKeys = await this.keyRepository.find({
+      where: { appId: dto.appId, isActive: true },
+      order: { createdAt: 'DESC' },
+    });
 
     if (activeKeys.length >= API_AUTH_CONSTANTS.MAX_KEYS_PER_APP) {
       throw new BadRequestException(
@@ -154,7 +167,10 @@ export class ApiAuthService {
     }
 
     // 查询密钥
-    const key = await this.keyRepository.findByKeyHash(keyHash);
+    const key = await this.keyRepository.findOne({
+      where: { keyHash },
+      relations: ['app'],
+    });
 
     if (!key || !key.isActive) {
       return null;
@@ -179,7 +195,8 @@ export class ApiAuthService {
     };
 
     // 更新最后使用时间（异步，不等待）
-    this.keyRepository.updateUsageStats(key.id);
+    void this.keyRepository.increment({ id: key.id }, 'usageCount', 1);
+    void this.keyRepository.update(key.id, { lastUsedAt: new Date() });
 
     // 缓存密钥验证结果
     await this.cacheService.set(cacheKey, validatedApp, API_AUTH_CONSTANTS.KEY_CACHE_TTL);
@@ -191,8 +208,10 @@ export class ApiAuthService {
    * 撤销API密钥
    */
   async revokeApiKey(keyId: number): Promise<void> {
-    const key = await this.keyRepository.findById(keyId);
-    await this.keyRepository.revokeKey(keyId);
+    const key = await this.keyRepository.findOne({
+      where: { id: keyId },
+    });
+    await this.keyRepository.update(keyId, { isActive: false });
 
     if (key) {
       await this.cacheService.del(`api_key:${key.keyHash}`);
@@ -203,6 +222,47 @@ export class ApiAuthService {
    * 获取应用的所有密钥
    */
   async getAppKeys(appId: number): Promise<ApiKeyEntity[]> {
-    return this.keyRepository.findByAppId(appId);
+    return this.keyRepository.find({
+      where: { appId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  private async paginateApps(
+    options: PaginationOptions,
+    findOptions?: Parameters<Repository<ApiAppEntity>['findAndCount']>[0],
+  ): Promise<PaginationResult<ApiAppEntity>> {
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.min(100, Math.max(1, options.limit || 10));
+    const skip = (page - 1) * limit;
+
+    const [items, totalItems] = await this.appRepository.findAndCount({
+      ...findOptions,
+      skip,
+      take: limit,
+      order: options.sort
+        ? ({ [options.sort]: options.order || 'ASC' } as NonNullable<
+            Parameters<Repository<ApiAppEntity>['findAndCount']>[0]
+          >['order'])
+        : findOptions?.order,
+    });
+
+    return {
+      items,
+      meta: {
+        totalItems,
+        itemCount: items.length,
+        itemsPerPage: limit,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+      },
+    };
+  }
+
+  private async isAppNameExist(name: string): Promise<boolean> {
+    const count = await this.appRepository.count({
+      where: { name },
+    });
+    return count > 0;
   }
 }

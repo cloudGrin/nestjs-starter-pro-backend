@@ -5,7 +5,7 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, ObjectLiteral } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '~/shared/logger/logger.service';
@@ -14,7 +14,7 @@ import { CacheService } from '~/shared/cache/cache.service';
 /**
  * 创建Mock Repository
  */
-export function createMockRepository<T = any>(): jest.Mocked<Repository<T>> {
+export function createMockRepository<T extends ObjectLiteral = any>(): jest.Mocked<Repository<T>> {
   return {
     find: jest.fn(),
     findOne: jest.fn(),

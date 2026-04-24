@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PATH_METADATA } from '@nestjs/common/constants';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { OpenApiController } from './open-api.controller';
 import { OpenUserListResponseDto } from '../dto/open-user-response.dto';
 import { OpenApiUserService } from '../services/open-api-user.service';
@@ -82,10 +84,7 @@ describe('OpenApiController', () => {
   });
 
   it('uses a dedicated response dto instead of inline response shaping', () => {
-    const source = require('fs').readFileSync(
-      require('path').join(__dirname, 'open-api.controller.ts'),
-      'utf8',
-    );
+    const source = readFileSync(join(__dirname, 'open-api.controller.ts'), 'utf8');
 
     expect(source).toContain('OpenUserListResponseDto');
     expect(source).toContain('OpenApiUserService');

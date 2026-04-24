@@ -174,4 +174,38 @@ describe('architecture slimming', () => {
       false,
     );
   });
+
+  it('keeps current-user profile capability in user module only and avoids duplicate guard decoration', () => {
+    const authController = readSource('modules/auth/controllers/auth.controller.ts');
+    const apiAppController = readSource('modules/api-auth/controllers/api-app.controller.ts');
+    const fileController = readSource('modules/file/controllers/file.controller.ts');
+
+    expect(authController).not.toContain("@Get('profile')");
+    expect(authController).not.toContain("@Get('check')");
+    expect(apiAppController).not.toContain('@UseGuards(JwtAuthGuard)');
+    expect(fileController).not.toContain('@Req() req');
+    expect(fileController).not.toContain('const payload = req.body');
+  });
+
+  it('removes BaseService inheritance from business services', () => {
+    const userService = readSource('modules/user/services/user.service.ts');
+    const roleService = readSource('modules/role/services/role.service.ts');
+    const menuService = readSource('modules/menu/services/menu.service.ts');
+    const permissionService = readSource('modules/permission/services/permission.service.ts');
+    const fileService = readSource('modules/file/services/file.service.ts');
+    const notificationService = readSource('modules/notification/services/notification.service.ts');
+
+    expect(existsInSource('core/base/base.service.ts')).toBe(false);
+    for (const service of [
+      userService,
+      roleService,
+      menuService,
+      permissionService,
+      fileService,
+      notificationService,
+    ]) {
+      expect(service).not.toContain('extends BaseService');
+      expect(service).not.toContain("from '~/core/base/base.service'");
+    }
+  });
 });

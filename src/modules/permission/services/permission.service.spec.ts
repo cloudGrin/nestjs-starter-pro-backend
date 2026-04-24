@@ -206,6 +206,7 @@ describe('PermissionService', () => {
       // Assert
       expect(permissionRepo.findOne).toHaveBeenCalledWith({
         where: { id: permissionId },
+        relations: ['roles'],
       });
       expect(permissionRepo.delete).toHaveBeenCalledWith(permissionId);
       expect(permissionRepo.softDelete).not.toHaveBeenCalled();
@@ -238,6 +239,21 @@ describe('PermissionService', () => {
       await expect(service.delete(permissionId)).rejects.toThrow('系统内置权限不能删除');
 
       expect(permissionRepo.softDelete).not.toHaveBeenCalled();
+      expect(permissionRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('被角色引用的权限不能删除', async () => {
+      const referencedPermission = createMockPermission({
+        id: permissionId,
+        isSystem: false,
+      });
+      referencedPermission.roles = [{ id: 2, code: 'editor' } as any];
+
+      permissionRepo.findOne.mockResolvedValue(referencedPermission);
+
+      await expect(service.delete(permissionId)).rejects.toThrow(BadRequestException);
+      await expect(service.delete(permissionId)).rejects.toThrow('该权限正在被角色使用，不能删除');
+
       expect(permissionRepo.delete).not.toHaveBeenCalled();
     });
   });

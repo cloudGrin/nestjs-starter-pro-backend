@@ -251,20 +251,13 @@ describe('FileService', () => {
       } as FileEntity;
 
       repository.findByIdOrFail.mockResolvedValue(mockFile);
-      // Mock BaseService.remove method
-      const baseRemoveSpy = jest.spyOn(
-        Object.getPrototypeOf(Object.getPrototypeOf(service)),
-        'remove',
-      );
-      baseRemoveSpy.mockResolvedValue(undefined);
 
       await service.remove(1);
 
       const strategy = storageFactory.getStrategy(FileStorageType.LOCAL);
       expect(strategy.delete).toHaveBeenCalledWith(mockFile.path);
+      expect(repository.delete).toHaveBeenCalledWith(1);
       expect(cache.del).toHaveBeenCalledWith('file:id:1');
-
-      baseRemoveSpy.mockRestore();
     });
 
   });
@@ -292,16 +285,9 @@ describe('FileService', () => {
       expect(found.id).toBe(1);
 
       // 3. 删除文件
-      const baseRemoveSpy = jest.spyOn(
-        Object.getPrototypeOf(Object.getPrototypeOf(service)),
-        'remove',
-      );
-      baseRemoveSpy.mockResolvedValue(undefined);
-
       await service.remove(1);
+      expect(repository.delete).toHaveBeenCalledWith(1);
       expect(cache.del).toHaveBeenCalledWith('file:id:1');
-
-      baseRemoveSpy.mockRestore();
     });
   });
 });

@@ -7,21 +7,20 @@ import {
   Body,
   Param,
   Query,
-  UseGuards,
   Req,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { JwtAuthGuard } from '~/modules/auth/guards/jwt-auth.guard';
 import { ApiAuthService } from '../services/api-auth.service';
 import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 import { UpdateApiAppDto } from '../dto/update-api-app.dto';
+import { QueryApiAppsDto } from '../dto/query-api-apps.dto';
 import { AuthenticatedRequest } from '../types/request.types';
 import { RequirePermissions } from '~/core/decorators';
 
 @ApiTags('API应用管理')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('api-apps')
 export class ApiAppController {
   constructor(private readonly apiAuthService: ApiAuthService) {}
@@ -29,7 +28,9 @@ export class ApiAppController {
   @Get()
   @RequirePermissions('api-app:read')
   @ApiOperation({ summary: '获取API应用列表' })
-  async getApps(@Query('page') page = 1, @Query('limit') limit = 10) {
+  async getApps(@Query() query: QueryApiAppsDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
     return this.apiAuthService.getApps({ skip, take: limit });
   }
@@ -37,7 +38,7 @@ export class ApiAppController {
   @Get(':appId')
   @RequirePermissions('api-app:read')
   @ApiOperation({ summary: '获取API应用详情' })
-  async getApp(@Param('appId') appId: number) {
+  async getApp(@Param('appId', ParseIntPipe) appId: number) {
     return this.apiAuthService.getApp(appId);
   }
 
@@ -56,14 +57,14 @@ export class ApiAppController {
   @Put(':appId')
   @RequirePermissions('api-app:update')
   @ApiOperation({ summary: '更新API应用' })
-  async updateApp(@Param('appId') appId: number, @Body() dto: UpdateApiAppDto) {
+  async updateApp(@Param('appId', ParseIntPipe) appId: number, @Body() dto: UpdateApiAppDto) {
     return this.apiAuthService.updateApp(appId, dto);
   }
 
   @Delete(':appId')
   @RequirePermissions('api-app:delete')
   @ApiOperation({ summary: '删除API应用' })
-  async deleteApp(@Param('appId') appId: number) {
+  async deleteApp(@Param('appId', ParseIntPipe) appId: number) {
     await this.apiAuthService.deleteApp(appId);
     return { success: true, message: 'API应用已删除' };
   }
@@ -71,7 +72,7 @@ export class ApiAppController {
   @Post(':appId/keys')
   @RequirePermissions('api-app:key:create')
   @ApiOperation({ summary: '生成API密钥' })
-  async generateKey(@Param('appId') appId: number, @Body() dto: CreateApiKeyDto) {
+  async generateKey(@Param('appId', ParseIntPipe) appId: number, @Body() dto: CreateApiKeyDto) {
     const key = await this.apiAuthService.generateApiKey({
       ...dto,
       appId,
@@ -94,7 +95,7 @@ export class ApiAppController {
   @Get(':appId/keys')
   @RequirePermissions('api-app:key:read')
   @ApiOperation({ summary: '获取应用的所有密钥' })
-  async getAppKeys(@Param('appId') appId: number) {
+  async getAppKeys(@Param('appId', ParseIntPipe) appId: number) {
     const keys = await this.apiAuthService.getAppKeys(appId);
 
     // 不返回原始密钥，只返回前缀和后缀
@@ -114,12 +115,11 @@ export class ApiAppController {
   @Delete('keys/:keyId')
   @RequirePermissions('api-app:key:delete')
   @ApiOperation({ summary: '撤销API密钥' })
-  async revokeKey(@Param('keyId') keyId: number) {
+  async revokeKey(@Param('keyId', ParseIntPipe) keyId: number) {
     await this.apiAuthService.revokeApiKey(keyId);
     return {
       success: true,
       message: 'API密钥已撤销',
     };
   }
-
 }

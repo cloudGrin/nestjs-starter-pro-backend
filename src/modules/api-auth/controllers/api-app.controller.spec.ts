@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { ApiAppController } from './api-app.controller';
 import { UpdateApiAppDto } from '../dto/update-api-app.dto';
 
@@ -11,5 +13,14 @@ describe('ApiAppController', () => {
     );
 
     expect(paramTypes[1]).toBe(UpdateApiAppDto);
+  });
+
+  it('uses ParseIntPipe for numeric route params and does not duplicate JwtAuthGuard at controller level', () => {
+    const source = readFileSync(join(__dirname, 'api-app.controller.ts'), 'utf8');
+
+    expect(source).toContain('QueryApiAppsDto');
+    expect(source).toContain("@Param('appId', ParseIntPipe)");
+    expect(source).toContain("@Param('keyId', ParseIntPipe)");
+    expect(source).not.toContain('@UseGuards(JwtAuthGuard)');
   });
 });

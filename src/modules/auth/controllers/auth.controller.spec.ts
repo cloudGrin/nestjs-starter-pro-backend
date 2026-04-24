@@ -13,4 +13,17 @@ describe('AuthController', () => {
 
     expect(paths).not.toContain('register');
   });
+
+  it('does not duplicate current-user endpoints that belong to users/profile', () => {
+    const routeMethods = Object.getOwnPropertyNames(AuthController.prototype).filter(
+      (name) => name !== 'constructor',
+    );
+
+    const paths = routeMethods
+      .map((name) => Reflect.getMetadata(PATH_METADATA, AuthController.prototype[name]))
+      .filter(Boolean);
+
+    expect(paths).not.toContain('profile');
+    expect(paths).not.toContain('check');
+  });
 });

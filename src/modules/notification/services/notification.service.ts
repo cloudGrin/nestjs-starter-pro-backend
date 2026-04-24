@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { DeepPartial } from 'typeorm';
-import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { BusinessException } from '~/common/exceptions/business.exception';
@@ -27,21 +26,15 @@ export interface NotificationEventPayload {
 }
 
 @Injectable()
-export class NotificationService extends BaseService<NotificationEntity> {
-  protected repository: NotificationRepository;
-
+export class NotificationService {
   constructor(
     private readonly notificationRepository: NotificationRepository,
     private readonly userRepository: UserRepository,
     private readonly barkChannelAdapter: BarkChannelAdapter,
     private readonly feishuChannelAdapter: FeishuChannelAdapter,
-    logger: LoggerService,
-    cache: CacheService,
+    private readonly logger: LoggerService,
+    private readonly cache: CacheService,
   ) {
-    super();
-    this.repository = notificationRepository;
-    this.logger = logger;
-    this.cache = cache;
     this.logger.setContext(NotificationService.name);
   }
 
@@ -89,7 +82,7 @@ export class NotificationService extends BaseService<NotificationEntity> {
     }));
 
     // 单次批量写入，确保同一事件的通知具备一致的创建时间戳
-    const notifications = await this.repository.createMany(payloads);
+    const notifications = await this.notificationRepository.createMany(payloads);
     const deliveryMap = await this.dispatchExternal(notifications, sendExternalWhenOffline);
 
     await Promise.all(
@@ -116,7 +109,7 @@ export class NotificationService extends BaseService<NotificationEntity> {
       );
     }
 
-    await this.clearCache();
+    await this.clearNotificationCache();
 
     this.logger?.log(
       `Created ${notifications.length} notifications by sender ${senderId ?? 'system'}`,
@@ -166,7 +159,7 @@ export class NotificationService extends BaseService<NotificationEntity> {
     if (!result.affected) {
       throw BusinessException.notFound('通知', id);
     }
-    await this.clearCache(userId);
+    await this.clearNotificationCache(userId);
     this.logger?.debug(`[Notification] User ${userId} mark notification ${id} as read`);
   }
 
@@ -175,7 +168,7 @@ export class NotificationService extends BaseService<NotificationEntity> {
    */
   async markAllAsRead(userId: number): Promise<number> {
     const affected = await this.notificationRepository.markAllAsRead(userId);
-    await this.clearCache(userId);
+    await this.clearNotificationCache(userId);
     this.logger?.log(`[Notification] User ${userId} mark ${affected} notifications as read`);
     return affected;
   }
@@ -303,5 +296,13 @@ export class NotificationService extends BaseService<NotificationEntity> {
       default:
         return null;
     }
+  }
+
+  private async clearNotificationCache(userId?: number): Promise<void> {
+    if (userId !== undefined) {
+      await this.cache.del(`notification:user:${userId}`);
+    }
+
+    await this.cache.delByPattern?.('Notification:*');
   }
 }

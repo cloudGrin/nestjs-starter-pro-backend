@@ -4,7 +4,6 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/core/base/base.repository';
@@ -13,18 +12,12 @@ import { PermissionRepository } from '../repositories/permission.repository';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 
 @Injectable()
-export class PermissionService extends BaseService<PermissionEntity> {
-  protected repository: PermissionRepository;
-
+export class PermissionService {
   constructor(
     private readonly permissionRepo: PermissionRepository,
-    logger: LoggerService,
-    cache: CacheService,
+    private readonly logger: LoggerService,
+    private readonly cache: CacheService,
   ) {
-    super();
-    this.repository = permissionRepo;
-    this.logger = logger;
-    this.cache = cache;
     this.logger.setContext(PermissionService.name);
   }
 
@@ -45,7 +38,7 @@ export class PermissionService extends BaseService<PermissionEntity> {
     const saved = await this.permissionRepo.save(entity);
     this.logger.debug(`权限保存成功 id=${saved.id}, code=${saved.code}`);
 
-    await this.clearCache();
+    await this.clearPermissionCache();
     this.logger.debug('创建权限后清理缓存完成');
 
     this.logger.log(`创建权限: ${saved.name} (${saved.code})`);
@@ -76,7 +69,7 @@ export class PermissionService extends BaseService<PermissionEntity> {
     const updated = await this.permissionRepo.save(entity);
     this.logger.debug(`权限更新保存成功 id=${updated.id}`);
 
-    await this.clearCache();
+    await this.clearPermissionCache();
     this.logger.debug(`更新权限后清理缓存完成 permissionId=${updated.id}`);
 
     this.logger.log(`更新权限: ${updated.name} (ID: ${id})`);
@@ -90,7 +83,15 @@ export class PermissionService extends BaseService<PermissionEntity> {
   async delete(id: number): Promise<void> {
     this.logger.debug(`准备删除权限 id=${id}`);
 
-    const entity = await this.findById(id);
+    const entity = await this.permissionRepo.findOne({
+      where: { id },
+      relations: ['roles'],
+    });
+
+    if (!entity) {
+      this.logger.debug(`查询权限详情失败，未找到权限 id=${id}`);
+      throw new NotFoundException('权限不存在');
+    }
 
     // 系统内置权限不能删除
     if (entity.isSystem) {
@@ -98,12 +99,17 @@ export class PermissionService extends BaseService<PermissionEntity> {
       throw new BadRequestException('系统内置权限不能删除');
     }
 
-    // TODO: 检查是否有角色正在使用此权限
+    if (entity.roles && entity.roles.length > 0) {
+      this.logger.debug(
+        `删除权限失败，存在 ${entity.roles.length} 个角色正在使用 permissionId=${id}`,
+      );
+      throw new BadRequestException('该权限正在被角色使用，不能删除');
+    }
 
     await this.permissionRepo.delete(id);
     this.logger.debug(`权限删除完成 id=${id}`);
 
-    await this.clearCache();
+    await this.clearPermissionCache();
     this.logger.debug(`删除权限后清理缓存完成 permissionId=${id}`);
 
     this.logger.log(`删除权限: ${entity.name} (ID: ${id})`);
@@ -132,7 +138,6 @@ export class PermissionService extends BaseService<PermissionEntity> {
   /**
    * 查询权限列表（分页）
    */
-  // @ts-ignore - Override base class method with different signature
   async findAll(query: QueryPermissionDto): Promise<PaginationResult<PermissionEntity>> {
     this.logger.debug(`查询权限列表，过滤条件=${JSON.stringify(query)}`);
 
@@ -184,5 +189,14 @@ export class PermissionService extends BaseService<PermissionEntity> {
     const result = await this.permissionRepo.findByIds(ids);
     this.logger.debug(`批量查询权限完成，请求数量=${ids.length}, 返回数量=${result.length}`);
     return result;
+  }
+
+  private async clearPermissionCache(permissionId?: number): Promise<void> {
+    if (permissionId !== undefined) {
+      await this.cache.del(`Permission:findOne:${permissionId}`);
+      return;
+    }
+
+    await this.cache.delByPattern('Permission:*');
   }
 }

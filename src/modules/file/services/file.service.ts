@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { promises as fsPromises } from 'fs';
-import { join, resolve } from 'path';
+import { resolve } from 'path';
 import { createHash } from 'crypto';
 import dayjs from 'dayjs';
-import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { BusinessException } from '~/common/exceptions/business.exception';
@@ -22,9 +21,7 @@ interface UserWithRoles {
 }
 
 @Injectable()
-export class FileService extends BaseService<FileEntity> {
-  protected repository: FileRepository;
-
+export class FileService {
   private readonly storageType: FileStorageType;
   private readonly uploadRoot: string;
   private readonly maxFileSize: number;
@@ -34,13 +31,9 @@ export class FileService extends BaseService<FileEntity> {
     private readonly fileRepository: FileRepository,
     private readonly configService: ConfigService,
     private readonly storageFactory: FileStorageFactory,
-    logger: LoggerService,
-    cache: CacheService,
+    private readonly logger: LoggerService,
+    private readonly cache: CacheService,
   ) {
-    super();
-    this.repository = fileRepository;
-    this.logger = logger;
-    this.cache = cache;
     this.logger.setContext(FileService.name);
 
     this.storageType = this.configService.get<FileStorageType>(
@@ -105,7 +98,7 @@ export class FileService extends BaseService<FileEntity> {
       `[FileUpload] Stored file "${stored.filename}" via ${this.storageType} (path=${stored.path})`,
     );
 
-    const entity = await this.repository.createAndSave({
+    const entity = await this.fileRepository.createAndSave({
       originalName: file.originalname,
       filename: stored.filename,
       path: stored.path,
@@ -124,7 +117,7 @@ export class FileService extends BaseService<FileEntity> {
       uploaderId,
     });
 
-    await this.clearCache();
+    await this.clearFileCache();
 
     return entity;
   }
@@ -149,14 +142,14 @@ export class FileService extends BaseService<FileEntity> {
       order: query.order,
     };
 
-    return this.repository.paginateFiles(paginationOptions, filters);
+    return this.fileRepository.paginateFiles(paginationOptions, filters);
   }
 
   /**
    * 根据ID查询文件
    */
   async findById(id: number): Promise<FileEntity> {
-    return this.repository.findByIdOrFail(id);
+    return this.fileRepository.findByIdOrFail(id);
   }
 
   /**
@@ -209,10 +202,8 @@ export class FileService extends BaseService<FileEntity> {
       await storage.delete(entity.path);
     }
 
-    await super.remove(id);
-
-    // 删除后清除缓存
-    await this.cache.del(`file:id:${id}`);
+    await this.fileRepository.delete(id);
+    await this.clearFileCache(id);
   }
 
   /**
@@ -358,4 +349,13 @@ export class FileService extends BaseService<FileEntity> {
     return Number.isFinite(parsed) ? parsed : defaultValue;
   }
 
+  private async clearFileCache(fileId?: number): Promise<void> {
+    if (fileId !== undefined) {
+      await this.cache.del(`file:id:${fileId}`);
+      await this.cache.del(`File:findOne:${fileId}`);
+      return;
+    }
+
+    await this.cache.delByPattern?.('File:*');
+  }
 }

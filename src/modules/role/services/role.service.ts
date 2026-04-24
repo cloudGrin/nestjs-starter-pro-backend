@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/core/base/base.repository';
@@ -17,22 +16,16 @@ import { RoleRepository } from '../repositories/role.repository';
 import { CreateRoleDto } from '../dto/create-role.dto';
 
 @Injectable()
-export class RoleService extends BaseService<RoleEntity> {
-  protected repository: RoleRepository;
-
+export class RoleService {
   constructor(
     private readonly roleRepository: RoleRepository,
     @InjectRepository(PermissionEntity)
     private readonly permissionRepository: Repository<PermissionEntity>,
     @InjectRepository(MenuEntity)
     private readonly menuRepository: Repository<MenuEntity>,
-    logger: LoggerService,
-    cache: CacheService,
+    private readonly logger: LoggerService,
+    private readonly cache: CacheService,
   ) {
-    super();
-    this.repository = roleRepository;
-    this.logger = logger;
-    this.cache = cache;
     this.logger.setContext(RoleService.name);
   }
 
@@ -84,7 +77,7 @@ export class RoleService extends BaseService<RoleEntity> {
     this.logger.debug(`角色保存成功 id=${savedRole.id}, code=${savedRole.code}`);
 
     // 清除缓存
-    await this.clearCache();
+    await this.clearRoleCache();
     this.logger.debug('创建角色后清理缓存完成');
 
     this.logger.log(`Created role: ${savedRole.name} (${savedRole.code})`);
@@ -154,7 +147,7 @@ export class RoleService extends BaseService<RoleEntity> {
     this.logger.debug(`角色更新保存成功 roleId=${updatedRole.id}`);
 
     // 清除相关缓存（包括拥有该角色的用户权限缓存）
-    await this.clearCache();
+    await this.clearRoleCache();
     await this.clearUserPermissionCache();
     this.logger.debug(`更新角色后清理缓存完成 roleId=${updatedRole.id}`);
 
@@ -194,7 +187,7 @@ export class RoleService extends BaseService<RoleEntity> {
     await this.roleRepository.softDelete(id);
 
     // 清除缓存
-    await this.clearCache();
+    await this.clearRoleCache();
     this.logger.debug(`删除角色后清理缓存完成 roleId=${id}`);
 
     this.logger.log(`Deleted role: ${role.name} (ID: ${id})`);
@@ -363,7 +356,7 @@ export class RoleService extends BaseService<RoleEntity> {
     this.logger.debug(`角色菜单保存成功 roleId=${roleId}`);
 
     // 清除缓存
-    await this.clearCache();
+    await this.clearRoleCache();
     await this.clearUserMenuCache();
     this.logger.debug(`分配菜单后清理缓存完成 roleId=${roleId}`);
 
@@ -421,7 +414,7 @@ export class RoleService extends BaseService<RoleEntity> {
     this.logger.debug(`角色菜单移除后保存成功 roleId=${roleId}`);
 
     // 清除缓存
-    await this.clearCache();
+    await this.clearRoleCache();
     await this.clearUserMenuCache();
     this.logger.debug(`移除菜单后清理缓存完成 roleId=${roleId}`);
 
@@ -437,5 +430,14 @@ export class RoleService extends BaseService<RoleEntity> {
     await this.cache.delByPattern('menu:user:*');
     await this.cache.delByPattern('menu:role:*');
     this.logger.debug('已清除用户/角色菜单缓存');
+  }
+
+  private async clearRoleCache(roleId?: number): Promise<void> {
+    if (roleId !== undefined) {
+      await this.cache.del(`Role:findOne:${roleId}`);
+      return;
+    }
+
+    await this.cache.delByPattern('Role:*');
   }
 }

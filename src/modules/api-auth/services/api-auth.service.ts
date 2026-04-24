@@ -6,6 +6,7 @@ import { ApiKeyRepository } from '../repositories/api-key.repository';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
+import { UpdateApiAppDto } from '../dto/update-api-app.dto';
 
 // 配置常量
 const API_AUTH_CONSTANTS = {
@@ -81,7 +82,7 @@ export class ApiAuthService {
   /**
    * 更新API应用
    */
-  async updateApp(appId: number, dto: Partial<CreateApiAppDto>): Promise<ApiAppEntity> {
+  async updateApp(appId: number, dto: UpdateApiAppDto): Promise<ApiAppEntity> {
     const app = await this.getApp(appId);
     Object.assign(app, dto);
     return this.appRepository.save(app);

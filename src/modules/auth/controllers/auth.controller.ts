@@ -1,10 +1,9 @@
-import { Controller, Post, Body, Req, HttpCode, HttpStatus, Get } from '@nestjs/common';
+import { Controller, Post, Body, Req, HttpCode, HttpStatus } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
   ApiBody,
-  ApiOkResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiForbiddenResponse,
@@ -14,7 +13,6 @@ import { AuthService } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { Public, AllowAuthenticated } from '~/core/decorators';
-import { UserEntity } from '~/modules/user/entities/user.entity';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { AuthenticatedUser } from '../strategies/jwt.strategy';
 import { IpUtil } from '~/common/utils';
@@ -62,37 +60,5 @@ export class AuthController {
   ) {
     await this.authService.logout(user.id, user.sessionId || undefined, refreshToken);
     return { message: '登出成功' };
-  }
-
-  @Get('profile')
-  @AllowAuthenticated()
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '获取当前用户信息' })
-  @ApiOkResponse({ type: UserEntity })
-  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
-  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
-  async getProfile(@CurrentUser() user: AuthenticatedUser) {
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      roles: user.roles,
-      permissions: user.permissions,
-    };
-  }
-
-  @Get('check')
-  @AllowAuthenticated()
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '检查认证状态' })
-  async checkAuth(@CurrentUser() user: AuthenticatedUser) {
-    return {
-      authenticated: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-      },
-    };
   }
 }

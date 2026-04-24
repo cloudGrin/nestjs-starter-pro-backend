@@ -6,13 +6,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '~/common/constants/cache.constants';
-import { BusinessException } from '~/common/exceptions/business.exception';
 import { PaginationResult } from '~/core/base/base.repository';
-import { CryptoUtil } from '~/common/utils/crypto.util';
 import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { UserRepository } from '../repositories/user.repository';
@@ -23,20 +20,14 @@ import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto'
 import { UserStatus } from '~/common/enums/user.enum';
 
 @Injectable()
-export class UserService extends BaseService<UserEntity> {
-  protected repository: UserRepository;
-
+export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
-    logger: LoggerService,
-    cache: CacheService,
+    private readonly logger: LoggerService,
+    private readonly cache: CacheService,
   ) {
-    super();
-    this.repository = userRepository;
-    this.logger = logger;
-    this.cache = cache;
     this.logger.setContext(UserService.name);
   }
 
@@ -95,7 +86,7 @@ export class UserService extends BaseService<UserEntity> {
     this.logger.debug(`用户保存成功 id=${savedUser.id}, username=${savedUser.username}`);
 
     // 清除缓存
-    await this.clearCache();
+    await this.clearUserCache();
     this.logger.debug(`创建用户后清理缓存完成 userId=${savedUser.id}`);
 
     this.logger.log(`Created user: ${savedUser.username} (ID: ${savedUser.id})`);
@@ -162,7 +153,7 @@ export class UserService extends BaseService<UserEntity> {
     this.logger.debug(`用户更新保存成功 id=${updatedUser.id}`);
 
     // 清除缓存
-    await this.clearCache(id);
+    await this.clearUserCache(id);
     // 如果角色发生变更，清除权限缓存，确保权限立即生效
     if (rolesChanged) {
       await this.clearUserPermissionCache(id);
@@ -270,7 +261,7 @@ export class UserService extends BaseService<UserEntity> {
     this.logger.debug(`清除用户刷新Token userId=${userId}`);
 
     // 清除缓存
-    await this.clearCache(userId);
+    await this.clearUserCache(userId);
     this.logger.debug(`修改密码后清理缓存完成 userId=${userId}`);
 
     this.logger.log(`User ${userId} changed password`);
@@ -296,7 +287,7 @@ export class UserService extends BaseService<UserEntity> {
     this.logger.debug(`重置密码后清除刷新Token userId=${userId}`);
 
     // 清除缓存
-    await this.clearCache(userId);
+    await this.clearUserCache(userId);
     this.logger.debug(`重置密码后清理缓存完成 userId=${userId}`);
 
     this.logger.log(`Reset password for user ${userId}`);
@@ -318,7 +309,7 @@ export class UserService extends BaseService<UserEntity> {
     this.logger.debug(`用户启用保存成功 id=${id}`);
 
     // 清除缓存
-    await this.clearCache(id);
+    await this.clearUserCache(id);
     this.logger.debug(`启用用户后清理缓存完成 userId=${id}`);
 
     this.logger.log(`Enabled user: ${updatedUser.username} (ID: ${id})`);
@@ -344,7 +335,7 @@ export class UserService extends BaseService<UserEntity> {
     this.logger.debug(`禁用用户后清除刷新Token userId=${id}`);
 
     // 清除缓存
-    await this.clearCache(id);
+    await this.clearUserCache(id);
     this.logger.debug(`禁用用户后清理缓存完成 userId=${id}`);
 
     this.logger.log(`Disabled user: ${updatedUser.username} (ID: ${id})`);
@@ -364,7 +355,7 @@ export class UserService extends BaseService<UserEntity> {
     this.logger.debug(`用户软删除完成 id=${id}`);
 
     // 清除缓存
-    await this.clearCache(id);
+    await this.clearUserCache(id);
     this.logger.debug(`删除用户后清理缓存完成 userId=${id}`);
 
     this.logger.log(`Deleted user: ${user.username} (ID: ${id})`);
@@ -391,7 +382,7 @@ export class UserService extends BaseService<UserEntity> {
     }
 
     // 清除缓存
-    await this.clearCache();
+    await this.clearUserCache();
     this.logger.debug('批量删除用户后清理缓存完成');
 
     this.logger.log(`Batch deleted ${users.length} users`);
@@ -431,7 +422,7 @@ export class UserService extends BaseService<UserEntity> {
     this.logger.debug(`分配角色保存成功 userId=${userId}`);
 
     // 清除缓存
-    await this.clearCache(userId);
+    await this.clearUserCache(userId);
     // 清除权限缓存，确保角色变更后权限立即生效
     await this.clearUserPermissionCache(userId);
     this.logger.debug(`分配角色后清理缓存完成 userId=${userId}`);
@@ -533,5 +524,14 @@ export class UserService extends BaseService<UserEntity> {
     const cacheKey = CACHE_KEYS.USER_PERMISSIONS(userId);
     await this.cache.del(cacheKey);
     this.logger.debug(`已清除用户权限缓存 userId=${userId}`);
+  }
+
+  private async clearUserCache(userId?: number): Promise<void> {
+    if (userId !== undefined) {
+      await this.cache.del(`User:findOne:${userId}`);
+      return;
+    }
+
+    await this.cache.delByPattern('User:*');
   }
 }

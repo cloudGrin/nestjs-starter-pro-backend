@@ -6,12 +6,12 @@ import {
   ParseIntPipe,
   Post,
   Query,
-  Req,
   Res,
   UploadedFile,
   UseInterceptors,
   HttpStatus,
   HttpCode,
+  Body,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -27,7 +27,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { StreamableFile } from '@nestjs/common';
 import { FileService } from '../services/file.service';
@@ -97,7 +97,7 @@ export class FileController {
   )
   async upload(
     @UploadedFile() file: Express.Multer.File,
-    @Req() req: Request, // 使用原始请求对象绕过ValidationPipe
+    @Body() dto: UploadFileDto,
     @CurrentUser() user: UserEntity,
   ) {
     // 检查文件是否存在，避免传递undefined到Service导致500错误
@@ -115,18 +115,7 @@ export class FileController {
       }
     }
 
-    // 从请求体中提取参数
-    const payload = req.body;
-
-    // 手动构建DTO对象
-    const uploadDto: UploadFileDto = {
-      module: payload.module,
-      tags: payload.tags,
-      isPublic: payload.isPublic === 'true' || payload.isPublic === true,
-      remark: payload.remark,
-    };
-
-    return this.fileService.upload(file, uploadDto, user?.id);
+    return this.fileService.upload(file, dto, user?.id);
   }
 
   @Get()

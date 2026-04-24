@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { BaseService } from '~/core/base/base.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CACHE_KEYS } from '~/common/constants/cache.constants';
@@ -12,20 +11,14 @@ import { MenuRepository } from '../repositories/menu.repository';
 import { CreateMenuDto, UpdateMenuDto, QueryMenuDto } from '../dto';
 
 @Injectable()
-export class MenuService extends BaseService<MenuEntity> {
-  protected repository: MenuRepository;
-
+export class MenuService {
   constructor(
     private readonly menuRepo: MenuRepository,
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
-    logger: LoggerService,
-    cache: CacheService,
+    private readonly logger: LoggerService,
+    private readonly cache: CacheService,
   ) {
-    super();
-    this.repository = menuRepo;
-    this.logger = logger;
-    this.cache = cache;
     this.logger.setContext(MenuService.name);
   }
 
@@ -54,7 +47,7 @@ export class MenuService extends BaseService<MenuEntity> {
     const saved = await this.menuRepo.save(entity);
     this.logger.debug(`菜单保存成功 id=${saved.id}, name=${saved.name}`);
 
-    await this.clearCache();
+    await this.clearMenuCache();
     await this.clearMenuRelatedCache();
     this.logger.debug('创建菜单后清理菜单缓存完成');
 
@@ -103,7 +96,7 @@ export class MenuService extends BaseService<MenuEntity> {
     const updated = await this.menuRepo.save(entity);
     this.logger.debug(`菜单更新保存成功 id=${updated.id}`);
 
-    await this.clearCache();
+    await this.clearMenuCache();
     await this.clearMenuRelatedCache();
     this.logger.debug(`更新菜单后清理缓存完成 menuId=${updated.id}`);
 
@@ -130,7 +123,7 @@ export class MenuService extends BaseService<MenuEntity> {
     await this.menuRepo.softDelete(id);
     this.logger.debug(`菜单软删除完成 id=${id}`);
 
-    await this.clearCache();
+    await this.clearMenuCache();
     await this.clearMenuRelatedCache();
     this.logger.debug(`删除菜单后清理缓存完成 menuId=${id}`);
 
@@ -161,7 +154,6 @@ export class MenuService extends BaseService<MenuEntity> {
   /**
    * 查询菜单列表
    */
-  // @ts-ignore - Override base class method with different signature
   async findAll(query: QueryMenuDto): Promise<MenuEntity[]> {
     this.logger.debug(`查询菜单列表，过滤条件=${JSON.stringify(query)}`);
     const menus = await this.menuRepo.findWithQuery(query);
@@ -370,7 +362,7 @@ export class MenuService extends BaseService<MenuEntity> {
         `菜单移动保存成功 id=${id}, oldParentId=${oldParentId ?? '无'}, newParentId=${saved.parentId ?? '无'}`,
       );
 
-      await this.clearCache();
+      await this.clearMenuCache();
       await this.clearMenuRelatedCache();
 
       this.logger.log(`移动菜单: ${menu.name} (ID: ${id}) 到父节点 ${targetParentId}`);
@@ -391,7 +383,7 @@ export class MenuService extends BaseService<MenuEntity> {
       .whereInIds(menuIds)
       .execute();
 
-    await this.clearCache();
+    await this.clearMenuCache();
     await this.clearMenuRelatedCache();
 
     this.logger.log(`批量${isActive ? '启用' : '禁用'} ${menuIds.length} 个菜单`);
@@ -419,5 +411,14 @@ export class MenuService extends BaseService<MenuEntity> {
       this.cache.delByPattern(CACHE_KEYS.PATTERN_MENU_ALL()),
       this.cache.delByPattern(CACHE_KEYS.PATTERN_USER_MENUS()),
     ]);
+  }
+
+  private async clearMenuCache(menuId?: number): Promise<void> {
+    if (menuId !== undefined) {
+      await this.cache.del(`Menu:findOne:${menuId}`);
+      return;
+    }
+
+    await this.cache.delByPattern('Menu:*');
   }
 }

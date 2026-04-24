@@ -1,8 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, HttpStatus } from '@nestjs/common';
-import * as request from 'supertest';
-import { AppModule } from '~/app.module';
-import { ValidationPipe } from '@nestjs/common';
 import {
   createTestApp,
   createSuperAdminCredentials,
@@ -12,7 +8,7 @@ import {
   authenticatedRequest,
 } from './test-helper';
 import { DataSource } from 'typeorm';
-import { RoleEntity, RoleCategory } from '~/modules/role/entities/role.entity';
+import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 
 describe('Role Module (E2E)', () => {

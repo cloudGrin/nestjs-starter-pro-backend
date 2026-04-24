@@ -27,7 +27,6 @@ const createUserLoginQueryBuilder = () => {
 
 describe('AuthService', () => {
   let service: AuthService;
-  let userService: jest.Mocked<UserService>;
   let userRepository: any;
   let refreshTokenRepository: any;
   let jwtService: jest.Mocked<JwtService>;
@@ -136,7 +135,6 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    userService = module.get(UserService);
     userRepository = module.get(getRepositoryToken(UserEntity));
     refreshTokenRepository = module.get(getRepositoryToken(RefreshTokenEntity));
     jwtService = module.get(JwtService);

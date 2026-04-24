@@ -47,7 +47,7 @@ export class LocalStorageStrategy implements FileStorageStrategy {
     // 如果目标已存在，先删除避免跨平台 rename 失败
     try {
       await fsPromises.unlink(absolutePath);
-    } catch (error) {
+    } catch {
       // ignore if not exists
     }
 

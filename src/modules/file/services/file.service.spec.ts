@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import { FileService } from './file.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { FileStorageFactory } from '../storage/storage.factory';
-import { FileEntity, FileStatus, FileStorageType } from '../entities/file.entity';
+import { FileEntity, FileStorageType } from '../entities/file.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { createMockRepository, createMockConfigService, createMockLogger } from '~/test-utils';
 

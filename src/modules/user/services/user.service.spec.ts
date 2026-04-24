@@ -102,7 +102,7 @@ describe('UserService', () => {
 
       const result = await service.createUser(createDto as any);
 
-      const { password, ...mockUserWithoutPassword } = mockUser;
+      const { password: _password, ...mockUserWithoutPassword } = mockUser;
       expect(result).toEqual(mockUserWithoutPassword);
       expect(userRepository.create).toHaveBeenCalledWith({
         ...createDto,

@@ -5,7 +5,6 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -15,7 +14,7 @@ import { CacheService } from '~/shared/cache/cache.service';
 /**
  * 创建Mock Repository
  */
-export function createMockRepository<T = any>(): jest.Mocked<Repository<any>> {
+export function createMockRepository<T = any>(): jest.Mocked<Repository<T>> {
   return {
     find: jest.fn(),
     findOne: jest.fn(),
@@ -114,7 +113,7 @@ export function createMockCacheService(): jest.Mocked<CacheService> {
     get: jest.fn(async <T = any>(key: string): Promise<T | null> => {
       return cache.get(key) ?? null;
     }),
-    set: jest.fn(async (key: string, value: any, ttl?: number): Promise<void> => {
+    set: jest.fn(async (key: string, value: any, _ttl?: number): Promise<void> => {
       cache.set(key, value);
     }),
     del: jest.fn(async (key: string): Promise<void> => {
@@ -123,7 +122,7 @@ export function createMockCacheService(): jest.Mocked<CacheService> {
     reset: jest.fn(async (): Promise<void> => {
       cache.clear();
     }),
-    incr: jest.fn(async (key: string, ttl?: number): Promise<number> => {
+    incr: jest.fn(async (key: string, _ttl?: number): Promise<number> => {
       const current = cache.get(key) || 0;
       const newValue = current + 1;
       cache.set(key, newValue);

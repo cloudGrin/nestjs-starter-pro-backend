@@ -165,7 +165,7 @@ export class IpUtil {
    * 获取IP地理位置信息（需要集成第三方服务）
    * 这里提供接口定义，具体实现需要接入IP库或API
    */
-  static async getLocation(ip: string): Promise<{
+  static async getLocation(_ip: string): Promise<{
     country: string;
     province: string;
     city: string;

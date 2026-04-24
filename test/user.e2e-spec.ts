@@ -43,7 +43,7 @@ describe('用户模块 (e2e)', () => {
     for (const id of createdUserIds) {
       try {
         await authenticatedRequest(app, adminCredentials.accessToken).delete(`/users/${id}`).send();
-      } catch (error) {
+      } catch {
         // 忽略删除错误
       }
     }

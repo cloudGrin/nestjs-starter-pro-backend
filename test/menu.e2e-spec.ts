@@ -36,7 +36,7 @@ describe('菜单模块 (e2e)', () => {
     for (const id of createdMenuIds) {
       try {
         await authenticatedRequest(app, credentials.accessToken).delete(`/menus/${id}`).send();
-      } catch (error) {
+      } catch {
         // 忽略删除错误
       }
     }

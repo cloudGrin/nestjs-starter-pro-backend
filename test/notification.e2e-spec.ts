@@ -596,7 +596,7 @@ describe('Notification Module (E2E)', () => {
       const count = 10;
 
       for (let i = 0; i < count; i++) {
-        const response = await authenticatedRequest(app, adminCredentials.accessToken)
+        await authenticatedRequest(app, adminCredentials.accessToken)
           .post('/notifications')
           .send({
             title: `性能测试通知${i}`,

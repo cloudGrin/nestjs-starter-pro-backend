@@ -1,10 +1,7 @@
 import { INestApplication, HttpStatus } from '@nestjs/common';
-import * as path from 'path';
-import * as fs from 'fs';
 import {
   createTestApp,
   createSuperAdminCredentials,
-  createTestUserCredentials,
   authenticatedRequest,
   TestCredentials,
   generateTestUsername,
@@ -49,7 +46,7 @@ describe('文件管理模块 (e2e)', () => {
     for (const fileId of uploadedFileIds) {
       try {
         await authenticatedRequest(app, credentials.accessToken).delete(`/files/${fileId}`);
-      } catch (error) {
+      } catch {
         // 忽略清理错误
       }
     }

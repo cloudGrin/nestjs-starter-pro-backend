@@ -12,7 +12,6 @@ describe('PermissionsGuard', () => {
   let guard: PermissionsGuard;
   let reflector: jest.Mocked<Reflector>;
   let userService: jest.Mocked<UserService>;
-  let logger: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -46,7 +45,6 @@ describe('PermissionsGuard', () => {
     guard = module.get(PermissionsGuard);
     reflector = module.get(Reflector);
     userService = module.get(UserService);
-    logger = module.get(LoggerService);
   });
 
   afterEach(() => {

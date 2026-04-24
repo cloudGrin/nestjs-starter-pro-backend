@@ -1,15 +1,9 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  BadRequestException,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TooManyRequestsException } from '../exceptions/too-many-requests.exception';
 import { ConfigService } from '@nestjs/config';
-import { In, LessThan, Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { UserService } from '~/modules/user/services/user.service';
@@ -18,7 +12,7 @@ import { RefreshTokenEntity } from '../entities/refresh-token.entity';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserStatus } from '~/common/enums/user.enum';
-import { CryptoUtil, StringUtil } from '~/common/utils';
+import { StringUtil } from '~/common/utils';
 
 export interface JwtPayload {
   sub: number;
@@ -177,7 +171,7 @@ export class AuthService {
     this.logger.log(`User ${user.username} logged in from ${ipAddress}`);
 
     // 移除敏感信息
-    const { password, ...userWithoutSensitiveData } = user;
+    const { password: _password, ...userWithoutSensitiveData } = user;
 
     // ✅ 添加超级管理员标识（与 JWT Strategy 逻辑一致）
     const roleCodes = user.roles?.map((role) => role.code) || [];
@@ -312,7 +306,7 @@ export class AuthService {
       }
 
       return payload;
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('无效的访问令牌');
     }
   }
@@ -331,7 +325,7 @@ export class AuthService {
       }
 
       return payload;
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('无效的刷新令牌');
     }
   }

@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsArray, IsInt, IsBoolean, Length } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsArray, IsInt, Length } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { PermissionType } from '../entities/permission.entity';

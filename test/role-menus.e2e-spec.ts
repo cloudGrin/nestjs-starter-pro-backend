@@ -69,7 +69,7 @@ describe('角色-菜单关联 (e2e)', () => {
     for (const menuId of menuIds) {
       try {
         await authenticatedRequest(app, credentials.accessToken).delete(`/menus/${menuId}`).send();
-      } catch (error) {
+      } catch {
         // 忽略删除错误
       }
     }
@@ -77,7 +77,7 @@ describe('角色-菜单关联 (e2e)', () => {
     if (roleId) {
       try {
         await authenticatedRequest(app, credentials.accessToken).delete(`/roles/${roleId}`).send();
-      } catch (error) {
+      } catch {
         // 忽略删除错误
       }
     }

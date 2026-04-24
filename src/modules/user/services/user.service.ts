@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, FindOptionsWhere, In, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '~/common/constants/cache.constants';
@@ -97,7 +97,7 @@ export class UserService {
     this.logger.log(`Created user: ${savedUser.username} (ID: ${savedUser.id})`);
 
     // 排除敏感字段password
-    const { password, ...userWithoutPassword } = savedUser;
+    const { password: _password, ...userWithoutPassword } = savedUser;
 
     return userWithoutPassword as UserEntity;
   }

@@ -1,8 +1,5 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from '~/app.module';
-import { ValidationPipe } from '@nestjs/common';
 import {
   createTestApp,
   createSuperAdminCredentials,

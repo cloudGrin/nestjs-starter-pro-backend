@@ -114,7 +114,7 @@ export class FileController {
     if (file.originalname) {
       try {
         file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
-      } catch (error) {
+      } catch {
         // 如果转换失败，保持原始文件名
       }
     }

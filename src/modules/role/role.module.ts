@@ -3,7 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RoleEntity } from './entities/role.entity';
 import { PermissionEntity } from '../permission/entities/permission.entity';
 import { MenuEntity } from '../menu/entities/menu.entity';
-import { RoleRepository } from './repositories/role.repository';
 import { RoleService } from './services/role.service';
 import { RoleController } from './controllers/role.controller';
 
@@ -16,7 +15,7 @@ import { RoleController } from './controllers/role.controller';
     ]),
   ],
   controllers: [RoleController],
-  providers: [RoleRepository, RoleService],
-  exports: [RoleService, RoleRepository],
+  providers: [RoleService],
+  exports: [RoleService],
 })
 export class RoleModule {}

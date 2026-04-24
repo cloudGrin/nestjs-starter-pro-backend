@@ -211,9 +211,7 @@ describe('architecture slimming', () => {
 
   it('removes BaseRepository inheritance from repositories and keeps only shared pagination types', () => {
     const userRepository = readSource('modules/user/repositories/user.repository.ts');
-    const roleRepository = readSource('modules/role/repositories/role.repository.ts');
     const menuRepository = readSource('modules/menu/repositories/menu.repository.ts');
-    const permissionRepository = readSource('modules/permission/repositories/permission.repository.ts');
     const fileRepository = readSource('modules/file/repositories/file.repository.ts');
     const notificationRepository = readSource(
       'modules/notification/repositories/notification.repository.ts',
@@ -223,11 +221,11 @@ describe('architecture slimming', () => {
     expect(existsInSource('modules/api-auth/repositories/api-app.repository.ts')).toBe(false);
     expect(existsInSource('modules/api-auth/repositories/api-key.repository.ts')).toBe(false);
     expect(existsInSource('modules/auth/repositories/refresh-token.repository.ts')).toBe(false);
+    expect(existsInSource('modules/role/repositories/role.repository.ts')).toBe(false);
+    expect(existsInSource('modules/permission/repositories/permission.repository.ts')).toBe(false);
     for (const repository of [
       userRepository,
-      roleRepository,
       menuRepository,
-      permissionRepository,
       fileRepository,
       notificationRepository,
     ]) {
@@ -266,6 +264,10 @@ describe('architecture slimming', () => {
     const apiAuthService = readSource('modules/api-auth/services/api-auth.service.ts');
     const authModule = readSource('modules/auth/auth.module.ts');
     const authService = readSource('modules/auth/services/auth.service.ts');
+    const roleModule = readSource('modules/role/role.module.ts');
+    const roleService = readSource('modules/role/services/role.service.ts');
+    const permissionModule = readSource('modules/permission/permission.module.ts');
+    const permissionService = readSource('modules/permission/services/permission.service.ts');
 
     expect(apiAuthModule).not.toContain('ApiAppRepository');
     expect(apiAuthModule).not.toContain('ApiKeyRepository');
@@ -273,8 +275,14 @@ describe('architecture slimming', () => {
     expect(apiAuthService).not.toContain('ApiKeyRepository');
     expect(authModule).not.toContain('RefreshTokenRepository');
     expect(authService).not.toContain('RefreshTokenRepository');
+    expect(roleModule).not.toContain('RoleRepository');
+    expect(roleService).not.toContain('RoleRepository');
+    expect(permissionModule).not.toContain('PermissionRepository');
+    expect(permissionService).not.toContain('PermissionRepository');
     expect(existsInSource('modules/api-auth/repositories/api-app.repository.ts')).toBe(false);
     expect(existsInSource('modules/api-auth/repositories/api-key.repository.ts')).toBe(false);
     expect(existsInSource('modules/auth/repositories/refresh-token.repository.ts')).toBe(false);
+    expect(existsInSource('modules/role/repositories/role.repository.ts')).toBe(false);
+    expect(existsInSource('modules/permission/repositories/permission.repository.ts')).toBe(false);
   });
 });

@@ -4,17 +4,19 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { PermissionEntity } from '../entities/permission.entity';
-import { PermissionRepository } from '../repositories/permission.repository';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 
 @Injectable()
 export class PermissionService {
   constructor(
-    private readonly permissionRepo: PermissionRepository,
+    @InjectRepository(PermissionEntity)
+    private readonly permissionRepo: Repository<PermissionEntity>,
     private readonly logger: LoggerService,
     private readonly cache: CacheService,
   ) {
@@ -28,7 +30,7 @@ export class PermissionService {
     this.logger.debug(`准备创建权限 code=${dto.code}, name=${dto.name}`);
 
     // 检查编码是否已存在
-    if (await this.permissionRepo.isCodeExist(dto.code)) {
+    if (await this.isCodeExist(dto.code)) {
       this.logger.debug(`创建权限失败，编码已存在 code=${dto.code}`);
       throw new ConflictException(`权限编码 ${dto.code} 已存在`);
     }
@@ -57,7 +59,7 @@ export class PermissionService {
 
     // 如果要修改编码，检查新编码是否已存在
     if (dto.code && dto.code !== entity.code) {
-      if (await this.permissionRepo.isCodeExist(dto.code, id)) {
+      if (await this.isCodeExist(dto.code, id)) {
         this.logger.debug(`更新权限失败，新编码重复 id=${id}, code=${dto.code}`);
         throw new ConflictException(`权限编码 ${dto.code} 已存在`);
       }
@@ -141,7 +143,7 @@ export class PermissionService {
   async findAll(query: QueryPermissionDto): Promise<PaginationResult<PermissionEntity>> {
     this.logger.debug(`查询权限列表，过滤条件=${JSON.stringify(query)}`);
 
-    const [items, totalItems] = await this.permissionRepo.findWithQuery(query);
+    const [items, totalItems] = await this.findWithQuery(query);
     this.logger.debug(`查询权限列表完成，返回数量=${items.length}, 总数=${totalItems}`);
 
     return {
@@ -161,7 +163,7 @@ export class PermissionService {
    */
   async getPermissionTree(): Promise<any[]> {
     this.logger.debug('查询权限树');
-    const tree = await this.permissionRepo.getPermissionTree();
+    const tree = await this.buildPermissionTree();
     this.logger.debug(`查询权限树完成，节点数量=${Array.isArray(tree) ? tree.length : 0}`);
     return tree;
   }
@@ -171,7 +173,10 @@ export class PermissionService {
    */
   async findByModule(module: string): Promise<PermissionEntity[]> {
     this.logger.debug(`根据模块查询权限 module=${module}`);
-    const items = await this.permissionRepo.findByModule(module);
+    const items = await this.permissionRepo.find({
+      where: { module },
+      order: { sort: 'ASC', createdAt: 'ASC' },
+    });
     this.logger.debug(`模块权限查询完成 module=${module}, 数量=${items.length}`);
     return items;
   }
@@ -186,7 +191,9 @@ export class PermissionService {
     }
 
     this.logger.debug(`批量查询权限 ids=${JSON.stringify(ids)}`);
-    const result = await this.permissionRepo.findByIds(ids);
+    const result = await this.permissionRepo.find({
+      where: { id: In(ids) },
+    });
     this.logger.debug(`批量查询权限完成，请求数量=${ids.length}, 返回数量=${result.length}`);
     return result;
   }
@@ -198,5 +205,100 @@ export class PermissionService {
     }
 
     await this.cache.delByPattern('Permission:*');
+  }
+
+  private async isCodeExist(code: string, excludeId?: number): Promise<boolean> {
+    const qb = this.permissionRepo
+      .createQueryBuilder('permission')
+      .where('permission.code = :code', { code });
+
+    if (excludeId) {
+      qb.andWhere('permission.id != :excludeId', { excludeId });
+    }
+
+    return (await qb.getCount()) > 0;
+  }
+
+  private async findWithQuery(query: QueryPermissionDto): Promise<[PermissionEntity[], number]> {
+    const qb = this.permissionRepo.createQueryBuilder('permission');
+
+    if (query.code) {
+      qb.andWhere('permission.code LIKE :code', { code: `%${query.code}%` });
+    }
+
+    if (query.name) {
+      qb.andWhere('permission.name LIKE :name', { name: `%${query.name}%` });
+    }
+
+    if (query.type) {
+      qb.andWhere('permission.type = :type', { type: query.type });
+    }
+
+    if (query.module) {
+      qb.andWhere('permission.module = :module', { module: query.module });
+    }
+
+    if (query.isActive !== undefined) {
+      qb.andWhere('permission.isActive = :isActive', {
+        isActive: query.isActive,
+      });
+    }
+
+    if (query.isSystem !== undefined) {
+      qb.andWhere('permission.isSystem = :isSystem', {
+        isSystem: query.isSystem,
+      });
+    }
+
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+
+    qb.orderBy('permission.module', 'ASC')
+      .addOrderBy('permission.sort', 'ASC')
+      .addOrderBy('permission.createdAt', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    return qb.getManyAndCount();
+  }
+
+  private async buildPermissionTree(): Promise<any[]> {
+    const permissions = await this.permissionRepo.find({
+      where: { isActive: true },
+      order: { module: 'ASC', sort: 'ASC' },
+    });
+
+    const moduleNameMap: Record<string, string> = {
+      auth: '认证模块',
+      user: '用户管理',
+      role: '角色管理',
+      permission: '权限管理',
+      menu: '菜单管理',
+      file: '文件管理',
+      notification: '通知中心',
+      'api-auth': 'API认证',
+      'open-api': '开放API',
+      health: '健康检查',
+    };
+
+    const moduleMap = new Map<string, PermissionEntity[]>();
+
+    for (const permission of permissions) {
+      if (!moduleMap.has(permission.module)) {
+        moduleMap.set(permission.module, []);
+      }
+      moduleMap.get(permission.module)!.push(permission);
+    }
+
+    const tree: any[] = [];
+    moduleMap.forEach((perms, module) => {
+      tree.push({
+        module,
+        name: moduleNameMap[module] || module,
+        permissions: perms,
+      });
+    });
+
+    return tree;
   }
 }

@@ -5,20 +5,20 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { RoleEntity } from '../entities/role.entity';
 import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 import { MenuEntity } from '~/modules/menu/entities/menu.entity';
-import { RoleRepository } from '../repositories/role.repository';
 import { CreateRoleDto } from '../dto/create-role.dto';
 
 @Injectable()
 export class RoleService {
   constructor(
-    private readonly roleRepository: RoleRepository,
+    @InjectRepository(RoleEntity)
+    private readonly roleRepository: Repository<RoleEntity>,
     @InjectRepository(PermissionEntity)
     private readonly permissionRepository: Repository<PermissionEntity>,
     @InjectRepository(MenuEntity)
@@ -38,7 +38,7 @@ export class RoleService {
     );
 
     // 检查角色编码是否存在
-    if (await this.roleRepository.isCodeExist(dto.code)) {
+    if (await this.isCodeExist(dto.code)) {
       this.logger.debug(`创建角色失败，角色编码已存在: ${dto.code}`);
       throw new ConflictException('角色编码已存在');
     }
@@ -109,7 +109,7 @@ export class RoleService {
 
     // 检查角色编码是否存在
     if (dto.code && dto.code !== role.code) {
-      if (await this.roleRepository.isCodeExist(dto.code, id)) {
+      if (await this.isCodeExist(dto.code, id)) {
         this.logger.debug(`更新角色失败，新编码重复 code=${dto.code}, id=${id}`);
         throw new ConflictException('角色编码已存在');
       }
@@ -219,7 +219,10 @@ export class RoleService {
    */
   async findRoleByCode(code: string): Promise<RoleEntity | null> {
     this.logger.debug(`根据编码查询角色 code=${code}`);
-    return this.roleRepository.findByCode(code);
+    return this.roleRepository.findOne({
+      where: { code },
+      relations: ['permissions'],
+    });
   }
 
   /**
@@ -234,7 +237,7 @@ export class RoleService {
   }): Promise<PaginationResult<RoleEntity>> {
     this.logger.debug(`查询角色列表，过滤条件=${JSON.stringify(query)}`);
 
-    const [items, totalItems] = await this.roleRepository.findWithQuery(query);
+    const [items, totalItems] = await this.findRolesWithQuery(query);
     this.logger.debug(`角色列表查询完成，返回数量=${items.length}, 总量=${totalItems}`);
 
     return {
@@ -254,7 +257,11 @@ export class RoleService {
    */
   async findActiveRoles(): Promise<RoleEntity[]> {
     this.logger.debug('查询所有活跃角色');
-    const roles = await this.roleRepository.findActiveRoles();
+    const roles = await this.roleRepository.find({
+      where: { isActive: true },
+      order: { sort: 'ASC', createdAt: 'DESC' },
+      relations: ['permissions'],
+    });
     this.logger.debug(`查询活跃角色完成，数量=${roles.length}`);
     return roles;
   }
@@ -439,5 +446,48 @@ export class RoleService {
     }
 
     await this.cache.delByPattern('Role:*');
+  }
+
+  private async isCodeExist(code: string, excludeId?: number): Promise<boolean> {
+    const qb = this.roleRepository.createQueryBuilder('role').where('role.code = :code', { code });
+
+    if (excludeId) {
+      qb.andWhere('role.id != :id', { id: excludeId });
+    }
+
+    return (await qb.getCount()) > 0;
+  }
+
+  private async findRolesWithQuery(query: {
+    name?: string;
+    code?: string;
+    isActive?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<[RoleEntity[], number]> {
+    const { name, code, isActive, page = 1, limit = 10 } = query;
+
+    const qb = this.roleRepository
+      .createQueryBuilder('role')
+      .leftJoinAndSelect('role.permissions', 'permission');
+
+    if (name) {
+      qb.andWhere('role.name LIKE :name', { name: `%${name}%` });
+    }
+
+    if (code) {
+      qb.andWhere('role.code LIKE :code', { code: `%${code}%` });
+    }
+
+    if (isActive !== undefined) {
+      qb.andWhere('role.isActive = :isActive', { isActive });
+    }
+
+    qb.orderBy('role.sort', 'ASC')
+      .addOrderBy('role.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    return qb.getManyAndCount();
   }
 }

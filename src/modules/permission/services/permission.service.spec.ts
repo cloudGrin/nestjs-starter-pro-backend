@@ -1,20 +1,33 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { PermissionService } from './permission.service';
-import { PermissionRepository } from '../repositories/permission.repository';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { PermissionEntity, PermissionType } from '../entities/permission.entity';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 import { faker } from '@faker-js/faker';
 
+const createQueryBuilderMock = () => {
+  const builder = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    getCount: jest.fn(),
+    getManyAndCount: jest.fn(),
+  };
+  return builder;
+};
+
 describe('PermissionService', () => {
   let service: PermissionService;
-  let permissionRepo: jest.Mocked<PermissionRepository>;
+  let permissionRepo: any;
   let logger: jest.Mocked<LoggerService>;
   let cache: jest.Mocked<CacheService>;
 
-  // Mock 数据工厂
   const createMockPermission = (overrides?: Partial<PermissionEntity>): PermissionEntity => {
     const permission = new PermissionEntity();
     permission.id = faker.number.int({ min: 1, max: 1000 });
@@ -37,13 +50,8 @@ describe('PermissionService', () => {
       save: jest.fn(),
       findOne: jest.fn(),
       find: jest.fn(),
-      softDelete: jest.fn(),
       delete: jest.fn(),
-      isCodeExist: jest.fn(),
-      findWithQuery: jest.fn(),
-      getPermissionTree: jest.fn(),
-      findByModule: jest.fn(),
-      findByIds: jest.fn(),
+      createQueryBuilder: jest.fn(),
     };
 
     const mockLogger = {
@@ -64,14 +72,14 @@ describe('PermissionService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PermissionService,
-        { provide: PermissionRepository, useValue: mockPermissionRepo },
+        { provide: getRepositoryToken(PermissionEntity), useValue: mockPermissionRepo },
         { provide: LoggerService, useValue: mockLogger },
         { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
 
     service = module.get<PermissionService>(PermissionService);
-    permissionRepo = module.get(PermissionRepository);
+    permissionRepo = module.get(getRepositoryToken(PermissionEntity));
     logger = module.get(LoggerService);
     cache = module.get(CacheService);
   });
@@ -90,22 +98,20 @@ describe('PermissionService', () => {
     };
 
     it('应该成功创建权限', async () => {
-      // Arrange
       const mockPermission = createMockPermission({
         code: mockCreateDto.code,
         name: mockCreateDto.name,
       });
+      const qb = createQueryBuilderMock();
 
-      permissionRepo.isCodeExist.mockResolvedValue(false);
+      qb.getCount.mockResolvedValue(0);
+      permissionRepo.createQueryBuilder.mockReturnValue(qb);
       permissionRepo.create.mockReturnValue(mockPermission);
       permissionRepo.save.mockResolvedValue(mockPermission);
 
-      // Act
       const result = await service.create(mockCreateDto);
 
-      // Assert
       expect(result).toEqual(mockPermission);
-      expect(permissionRepo.isCodeExist).toHaveBeenCalledWith(mockCreateDto.code);
       expect(permissionRepo.create).toHaveBeenCalledWith(mockCreateDto);
       expect(permissionRepo.save).toHaveBeenCalledWith(mockPermission);
       expect(cache.delByPattern).toHaveBeenCalled();
@@ -115,10 +121,10 @@ describe('PermissionService', () => {
     });
 
     it('当权限编码已存在时应该抛出ConflictException', async () => {
-      // Arrange
-      permissionRepo.isCodeExist.mockResolvedValue(true);
+      const qb = createQueryBuilderMock();
+      qb.getCount.mockResolvedValue(1);
+      permissionRepo.createQueryBuilder.mockReturnValue(qb);
 
-      // Act & Assert
       await expect(service.create(mockCreateDto)).rejects.toThrow(ConflictException);
       await expect(service.create(mockCreateDto)).rejects.toThrow(
         `权限编码 ${mockCreateDto.code} 已存在`,
@@ -136,7 +142,6 @@ describe('PermissionService', () => {
     };
 
     it('应该成功更新权限', async () => {
-      // Arrange
       const mockPermission = createMockPermission({ id: permissionId });
       const updatedPermission = createMockPermission({
         ...mockPermission,
@@ -146,10 +151,8 @@ describe('PermissionService', () => {
       permissionRepo.findOne.mockResolvedValue(mockPermission);
       permissionRepo.save.mockResolvedValue(updatedPermission);
 
-      // Act
       const result = await service.update(permissionId, mockUpdateDto);
 
-      // Assert
       expect(result).toEqual(updatedPermission);
       expect(permissionRepo.findOne).toHaveBeenCalledWith({
         where: { id: permissionId },
@@ -159,31 +162,26 @@ describe('PermissionService', () => {
     });
 
     it('当权限不存在时应该抛出NotFoundException', async () => {
-      // Arrange
       permissionRepo.findOne.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(service.update(permissionId, mockUpdateDto)).rejects.toThrow(NotFoundException);
       await expect(service.update(permissionId, mockUpdateDto)).rejects.toThrow('权限不存在');
     });
 
     it('更新权限编码时检查是否与其他权限冲突', async () => {
-      // Arrange
       const mockPermission = createMockPermission({ id: permissionId, code: 'old:code' });
-      const updateWithNewCode = { code: 'new:code' };
+      const qb = createQueryBuilderMock();
 
       permissionRepo.findOne.mockResolvedValue(mockPermission);
-      permissionRepo.isCodeExist.mockResolvedValue(true); // 新编码已存在
+      permissionRepo.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(1);
 
-      // Act & Assert
-      await expect(service.update(permissionId, updateWithNewCode)).rejects.toThrow(
+      await expect(service.update(permissionId, { code: 'new:code' })).rejects.toThrow(
         ConflictException,
       );
-      await expect(service.update(permissionId, updateWithNewCode)).rejects.toThrow(
-        `权限编码 ${updateWithNewCode.code} 已存在`,
+      await expect(service.update(permissionId, { code: 'new:code' })).rejects.toThrow(
+        '权限编码 new:code 已存在',
       );
-
-      expect(permissionRepo.isCodeExist).toHaveBeenCalledWith('new:code', permissionId);
     });
   });
 
@@ -191,42 +189,33 @@ describe('PermissionService', () => {
     const permissionId = 1;
 
     it('应该成功删除权限', async () => {
-      // Arrange
       const mockPermission = createMockPermission({
         id: permissionId,
         isSystem: false,
       });
 
       permissionRepo.findOne.mockResolvedValue(mockPermission);
-      permissionRepo.delete.mockResolvedValue(undefined as any);
+      permissionRepo.delete.mockResolvedValue(undefined);
 
-      // Act
       await service.delete(permissionId);
 
-      // Assert
       expect(permissionRepo.findOne).toHaveBeenCalledWith({
         where: { id: permissionId },
         relations: ['roles'],
       });
       expect(permissionRepo.delete).toHaveBeenCalledWith(permissionId);
-      expect(permissionRepo.softDelete).not.toHaveBeenCalled();
       expect(cache.delByPattern).toHaveBeenCalled();
     });
 
     it('当权限不存在时应该抛出NotFoundException', async () => {
-      // Arrange
       permissionRepo.findOne.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(service.delete(permissionId)).rejects.toThrow(NotFoundException);
       await expect(service.delete(permissionId)).rejects.toThrow('权限不存在');
-
-      expect(permissionRepo.softDelete).not.toHaveBeenCalled();
       expect(permissionRepo.delete).not.toHaveBeenCalled();
     });
 
     it('系统内置权限不能删除', async () => {
-      // Arrange
       const systemPermission = createMockPermission({
         id: permissionId,
         isSystem: true,
@@ -234,11 +223,8 @@ describe('PermissionService', () => {
 
       permissionRepo.findOne.mockResolvedValue(systemPermission);
 
-      // Act & Assert
       await expect(service.delete(permissionId)).rejects.toThrow(BadRequestException);
       await expect(service.delete(permissionId)).rejects.toThrow('系统内置权限不能删除');
-
-      expect(permissionRepo.softDelete).not.toHaveBeenCalled();
       expect(permissionRepo.delete).not.toHaveBeenCalled();
     });
 
@@ -253,23 +239,19 @@ describe('PermissionService', () => {
 
       await expect(service.delete(permissionId)).rejects.toThrow(BadRequestException);
       await expect(service.delete(permissionId)).rejects.toThrow('该权限正在被角色使用，不能删除');
-
       expect(permissionRepo.delete).not.toHaveBeenCalled();
     });
   });
 
   describe('findById', () => {
     it('应该成功返回权限详情', async () => {
-      // Arrange
       const permissionId = 1;
       const mockPermission = createMockPermission({ id: permissionId });
 
       permissionRepo.findOne.mockResolvedValue(mockPermission);
 
-      // Act
       const result = await service.findById(permissionId);
 
-      // Assert
       expect(result).toEqual(mockPermission);
       expect(permissionRepo.findOne).toHaveBeenCalledWith({
         where: { id: permissionId },
@@ -277,29 +259,24 @@ describe('PermissionService', () => {
     });
 
     it('当权限不存在时应该抛出NotFoundException', async () => {
-      // Arrange
-      const permissionId = 999;
       permissionRepo.findOne.mockResolvedValue(null);
 
-      // Act & Assert
-      await expect(service.findById(permissionId)).rejects.toThrow(NotFoundException);
-      await expect(service.findById(permissionId)).rejects.toThrow('权限不存在');
+      await expect(service.findById(999)).rejects.toThrow(NotFoundException);
+      await expect(service.findById(999)).rejects.toThrow('权限不存在');
     });
   });
 
   describe('findAll', () => {
     it('应该返回分页的权限列表', async () => {
-      // Arrange
       const query: QueryPermissionDto = { page: 1, limit: 10, module: 'user' };
       const mockPermissions = [createMockPermission(), createMockPermission()];
-      const totalItems = 2;
+      const qb = createQueryBuilderMock();
 
-      permissionRepo.findWithQuery.mockResolvedValue([mockPermissions, totalItems]);
+      permissionRepo.createQueryBuilder.mockReturnValue(qb);
+      qb.getManyAndCount.mockResolvedValue([mockPermissions, 2]);
 
-      // Act
       const result = await service.findAll(query);
 
-      // Assert
       expect(result.items).toEqual(mockPermissions);
       expect(result.meta).toEqual({
         totalItems: 2,
@@ -308,102 +285,95 @@ describe('PermissionService', () => {
         totalPages: 1,
         currentPage: 1,
       });
-      expect(permissionRepo.findWithQuery).toHaveBeenCalledWith(query);
     });
 
     it('使用默认分页参数', async () => {
-      // Arrange
-      const query: QueryPermissionDto = {};
-      const mockPermissions = [createMockPermission()];
-      const totalItems = 1;
+      const qb = createQueryBuilderMock();
+      permissionRepo.createQueryBuilder.mockReturnValue(qb);
+      qb.getManyAndCount.mockResolvedValue([[createMockPermission()], 1]);
 
-      permissionRepo.findWithQuery.mockResolvedValue([mockPermissions, totalItems]);
+      const result = await service.findAll({});
 
-      // Act
-      const result = await service.findAll(query);
-
-      // Assert
-      expect(result.meta.itemsPerPage).toBe(20); // 默认值
-      expect(result.meta.currentPage).toBe(1); // 默认值
+      expect(result.meta.itemsPerPage).toBe(20);
+      expect(result.meta.currentPage).toBe(1);
     });
   });
 
   describe('getPermissionTree', () => {
     it('应该返回权限树结构', async () => {
-      // Arrange
-      const mockTree = [
-        {
-          id: 1,
-          name: '系统管理',
-          children: [
-            { id: 2, name: '用户管理', children: [] },
-            { id: 3, name: '角色管理', children: [] },
-          ],
-        },
+      const permissions = [
+        createMockPermission({ module: 'auth', code: 'auth:login' }),
+        createMockPermission({ module: 'user', code: 'user:read' }),
       ];
 
-      permissionRepo.getPermissionTree.mockResolvedValue(mockTree);
+      permissionRepo.find.mockResolvedValue(permissions);
 
-      // Act
       const result = await service.getPermissionTree();
 
-      // Assert
-      expect(result).toEqual(mockTree);
-      expect(permissionRepo.getPermissionTree).toHaveBeenCalled();
+      expect(result).toEqual([
+        {
+          module: 'auth',
+          name: '认证模块',
+          permissions: [permissions[0]],
+        },
+        {
+          module: 'user',
+          name: '用户管理',
+          permissions: [permissions[1]],
+        },
+      ]);
     });
   });
 
   describe('findByModule', () => {
     it('应该根据模块返回权限列表', async () => {
-      // Arrange
-      const module = 'user';
-      const mockPermissions = [createMockPermission({ module }), createMockPermission({ module })];
+      const moduleName = 'user';
+      const mockPermissions = [
+        createMockPermission({ module: moduleName }),
+        createMockPermission({ module: moduleName }),
+      ];
 
-      permissionRepo.findByModule.mockResolvedValue(mockPermissions);
+      permissionRepo.find.mockResolvedValue(mockPermissions);
 
-      // Act
-      const result = await service.findByModule(module);
+      const result = await service.findByModule(moduleName);
 
-      // Assert
       expect(result).toEqual(mockPermissions);
-      expect(permissionRepo.findByModule).toHaveBeenCalledWith(module);
+      expect(permissionRepo.find).toHaveBeenCalledWith({
+        where: { module: moduleName },
+        order: { sort: 'ASC', createdAt: 'ASC' },
+      });
     });
   });
 
   describe('findByIds', () => {
     it('应该批量查询权限', async () => {
-      // Arrange
       const ids = [1, 2, 3];
       const mockPermissions = ids.map((id) => createMockPermission({ id }));
 
-      permissionRepo.findByIds.mockResolvedValue(mockPermissions);
+      permissionRepo.find.mockResolvedValue(mockPermissions);
 
-      // Act
       const result = await service.findByIds(ids);
 
-      // Assert
       expect(result).toEqual(mockPermissions);
-      expect(permissionRepo.findByIds).toHaveBeenCalledWith(ids);
+      expect(permissionRepo.find).toHaveBeenCalledWith({
+        where: { id: expect.anything() },
+      });
     });
 
     it('当传入空数组时应该返回空数组', async () => {
-      // Act
       const result = await service.findByIds([]);
 
-      // Assert
       expect(result).toEqual([]);
-      expect(permissionRepo.findByIds).not.toHaveBeenCalled();
+      expect(permissionRepo.find).not.toHaveBeenCalled();
     });
 
     it('当传入null或undefined时应该返回空数组', async () => {
-      // Act
       const resultNull = await service.findByIds(null as any);
       const resultUndefined = await service.findByIds(undefined as any);
 
-      // Assert
       expect(resultNull).toEqual([]);
       expect(resultUndefined).toEqual([]);
-      expect(permissionRepo.findByIds).not.toHaveBeenCalled();
+      expect(permissionRepo.find).not.toHaveBeenCalled();
     });
   });
 });

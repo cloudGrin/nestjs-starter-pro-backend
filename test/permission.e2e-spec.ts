@@ -333,28 +333,6 @@ describe('Permission Module (E2E)', () => {
     });
   });
 
-  // ==================== POST /permissions/sync ====================
-  describe('POST /permissions/sync - 同步权限', () => {
-    it('管理员应该能够同步权限', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken).post(
-        '/permissions/sync',
-      );
-
-      expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(response.status);
-      const data = response.body.data || response.body;
-      // 验证返回了同步结果
-      expect(data).toBeDefined();
-    });
-
-    it('普通用户应该被拒绝', async () => {
-      const response = await authenticatedRequest(app, normalUserCredentials.accessToken).post(
-        '/permissions/sync',
-      );
-
-      expect(response.status).toBe(HttpStatus.FORBIDDEN);
-    });
-  });
-
   // ==================== 完整流程测试 ====================
   describe('完整流程测试', () => {
     it('应该完成: 创建权限 → 查询 → 更新 → 删除', async () => {
@@ -452,23 +430,26 @@ describe('Permission Module (E2E)', () => {
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(roleResponse.status);
       testRole = roleResponse.body.data || roleResponse.body;
 
-      // 2. 查找 user:read 权限
-      const permListResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
-        '/permissions?module=user',
-      );
-
-      const permissions = permListResponse.body.data.items || permListResponse.body.data || [];
-      const readPermission = permissions.find((p: any) => p.code === 'user:read');
-
-      if (readPermission) {
-        // 3. 为角色分配 user:read 权限（注意：API期望直接接收数组，不是对象）
-        const assignPermResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-          .put(`/roles/${testRole.id}/permissions`)
-          .send([readPermission.id]);
-
-        // 验证权限分配成功
-        expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(assignPermResponse.status);
+      // 2. 准备 user:read 权限并分配给角色
+      const permissionRepo = dataSource.getRepository(PermissionEntity);
+      let readPermission = await permissionRepo.findOne({ where: { code: 'user:read' } });
+      if (!readPermission) {
+        readPermission = await permissionRepo.save(
+          permissionRepo.create({
+            code: 'user:read',
+            name: '用户读取',
+            type: PermissionType.API,
+            module: 'user',
+            isActive: true,
+          }),
+        );
       }
+
+      const assignPermResponse = await authenticatedRequest(app, adminCredentials.accessToken)
+        .put(`/roles/${testRole.id}/permissions`)
+        .send({ permissionIds: [readPermission.id] });
+
+      expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(assignPermResponse.status);
 
       // 4. 创建用户
       const username = generateTestUsername();

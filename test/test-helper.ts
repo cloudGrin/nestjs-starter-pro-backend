@@ -90,13 +90,22 @@ export async function createTestUserCredentials(
 export async function loginTestUser(
   app: INestApplication,
   credentials: {
-    username: string;
+    account?: string;
+    username?: string;
     password: string;
   },
 ): Promise<TestCredentials> {
+  const account = credentials.account ?? credentials.username;
+  if (!account) {
+    throw new Error('[测试辅助] 登录账号不能为空');
+  }
+
   const response = await request(app.getHttpServer())
     .post('/auth/login')
-    .send(credentials)
+    .send({
+      account,
+      password: credentials.password,
+    })
     .expect(200);
 
   // 适配新的API响应结构: { tokens: {...}, user: {...} }

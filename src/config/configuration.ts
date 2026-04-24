@@ -47,10 +47,6 @@ export function getDatabaseConfig(env: NodeJS.ProcessEnv = process.env): DataSou
       connectionLimit: parseInt(env.DB_CONNECTION_LIMIT || '10', 10),
       // 连接超时（毫秒）
       connectTimeout: parseInt(env.DB_CONNECTION_TIMEOUT || '60000', 10),
-      // 获取连接超时（毫秒）
-      acquireTimeout: parseInt(env.DB_ACQUIRE_TIMEOUT || '60000', 10),
-      // 查询超时（毫秒）
-      timeout: parseInt(env.DB_QUERY_TIMEOUT || '60000', 10),
     },
   };
 }

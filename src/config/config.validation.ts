@@ -59,10 +59,6 @@ export const configValidationSchema = Joi.object({
 
   DB_CONNECTION_TIMEOUT: Joi.number().default(60000),
 
-  DB_ACQUIRE_TIMEOUT: Joi.number().default(60000),
-
-  DB_QUERY_TIMEOUT: Joi.number().default(60000),
-
   // ========================================
   // JWT 配置（核心安全检查）
   // ========================================

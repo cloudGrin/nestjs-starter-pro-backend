@@ -387,7 +387,7 @@ describe('Role Module (E2E)', () => {
       const permissionIds = testPermissions.map((p) => p.id);
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .put(`/roles/${testRole.id}/permissions`)
-        .send(permissionIds);
+        .send({ permissionIds });
 
       expect([HttpStatus.OK]).toContain(response.status);
     });
@@ -397,7 +397,7 @@ describe('Role Module (E2E)', () => {
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .put(`/roles/${testRole.id}/permissions`)
-        .send([999999]);
+        .send({ permissionIds: [999999] });
 
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
     });
@@ -407,7 +407,7 @@ describe('Role Module (E2E)', () => {
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
         .put(`/roles/${testRole.id}/permissions`)
-        .send([]);
+        .send({ permissionIds: [] });
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -444,7 +444,7 @@ describe('Role Module (E2E)', () => {
       if (testPermissions?.length) {
         const assignResponse = await authenticatedRequest(app, adminCredentials.accessToken)
           .put(`/roles/${roleId}/permissions`)
-          .send(testPermissions.map((p) => p.id));
+          .send({ permissionIds: testPermissions.map((p) => p.id) });
 
         // 如果失败,打印错误
         if (![HttpStatus.OK, HttpStatus.CREATED].includes(assignResponse.status)) {

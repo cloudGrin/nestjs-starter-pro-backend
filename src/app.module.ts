@@ -4,6 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { configuration } from './config/configuration';
 import { configValidationSchema } from './config/config.validation';
+import { DatabaseModule } from './shared/database/database.module';
 import { SharedModule } from './shared/shared.module';
 import { AllExceptionsFilter } from './core/filters/all-exceptions.filter';
 import { TransformInterceptor } from './core/interceptors/transform.interceptor';
@@ -57,7 +58,10 @@ import { MenuModule } from './modules/menu/menu.module';
       },
     }),
 
-    // 共享模块（数据库、缓存、日志等）
+    // 数据库连接只在根模块初始化，避免被 SharedModule 泛化为共享能力。
+    DatabaseModule,
+
+    // 共享模块（缓存、日志等）
     SharedModule,
 
     // 业务模块

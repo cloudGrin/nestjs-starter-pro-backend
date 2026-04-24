@@ -401,6 +401,11 @@ describe('architecture slimming', () => {
 
     expect(sharedModule).toContain('@Global()');
     expect(appModule).toContain('SharedModule');
+    expect(appModule).toContain(
+      "import { DatabaseModule } from './shared/database/database.module'",
+    );
+    expect(appModule).toContain('DatabaseModule');
+    expect(sharedModule).not.toContain('DatabaseModule');
     expect(authModule).not.toContain('@Global()');
     expect(authModule).not.toContain('exports: [AuthService, JwtModule]');
     expect(apiAuthModule).not.toContain('SharedModule');

@@ -8,7 +8,6 @@ import {
   Param,
   Query,
   ParseIntPipe,
-  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,7 +21,6 @@ import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
-import { Request } from 'express';
 import { UserService } from '../services/user.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
@@ -31,6 +29,8 @@ import { QueryUserDto } from '../dto/query-user.dto';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto';
 import { RequirePermissions, AllowAuthenticated } from '~/core/decorators';
 import { UserEntity } from '../entities/user.entity';
+import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
+import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
 
 @ApiTags('用户管理')
 @ApiBearerAuth()
@@ -69,9 +69,8 @@ export class UserController {
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   @ApiNotFoundResponse({ description: '请求的资源不存在' })
-  async getProfile(@Req() req: Request) {
-    const userId = (req as any).user?.id;
-    return this.userService.findUserById(userId);
+  async getProfile(@CurrentUser() user: AuthenticatedUser) {
+    return this.userService.findUserById(user.id);
   }
 
   @Put('profile')
@@ -82,9 +81,8 @@ export class UserController {
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   @ApiNotFoundResponse({ description: '请求的资源不存在' })
-  async updateProfile(@Req() req: Request, @Body() dto: UpdateProfileDto) {
-    const userId = (req as any).user?.id;
-    return this.userService.updateUser(userId, dto);
+  async updateProfile(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateProfileDto) {
+    return this.userService.updateUser(user.id, dto);
   }
 
   @Put('password')
@@ -93,9 +91,8 @@ export class UserController {
   @ApiBadRequestResponse({ description: '参数验证失败' })
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
-  async changePassword(@Req() req: Request, @Body() dto: ChangePasswordDto) {
-    const userId = (req as any).user?.id;
-    await this.userService.changePassword(userId, dto);
+  async changePassword(@CurrentUser() user: AuthenticatedUser, @Body() dto: ChangePasswordDto) {
+    await this.userService.changePassword(user.id, dto);
     return { message: '密码修改成功' };
   }
 

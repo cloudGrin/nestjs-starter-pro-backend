@@ -7,7 +7,6 @@ import {
   Body,
   Param,
   Query,
-  Req,
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
@@ -16,8 +15,9 @@ import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 import { UpdateApiAppDto } from '../dto/update-api-app.dto';
 import { QueryApiAppsDto } from '../dto/query-api-apps.dto';
-import { AuthenticatedRequest } from '../types/request.types';
 import { RequirePermissions } from '~/core/decorators';
+import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
+import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
 
 @ApiTags('API应用管理')
 @ApiBearerAuth()
@@ -45,11 +45,11 @@ export class ApiAppController {
   @Post()
   @RequirePermissions('api-app:create')
   @ApiOperation({ summary: '创建API应用' })
-  async createApp(@Body() dto: CreateApiAppDto, @Req() req: AuthenticatedRequest) {
+  async createApp(@Body() dto: CreateApiAppDto, @CurrentUser() user: AuthenticatedUser) {
     // 设置所有者
     const dtoWithOwner = {
       ...dto,
-      ownerId: req.user.id,
+      ownerId: user.id,
     };
     return this.apiAuthService.createApp(dtoWithOwner);
   }

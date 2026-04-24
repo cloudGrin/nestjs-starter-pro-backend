@@ -179,12 +179,20 @@ describe('architecture slimming', () => {
     const authController = readSource('modules/auth/controllers/auth.controller.ts');
     const apiAppController = readSource('modules/api-auth/controllers/api-app.controller.ts');
     const fileController = readSource('modules/file/controllers/file.controller.ts');
+    const userController = readSource('modules/user/controllers/user.controller.ts');
+    const menuController = readSource('modules/menu/controllers/menu.controller.ts');
 
     expect(authController).not.toContain("@Get('profile')");
     expect(authController).not.toContain("@Get('check')");
     expect(apiAppController).not.toContain('@UseGuards(JwtAuthGuard)');
+    expect(apiAppController).toContain('@CurrentUser() user');
     expect(fileController).not.toContain('@Req() req');
     expect(fileController).not.toContain('const payload = req.body');
+    expect(userController).toContain('@CurrentUser() user');
+    expect(userController).not.toContain('@Req() req');
+    expect(menuController).toContain('@CurrentUser() user');
+    expect(menuController).not.toContain('@Req() req');
+    expect(existsInSource('modules/api-auth/types/request.types.ts')).toBe(false);
   });
 
   it('removes BaseService inheritance from business services', () => {

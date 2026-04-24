@@ -9,10 +9,8 @@ import {
   Param,
   Query,
   ParseIntPipe,
-  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery, ApiOkResponse } from '@nestjs/swagger';
-import { Request } from 'express';
 import { AllowAuthenticated, RequirePermissions } from '~/core/decorators';
 import { MenuService } from '../services/menu.service';
 import {
@@ -23,6 +21,8 @@ import {
   MoveMenuDto,
 } from '../dto';
 import { MenuEntity } from '../entities/menu.entity';
+import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
+import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
 
 @ApiTags('菜单管理')
 @ApiBearerAuth()
@@ -58,14 +58,8 @@ export class MenuController {
     summary: '获取当前用户的菜单',
     description: '根据用户角色过滤可访问的菜单，返回树形结构',
   })
-  async getUserMenus(@Req() req: Request) {
-    const user = req.user as any;
-    const userId = user.id;
-
-    // user.roles 已经是字符串数组，直接使用
-    const roleCodes = user.roles || [];
-
-    return this.menuService.getUserMenusByRoles(userId, roleCodes);
+  async getUserMenus(@CurrentUser() user: AuthenticatedUser) {
+    return this.menuService.getUserMenusByRoles(user.id, user.roles || []);
   }
 
   @Get('validate-path')

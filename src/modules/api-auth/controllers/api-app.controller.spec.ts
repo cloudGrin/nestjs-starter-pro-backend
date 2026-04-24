@@ -23,4 +23,13 @@ describe('ApiAppController', () => {
     expect(source).toContain("@Param('keyId', ParseIntPipe)");
     expect(source).not.toContain('@UseGuards(JwtAuthGuard)');
   });
+
+  it('uses CurrentUser instead of request wrapper when creating API apps', () => {
+    const source = readFileSync(join(__dirname, 'api-app.controller.ts'), 'utf8');
+
+    expect(source).toContain('@CurrentUser() user');
+    expect(source).not.toContain('@Req() req');
+    expect(source).not.toContain('req.user.id');
+    expect(source).not.toContain('AuthenticatedRequest');
+  });
 });

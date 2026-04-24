@@ -210,28 +210,37 @@ describe('architecture slimming', () => {
   });
 
   it('removes BaseRepository inheritance from repositories and keeps only shared pagination types', () => {
-    const userRepository = readSource('modules/user/repositories/user.repository.ts');
-    const menuRepository = readSource('modules/menu/repositories/menu.repository.ts');
-    const fileRepository = readSource('modules/file/repositories/file.repository.ts');
-    const notificationRepository = readSource(
-      'modules/notification/repositories/notification.repository.ts',
-    );
-
     expect(existsInSource('core/base/base.repository.ts')).toBe(false);
     expect(existsInSource('modules/api-auth/repositories/api-app.repository.ts')).toBe(false);
     expect(existsInSource('modules/api-auth/repositories/api-key.repository.ts')).toBe(false);
     expect(existsInSource('modules/auth/repositories/refresh-token.repository.ts')).toBe(false);
+    expect(existsInSource('modules/user/repositories/user.repository.ts')).toBe(false);
     expect(existsInSource('modules/role/repositories/role.repository.ts')).toBe(false);
     expect(existsInSource('modules/permission/repositories/permission.repository.ts')).toBe(false);
-    for (const repository of [
-      userRepository,
-      menuRepository,
-      fileRepository,
-      notificationRepository,
-    ]) {
-      expect(repository).not.toContain('extends BaseRepository');
-      expect(repository).not.toContain("from '~/core/base/base.repository'");
-    }
+    expect(existsInSource('modules/menu/repositories/menu.repository.ts')).toBe(false);
+    expect(existsInSource('modules/file/repositories/file.repository.ts')).toBe(false);
+    expect(existsInSource('modules/notification/repositories/notification.repository.ts')).toBe(
+      false,
+    );
+  });
+
+  it('injects direct TypeORM repositories into menu, file, and notification services', () => {
+    const menuModule = readSource('modules/menu/menu.module.ts');
+    const menuService = readSource('modules/menu/services/menu.service.ts');
+    const fileModule = readSource('modules/file/file.module.ts');
+    const fileService = readSource('modules/file/services/file.service.ts');
+    const notificationModule = readSource('modules/notification/notification.module.ts');
+    const notificationService = readSource('modules/notification/services/notification.service.ts');
+
+    expect(menuModule).not.toContain('MenuRepository');
+    expect(menuService).not.toContain('MenuRepository');
+    expect(menuService).toContain('@InjectRepository(MenuEntity)');
+    expect(fileModule).not.toContain('FileRepository');
+    expect(fileService).not.toContain('FileRepository');
+    expect(fileService).toContain('@InjectRepository(FileEntity)');
+    expect(notificationModule).not.toContain('NotificationRepository');
+    expect(notificationService).not.toContain('NotificationRepository');
+    expect(notificationService).toContain('@InjectRepository(NotificationEntity)');
   });
 
   it('reads bootstrap settings from structured config paths instead of raw env keys', () => {
@@ -264,6 +273,9 @@ describe('architecture slimming', () => {
     const apiAuthService = readSource('modules/api-auth/services/api-auth.service.ts');
     const authModule = readSource('modules/auth/auth.module.ts');
     const authService = readSource('modules/auth/services/auth.service.ts');
+    const userModule = readSource('modules/user/user.module.ts');
+    const userService = readSource('modules/user/services/user.service.ts');
+    const notificationService = readSource('modules/notification/services/notification.service.ts');
     const roleModule = readSource('modules/role/role.module.ts');
     const roleService = readSource('modules/role/services/role.service.ts');
     const permissionModule = readSource('modules/permission/permission.module.ts');
@@ -275,6 +287,9 @@ describe('architecture slimming', () => {
     expect(apiAuthService).not.toContain('ApiKeyRepository');
     expect(authModule).not.toContain('RefreshTokenRepository');
     expect(authService).not.toContain('RefreshTokenRepository');
+    expect(userModule).not.toContain('UserRepository');
+    expect(userService).not.toContain('UserRepository');
+    expect(notificationService).not.toContain('UserRepository');
     expect(roleModule).not.toContain('RoleRepository');
     expect(roleService).not.toContain('RoleRepository');
     expect(permissionModule).not.toContain('PermissionRepository');
@@ -282,6 +297,7 @@ describe('architecture slimming', () => {
     expect(existsInSource('modules/api-auth/repositories/api-app.repository.ts')).toBe(false);
     expect(existsInSource('modules/api-auth/repositories/api-key.repository.ts')).toBe(false);
     expect(existsInSource('modules/auth/repositories/refresh-token.repository.ts')).toBe(false);
+    expect(existsInSource('modules/user/repositories/user.repository.ts')).toBe(false);
     expect(existsInSource('modules/role/repositories/role.repository.ts')).toBe(false);
     expect(existsInSource('modules/permission/repositories/permission.repository.ts')).toBe(false);
   });

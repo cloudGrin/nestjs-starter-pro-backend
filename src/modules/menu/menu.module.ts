@@ -4,7 +4,6 @@ import { MenuEntity } from './entities/menu.entity';
 import { RoleEntity } from '../role/entities/role.entity';
 import { MenuController } from './controllers/menu.controller';
 import { MenuService } from './services/menu.service';
-import { MenuRepository } from './repositories/menu.repository';
 
 @Module({
   imports: [
@@ -14,7 +13,7 @@ import { MenuRepository } from './repositories/menu.repository';
     ]),
   ],
   controllers: [MenuController],
-  providers: [MenuService, MenuRepository],
-  exports: [MenuService, MenuRepository],
+  providers: [MenuService],
+  exports: [MenuService],
 })
 export class MenuModule {}

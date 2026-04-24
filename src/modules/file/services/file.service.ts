@@ -1,15 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
 import { promises as fsPromises } from 'fs';
 import { resolve } from 'path';
 import { createHash } from 'crypto';
+import { Repository } from 'typeorm';
 import dayjs from 'dayjs';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileUtil } from '~/common/utils';
+import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
 import { FileEntity, FileStatus, FileStorageType } from '../entities/file.entity';
-import { FileRepository, FileQueryOptions } from '../repositories/file.repository';
 import { UploadFileDto } from '../dto/upload-file.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
 import { FileStorageFactory } from '../storage/storage.factory';
@@ -20,6 +22,15 @@ interface UserWithRoles {
   roles?: Array<{ code: string }>;
 }
 
+interface FileQueryOptions {
+  keyword?: string;
+  storage?: FileStorageType;
+  status?: FileStatus;
+  category?: string;
+  module?: string;
+  isPublic?: boolean;
+}
+
 @Injectable()
 export class FileService {
   private readonly storageType: FileStorageType;
@@ -28,7 +39,8 @@ export class FileService {
   private readonly allowedTypes: string[];
 
   constructor(
-    private readonly fileRepository: FileRepository,
+    @InjectRepository(FileEntity)
+    private readonly fileRepository: Repository<FileEntity>,
     private readonly configService: ConfigService,
     private readonly storageFactory: FileStorageFactory,
     private readonly logger: LoggerService,
@@ -98,7 +110,8 @@ export class FileService {
       `[FileUpload] Stored file "${stored.filename}" via ${this.storageType} (path=${stored.path})`,
     );
 
-    const entity = await this.fileRepository.createAndSave({
+    const entity = await this.fileRepository.save(
+      this.fileRepository.create({
       originalName: file.originalname,
       filename: stored.filename,
       path: stored.path,
@@ -115,7 +128,8 @@ export class FileService {
       status: FileStatus.AVAILABLE,
       metadata: stored.metadata,
       uploaderId,
-    });
+      }),
+    );
 
     await this.clearFileCache();
 
@@ -142,14 +156,14 @@ export class FileService {
       order: query.order,
     };
 
-    return this.fileRepository.paginateFiles(paginationOptions, filters);
+    return this.paginateFiles(paginationOptions, filters);
   }
 
   /**
    * 根据ID查询文件
    */
   async findById(id: number): Promise<FileEntity> {
-    return this.fileRepository.findByIdOrFail(id);
+    return this.findByIdOrFail(id);
   }
 
   /**
@@ -202,7 +216,10 @@ export class FileService {
       await storage.delete(entity.path);
     }
 
-    await this.fileRepository.delete(id);
+    const deleteResult = await this.fileRepository.delete(id);
+    if (!deleteResult.affected) {
+      throw BusinessException.notFound('File', id);
+    }
     await this.clearFileCache(id);
   }
 
@@ -357,5 +374,68 @@ export class FileService {
     }
 
     await this.cache.delByPattern?.('File:*');
+  }
+
+  private async findByIdOrFail(id: number): Promise<FileEntity> {
+    const entity = await this.fileRepository.findOne({ where: { id } });
+    if (!entity) {
+      throw BusinessException.notFound('File', id);
+    }
+    return entity;
+  }
+
+  private async paginateFiles(
+    pagination: PaginationOptions,
+    query: FileQueryOptions,
+  ): Promise<PaginationResult<FileEntity>> {
+    const qb = this.fileRepository.createQueryBuilder('file');
+
+    if (query.keyword) {
+      qb.andWhere('(file.originalName LIKE :keyword OR file.filename LIKE :keyword)', {
+        keyword: `%${query.keyword}%`,
+      });
+    }
+
+    if (query.storage) {
+      qb.andWhere('file.storage = :storage', { storage: query.storage });
+    }
+
+    if (query.status) {
+      qb.andWhere('file.status = :status', { status: query.status });
+    }
+
+    if (query.category) {
+      qb.andWhere('file.category = :category', { category: query.category });
+    }
+
+    if (query.module) {
+      qb.andWhere('file.module = :module', { module: query.module });
+    }
+
+    if (query.isPublic !== undefined) {
+      qb.andWhere('file.isPublic = :isPublic', { isPublic: query.isPublic });
+    }
+
+    qb.orderBy(
+      pagination.sort ? `file.${pagination.sort}` : 'file.createdAt',
+      pagination.order || 'DESC',
+    );
+
+    const page = Math.max(1, pagination.page || 1);
+    const limit = Math.min(100, Math.max(1, pagination.limit || 10));
+    const skip = (page - 1) * limit;
+
+    const [items, totalItems] = await qb.skip(skip).take(limit).getManyAndCount();
+
+    return {
+      items,
+      meta: {
+        totalItems,
+        itemCount: items.length,
+        itemsPerPage: limit,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+      },
+    };
   }
 }

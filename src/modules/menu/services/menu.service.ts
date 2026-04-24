@@ -7,13 +7,13 @@ import { CACHE_KEYS } from '~/common/constants/cache.constants';
 import { TreeUtil } from '~/common/utils/tree.util';
 import { MenuEntity } from '../entities/menu.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
-import { MenuRepository } from '../repositories/menu.repository';
 import { CreateMenuDto, UpdateMenuDto, QueryMenuDto } from '../dto';
 
 @Injectable()
 export class MenuService {
   constructor(
-    private readonly menuRepo: MenuRepository,
+    @InjectRepository(MenuEntity)
+    private readonly menuRepository: Repository<MenuEntity>,
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
     private readonly logger: LoggerService,
@@ -32,7 +32,7 @@ export class MenuService {
 
     // 如果指定了父菜单，检查父菜单是否存在
     if (dto.parentId) {
-      const parent = await this.menuRepo.findOne({
+      const parent = await this.menuRepository.findOne({
         where: { id: dto.parentId },
       });
       if (!parent) {
@@ -42,9 +42,9 @@ export class MenuService {
       this.logger.debug(`创建菜单时找到父菜单 parentId=${dto.parentId}, name=${parent.name}`);
     }
 
-    const entity = this.menuRepo.create(dto);
+    const entity = this.menuRepository.create(dto);
     this.logger.debug(`菜单实体构建完成，准备保存 name=${entity.name}`);
-    const saved = await this.menuRepo.save(entity);
+    const saved = await this.menuRepository.save(entity);
     this.logger.debug(`菜单保存成功 id=${saved.id}, name=${saved.name}`);
 
     await this.clearMenuCache();
@@ -73,7 +73,7 @@ export class MenuService {
       }
 
       if (dto.parentId) {
-        const parent = await this.menuRepo.findOne({
+        const parent = await this.menuRepository.findOne({
           where: { id: dto.parentId },
         });
         if (!parent) {
@@ -93,7 +93,7 @@ export class MenuService {
 
     Object.assign(entity, dto);
     this.logger.debug(`菜单信息合并完成，准备保存 id=${id}`);
-    const updated = await this.menuRepo.save(entity);
+    const updated = await this.menuRepository.save(entity);
     this.logger.debug(`菜单更新保存成功 id=${updated.id}`);
 
     await this.clearMenuCache();
@@ -114,13 +114,16 @@ export class MenuService {
     const entity = await this.findById(id);
 
     // 检查是否有子菜单
-    const children = await this.menuRepo.findByParentId(id);
+    const children = await this.findChildrenByParentId(id);
     if (children.length > 0) {
       this.logger.debug(`删除菜单失败，存在 ${children.length} 个子菜单 id=${id}`);
       throw new BadRequestException('存在子菜单，无法删除');
     }
 
-    await this.menuRepo.softDelete(id);
+    const deleteResult = await this.menuRepository.softDelete(id);
+    if (!deleteResult.affected) {
+      throw new NotFoundException('菜单不存在');
+    }
     this.logger.debug(`菜单软删除完成 id=${id}`);
 
     await this.clearMenuCache();
@@ -136,7 +139,7 @@ export class MenuService {
   async findById(id: number): Promise<MenuEntity> {
     this.logger.debug(`查询菜单详情 id=${id}`);
 
-    const entity = await this.menuRepo.findOne({
+    const entity = await this.menuRepository.findOne({
       where: { id },
       relations: ['parent', 'children'],
     });
@@ -156,7 +159,7 @@ export class MenuService {
    */
   async findAll(query: QueryMenuDto): Promise<MenuEntity[]> {
     this.logger.debug(`查询菜单列表，过滤条件=${JSON.stringify(query)}`);
-    const menus = await this.menuRepo.findWithQuery(query);
+    const menus = await this.findMenusWithQuery(query);
     this.logger.debug(`查询菜单列表完成，返回数量=${menus.length}`);
     return menus;
   }
@@ -166,7 +169,7 @@ export class MenuService {
    */
   async getMenuTree(): Promise<any[]> {
     this.logger.debug('查询菜单树');
-    const menus = await this.menuRepo.find({
+    const menus = await this.menuRepository.find({
       where: { isActive: true },
       order: { sort: 'ASC' },
     });
@@ -222,7 +225,7 @@ export class MenuService {
     // 1. 超级管理员特殊处理：自动拥有所有菜单
     if (roleCodes.includes('super_admin')) {
       this.logger.debug(`用户${userId}拥有super_admin角色，返回所有菜单`);
-      menus = await this.menuRepo.find({
+      menus = await this.menuRepository.find({
         where: { isActive: true, isVisible: true },
         order: { sort: 'ASC' },
       });
@@ -278,7 +281,7 @@ export class MenuService {
   async checkCircularDependency(
     menuId: number,
     targetParentId: number,
-    menuRepository: Pick<MenuRepository, 'findOne'> = this.menuRepo,
+    menuRepository: Pick<Repository<MenuEntity>, 'findOne'> = this.menuRepository,
   ): Promise<boolean> {
     this.logger.debug(`检查菜单循环依赖 menuId=${menuId}, targetParentId=${targetParentId}`);
 
@@ -322,7 +325,8 @@ export class MenuService {
   async moveMenu(id: number, targetParentId: number | null): Promise<MenuEntity> {
     this.logger.debug(`准备移动菜单 id=${id}, targetParentId=${targetParentId}`);
 
-    return await this.menuRepo.transaction(async (transactionalRepo) => {
+    return await this.menuRepository.manager.transaction(async (manager) => {
+      const transactionalRepo = manager.getRepository(MenuEntity);
       const menu = await transactionalRepo.findOne({
         where: { id },
       });
@@ -376,7 +380,7 @@ export class MenuService {
    */
   async batchUpdateStatus(menuIds: number[], isActive: boolean): Promise<void> {
     this.logger.debug(`批量更新菜单状态 menuIds=${JSON.stringify(menuIds)}, isActive=${isActive}`);
-    await this.menuRepo
+    await this.menuRepository
       .createQueryBuilder()
       .update()
       .set({ isActive })
@@ -394,7 +398,7 @@ export class MenuService {
    */
   async validatePath(path: string, excludeId?: number): Promise<boolean> {
     this.logger.debug(`验证菜单路径唯一性 path=${path}, excludeId=${excludeId ?? '无'}`);
-    const qb = this.menuRepo.createQueryBuilder('menu').where('menu.path = :path', { path });
+    const qb = this.menuRepository.createQueryBuilder('menu').where('menu.path = :path', { path });
 
     if (excludeId) {
       qb.andWhere('menu.id != :excludeId', { excludeId });
@@ -420,5 +424,38 @@ export class MenuService {
     }
 
     await this.cache.delByPattern('Menu:*');
+  }
+
+  private async findChildrenByParentId(parentId: number): Promise<MenuEntity[]> {
+    return this.menuRepository.find({
+      where: { parentId, isActive: true },
+      order: { sort: 'ASC' },
+    });
+  }
+
+  private async findMenusWithQuery(query: QueryMenuDto): Promise<MenuEntity[]> {
+    const qb = this.menuRepository.createQueryBuilder('menu');
+
+    if (query.name) {
+      qb.andWhere('menu.name LIKE :name', { name: `%${query.name}%` });
+    }
+
+    if (query.type) {
+      qb.andWhere('menu.type = :type', { type: query.type });
+    }
+
+    if (query.isActive !== undefined) {
+      qb.andWhere('menu.isActive = :isActive', { isActive: query.isActive });
+    }
+
+    if (query.isVisible !== undefined) {
+      qb.andWhere('menu.isVisible = :isVisible', { isVisible: query.isVisible });
+    }
+
+    qb.orderBy('menu.parentId', 'ASC')
+      .addOrderBy('menu.sort', 'ASC')
+      .addOrderBy('menu.createdAt', 'ASC');
+
+    return qb.getMany();
   }
 }

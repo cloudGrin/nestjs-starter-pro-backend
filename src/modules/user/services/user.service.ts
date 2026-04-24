@@ -5,14 +5,13 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { DeepPartial, FindOptionsWhere, In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '~/common/constants/cache.constants';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
-import { UserRepository } from '../repositories/user.repository';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { QueryUserDto } from '../dto/query-user.dto';
@@ -22,7 +21,8 @@ import { UserStatus } from '~/common/enums/user.enum';
 @Injectable()
 export class UserService {
   constructor(
-    private readonly userRepository: UserRepository,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
     private readonly logger: LoggerService,
@@ -40,19 +40,19 @@ export class UserService {
     );
 
     // 检查用户名是否存在
-    if (await this.userRepository.isUsernameExist(dto.username)) {
+    if (await this.isUsernameExist(dto.username)) {
       this.logger.debug(`创建用户失败，用户名已存在 username=${dto.username}`);
       throw new ConflictException('用户名已存在');
     }
 
     // 检查邮箱是否存在
-    if (await this.userRepository.isEmailExist(dto.email)) {
+    if (await this.isEmailExist(dto.email)) {
       this.logger.debug(`创建用户失败，邮箱已存在 email=${dto.email}`);
       throw new ConflictException('邮箱已被注册');
     }
 
     // 检查手机号是否存在
-    if (dto.phone && (await this.userRepository.isPhoneExist(dto.phone))) {
+    if (dto.phone && (await this.isPhoneExist(dto.phone))) {
       this.logger.debug(`创建用户失败，手机号已存在 phone=${dto.phone}`);
       throw new ConflictException('手机号已被注册');
     }
@@ -103,12 +103,12 @@ export class UserService {
   async updateUser(id: number, dto: UpdateUserDto): Promise<UserEntity> {
     this.logger.debug(`准备更新用户 id=${id}, payload=${JSON.stringify(dto)}`);
 
-    const user = await this.userRepository.findByIdOrFail(id);
+    const user = await this.findByIdOrFail(id);
     this.logger.debug(`更新用户时找到用户 id=${id}, username=${user.username}`);
 
     // 检查邮箱是否存在
     if (dto.email && dto.email !== user.email) {
-      if (await this.userRepository.isEmailExist(dto.email, id)) {
+      if (await this.isEmailExist(dto.email, id)) {
         this.logger.debug(`更新用户失败，邮箱已存在 id=${id}, email=${dto.email}`);
         throw new ConflictException('邮箱已被注册');
       }
@@ -116,7 +116,7 @@ export class UserService {
 
     // 检查手机号是否存在
     if (dto.phone && dto.phone !== user.phone) {
-      if (await this.userRepository.isPhoneExist(dto.phone, id)) {
+      if (await this.isPhoneExist(dto.phone, id)) {
         this.logger.debug(`更新用户失败，手机号已存在 id=${id}, phone=${dto.phone}`);
         throw new ConflictException('手机号已被注册');
       }
@@ -170,7 +170,7 @@ export class UserService {
    */
   async findUsers(query: QueryUserDto): Promise<PaginationResult<UserEntity>> {
     this.logger.debug(`查询用户列表，过滤条件=${JSON.stringify(query)}`);
-    const [items, totalItems] = await this.userRepository.findWithQuery(query);
+    const [items, totalItems] = await this.findWithQuery(query);
     this.logger.debug(`查询用户列表完成，返回数量=${items.length}, 总数=${totalItems}`);
 
     return {
@@ -213,7 +213,10 @@ export class UserService {
    */
   async findByUsername(username: string): Promise<UserEntity | null> {
     this.logger.debug(`根据用户名查询用户 username=${username}`);
-    const result = await this.userRepository.findByUsername(username);
+    const result = await this.userRepository.findOne({
+      where: { username },
+      relations: ['roles', 'roles.permissions'],
+    });
     this.logger.debug(`根据用户名查询用户结果 username=${username}, exists=${result ? 'Y' : 'N'}`);
     return result;
   }
@@ -223,7 +226,10 @@ export class UserService {
    */
   async findByEmail(email: string): Promise<UserEntity | null> {
     this.logger.debug(`根据邮箱查询用户 email=${email}`);
-    const result = await this.userRepository.findByEmail(email);
+    const result = await this.userRepository.findOne({
+      where: { email },
+      relations: ['roles'],
+    });
     this.logger.debug(`根据邮箱查询用户结果 email=${email}, exists=${result ? 'Y' : 'N'}`);
     return result;
   }
@@ -238,7 +244,7 @@ export class UserService {
       throw new BadRequestException('两次输入的密码不一致');
     }
 
-    const user = await this.userRepository.findWithPassword(userId);
+    const user = await this.findWithPassword(userId);
     if (!user) {
       this.logger.debug(`修改密码失败，未找到用户 userId=${userId}`);
       throw new NotFoundException('用户不存在');
@@ -257,7 +263,7 @@ export class UserService {
     this.logger.debug(`用户密码更新成功 userId=${userId}`);
 
     // 清除用户的刷新Token（强制重新登录）
-    await this.userRepository.updateRefreshToken(userId, undefined);
+    await this.updateRefreshToken(userId, undefined);
     this.logger.debug(`清除用户刷新Token userId=${userId}`);
 
     // 清除缓存
@@ -273,7 +279,7 @@ export class UserService {
   async resetPassword(userId: number, dto: ResetPasswordDto): Promise<void> {
     this.logger.debug(`管理员重置密码 userId=${userId}`);
 
-    const user = await this.userRepository.findByIdOrFail(userId);
+    const user = await this.findByIdOrFail(userId);
 
     // 更新密码
     user.password = dto.password;
@@ -283,7 +289,7 @@ export class UserService {
     this.logger.debug(`用户密码重置保存成功 userId=${userId}`);
 
     // 清除用户的刷新Token（强制重新登录）
-    await this.userRepository.updateRefreshToken(userId, undefined);
+    await this.updateRefreshToken(userId, undefined);
     this.logger.debug(`重置密码后清除刷新Token userId=${userId}`);
 
     // 清除缓存
@@ -299,7 +305,7 @@ export class UserService {
   async enableUser(id: number): Promise<UserEntity> {
     this.logger.debug(`启用用户 id=${id}`);
 
-    const user = await this.userRepository.findByIdOrFail(id);
+    const user = await this.findByIdOrFail(id);
 
     user.status = UserStatus.ACTIVE;
     user.loginAttempts = 0;
@@ -323,7 +329,7 @@ export class UserService {
   async disableUser(id: number): Promise<UserEntity> {
     this.logger.debug(`禁用用户 id=${id}`);
 
-    const user = await this.userRepository.findByIdOrFail(id);
+    const user = await this.findByIdOrFail(id);
 
     user.status = UserStatus.DISABLED;
 
@@ -331,7 +337,7 @@ export class UserService {
     this.logger.debug(`用户禁用保存成功 id=${id}`);
 
     // 清除用户的刷新Token（强制下线）
-    await this.userRepository.updateRefreshToken(id, undefined);
+    await this.updateRefreshToken(id, undefined);
     this.logger.debug(`禁用用户后清除刷新Token userId=${id}`);
 
     // 清除缓存
@@ -349,7 +355,7 @@ export class UserService {
   async deleteUser(id: number): Promise<void> {
     this.logger.debug(`删除用户 id=${id}`);
 
-    const user = await this.userRepository.findByIdOrFail(id);
+    const user = await this.findByIdOrFail(id);
 
     await this.userRepository.softDelete(id);
     this.logger.debug(`用户软删除完成 id=${id}`);
@@ -367,7 +373,7 @@ export class UserService {
   async deleteUsers(ids: number[]): Promise<void> {
     this.logger.debug(`批量删除用户 ids=${JSON.stringify(ids)}`);
 
-    const users = await this.userRepository.findByIds(ids);
+    const users = await this.findByIds(ids);
 
     if (users.length !== ids.length) {
       this.logger.debug(
@@ -533,5 +539,143 @@ export class UserService {
     }
 
     await this.cache.delByPattern('User:*');
+  }
+
+  private async isUsernameExist(username: string, excludeId?: number): Promise<boolean> {
+    const qb = this.userRepository.createQueryBuilder('user').where('user.username = :username', {
+      username,
+    });
+
+    if (excludeId) {
+      qb.andWhere('user.id != :id', { id: excludeId });
+    }
+
+    return (await qb.getCount()) > 0;
+  }
+
+  private async isEmailExist(email: string, excludeId?: number): Promise<boolean> {
+    const qb = this.userRepository.createQueryBuilder('user').where('user.email = :email', {
+      email,
+    });
+
+    if (excludeId) {
+      qb.andWhere('user.id != :id', { id: excludeId });
+    }
+
+    return (await qb.getCount()) > 0;
+  }
+
+  private async isPhoneExist(phone: string, excludeId?: number): Promise<boolean> {
+    const qb = this.userRepository.createQueryBuilder('user').where('user.phone = :phone', {
+      phone,
+    });
+
+    if (excludeId) {
+      qb.andWhere('user.id != :id', { id: excludeId });
+    }
+
+    return (await qb.getCount()) > 0;
+  }
+
+  private async findByIdOrFail(id: number): Promise<UserEntity> {
+    const entity = await this.userRepository.findOne({
+      where: { id } as FindOptionsWhere<UserEntity>,
+    });
+
+    if (!entity) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    return entity;
+  }
+
+  private async findWithPassword(id: number): Promise<UserEntity | null> {
+    return this.userRepository.findOne({
+      where: { id },
+      select: [
+        'id',
+        'username',
+        'email',
+        'password',
+        'status',
+        'loginAttempts',
+        'lockedUntil',
+        'refreshToken',
+      ],
+      relations: ['roles', 'roles.permissions'],
+    });
+  }
+
+  private async findWithQuery(query: QueryUserDto): Promise<[UserEntity[], number]> {
+    const {
+      username,
+      email,
+      phone,
+      realName,
+      status,
+      gender,
+      roleId,
+      page = 1,
+      limit = 10,
+      sort,
+      order,
+    } = query;
+
+    const qb = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.roles', 'role');
+
+    if (username) {
+      qb.andWhere('user.username LIKE :username', { username: `%${username}%` });
+    }
+
+    if (email) {
+      qb.andWhere('user.email LIKE :email', { email: `%${email}%` });
+    }
+
+    if (phone) {
+      qb.andWhere('user.phone LIKE :phone', { phone: `%${phone}%` });
+    }
+
+    if (realName) {
+      qb.andWhere('user.realName LIKE :realName', { realName: `%${realName}%` });
+    }
+
+    if (status) {
+      qb.andWhere('user.status = :status', { status });
+    }
+
+    if (gender) {
+      qb.andWhere('user.gender = :gender', { gender });
+    }
+
+    if (roleId) {
+      qb.andWhere('role.id = :roleId', { roleId });
+    }
+
+    if (sort) {
+      qb.orderBy(`user.${sort}`, order || 'ASC');
+    } else {
+      qb.orderBy('user.createdAt', 'DESC');
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    return qb.getManyAndCount();
+  }
+
+  private async findByIds(ids: number[]): Promise<UserEntity[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.userRepository.find({
+      where: { id: In(ids) },
+      relations: ['roles'],
+    });
+  }
+
+  private async updateRefreshToken(userId: number, refreshToken: string | undefined): Promise<void> {
+    await this.userRepository.update(userId, { refreshToken: refreshToken || undefined });
   }
 }

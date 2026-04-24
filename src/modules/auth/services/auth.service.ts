@@ -13,7 +13,6 @@ import { In, LessThan, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { UserService } from '~/modules/user/services/user.service';
-import { UserRepository } from '~/modules/user/repositories/user.repository';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { RefreshTokenEntity } from '../entities/refresh-token.entity';
 import { LoginDto } from '../dto/login.dto';
@@ -54,7 +53,8 @@ export class AuthService {
 
   constructor(
     private readonly userService: UserService,
-    private readonly userRepository: UserRepository,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(RefreshTokenEntity)
     private readonly refreshTokenRepository: Repository<RefreshTokenEntity>,
     private readonly jwtService: JwtService,
@@ -88,7 +88,7 @@ export class AuthService {
     const { account, password: inputPassword } = dto;
 
     // 2. 查找用户
-    const user = await this.userRepository.findForLogin(account);
+    const user = await this.findUserForLogin(account);
 
     if (!user) {
       this.emitLoginFailure(account, ipAddress, userAgent, '用户不存在');
@@ -168,7 +168,7 @@ export class AuthService {
     user.resetLoginAttempts();
 
     // 更新登录信息
-    await this.userRepository.updateLoginInfo(user.id, ipAddress || '');
+    await this.updateLoginInfo(user.id, ipAddress || '');
 
     // 生成令牌
     const sessionId = StringUtil.shortUuid();
@@ -517,5 +517,46 @@ export class AuthService {
 
   private emitLoginFailure(account: string, ip?: string, userAgent?: string, reason?: string) {
     this.logger.warn(`Login failed for ${account}: ${reason || 'unknown reason'}`);
+  }
+
+  private async findUserForLogin(account: string): Promise<UserEntity | null> {
+    let user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect(['user.password', 'user.refreshToken'])
+      .leftJoinAndSelect('user.roles', 'role')
+      .leftJoinAndSelect('role.permissions', 'permission')
+      .where('user.username = :account', { account })
+      .getOne();
+
+    if (!user) {
+      user = await this.userRepository
+        .createQueryBuilder('user')
+        .addSelect(['user.password', 'user.refreshToken'])
+        .leftJoinAndSelect('user.roles', 'role')
+        .leftJoinAndSelect('role.permissions', 'permission')
+        .where('user.email = :account', { account })
+        .getOne();
+    }
+
+    if (!user && /^\d{11}$/.test(account)) {
+      user = await this.userRepository
+        .createQueryBuilder('user')
+        .addSelect(['user.password', 'user.refreshToken'])
+        .leftJoinAndSelect('user.roles', 'role')
+        .leftJoinAndSelect('role.permissions', 'permission')
+        .where('user.phone = :account', { account })
+        .getOne();
+    }
+
+    return user;
+  }
+
+  private async updateLoginInfo(userId: number, ip: string, loginTime: Date = new Date()): Promise<void> {
+    await this.userRepository.update(userId, {
+      lastLoginIp: ip,
+      lastLoginAt: loginTime,
+      loginAttempts: 0,
+      lockedUntil: undefined,
+    });
   }
 }

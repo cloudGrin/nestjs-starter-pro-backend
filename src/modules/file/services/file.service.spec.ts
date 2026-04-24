@@ -7,11 +7,7 @@ import { LoggerService } from '~/shared/logger/logger.service';
 import { FileStorageFactory } from '../storage/storage.factory';
 import { FileEntity, FileStatus, FileStorageType } from '../entities/file.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
-import {
-  createMockRepository,
-  createMockConfigService,
-  createMockLogger,
-} from '~/test-utils';
+import { createMockRepository, createMockConfigService, createMockLogger } from '~/test-utils';
 
 describe('FileService', () => {
   let service: FileService;

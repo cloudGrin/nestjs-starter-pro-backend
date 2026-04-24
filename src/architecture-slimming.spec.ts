@@ -294,7 +294,9 @@ describe('architecture slimming', () => {
     const authController = readSource('modules/auth/controllers/auth.controller.ts');
     const userController = readSource('modules/user/controllers/user.controller.ts');
     const roleController = readSource('modules/role/controllers/role.controller.ts');
-    const permissionController = readSource('modules/permission/controllers/permission.controller.ts');
+    const permissionController = readSource(
+      'modules/permission/controllers/permission.controller.ts',
+    );
     const menuController = readSource('modules/menu/controllers/menu.controller.ts');
 
     for (const controller of [

@@ -189,5 +189,4 @@ export class PermissionsGuard implements CanActivate {
     this.logger.debug(`权限匹配失败 required=${required}`);
     return false;
   }
-
 }

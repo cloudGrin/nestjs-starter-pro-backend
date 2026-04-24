@@ -22,4 +22,11 @@ describe('FileController', () => {
     expect(source).not.toContain('const payload = req.body');
     expect(source).not.toContain('const uploadDto: UploadFileDto');
   });
+
+  it('uses strict file lookup instead of nullable alias + repeated not-found handling', () => {
+    const source = readFileSync(join(__dirname, 'file.controller.ts'), 'utf8');
+
+    expect(source).not.toContain('this.fileService.findOne(');
+    expect(source).not.toContain("BusinessException.notFound('文件', id)");
+  });
 });

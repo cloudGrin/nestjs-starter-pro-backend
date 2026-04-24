@@ -19,7 +19,7 @@ import { FileStorageStrategy } from '../storage/file-storage.interface';
 
 interface UserWithRoles {
   id: number;
-  roles?: Array<{ code: string }>;
+  roles?: Array<{ code: string } | string>;
 }
 
 interface FileQueryOptions {
@@ -167,17 +167,6 @@ export class FileService {
   }
 
   /**
-   * 根据ID查询文件（别名，兼容controller）
-   */
-  async findOne(id: number): Promise<FileEntity | null> {
-    try {
-      return await this.findById(id);
-    } catch (error) {
-      return null;
-    }
-  }
-
-  /**
    * 检查文件下载权限
    * @param file 文件实体
    * @param user 当前用户
@@ -197,7 +186,10 @@ export class FileService {
 
     // 检查是否有管理员权限
     const hasAdminPermission = user.roles?.some(
-      (role) => role.code === 'admin' || role.code === 'super_admin',
+      (role) => {
+        const code = typeof role === 'string' ? role : role.code;
+        return code === 'admin' || code === 'super_admin';
+      },
     );
 
     if (!hasAdminPermission) {

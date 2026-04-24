@@ -37,7 +37,7 @@ import { RequirePermissions, CurrentUser } from '~/core/decorators';
 import { FileEntity } from '../entities/file.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { UserEntity } from '~/modules/user/entities/user.entity';
+import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
 
 @ApiTags('文件管理')
 @ApiBearerAuth()
@@ -98,7 +98,7 @@ export class FileController {
   async upload(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadFileDto,
-    @CurrentUser() user: UserEntity,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     // 检查文件是否存在，避免传递undefined到Service导致500错误
     if (!file) {
@@ -138,11 +138,7 @@ export class FileController {
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   @ApiNotFoundResponse({ description: '请求的资源不存在' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    const file = await this.fileService.findOne(id);
-    if (!file) {
-      throw BusinessException.notFound('文件', id);
-    }
-    return file;
+    return this.fileService.findById(id);
   }
 
   @Delete(':id')
@@ -160,13 +156,10 @@ export class FileController {
   @ApiParam({ name: 'id', description: '文件ID' })
   async download(
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: UserEntity,
+    @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const file = await this.fileService.findOne(id);
-    if (!file) {
-      throw BusinessException.notFound('文件', id);
-    }
+    const file = await this.fileService.findById(id);
 
     // 权限检查：如果文件不是公开的，需要验证访问权限
     this.fileService.checkDownloadPermission(file, user);

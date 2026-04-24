@@ -209,13 +209,18 @@ describe('architecture slimming', () => {
   it('uses DTOs and response mappers for menu path validation and open api user responses', () => {
     const menuController = readSource('modules/menu/controllers/menu.controller.ts');
     const openApiController = readSource('modules/open-api/controllers/open-api.controller.ts');
+    const fileController = readSource('modules/file/controllers/file.controller.ts');
 
     expect(menuController).toContain('ValidateMenuPathDto');
     expect(menuController).not.toContain("@Query('path') path: string");
     expect(menuController).not.toContain("@Query('excludeId') excludeIdStr?: string");
     expect(menuController).not.toContain('parseInt(excludeIdStr, 10)');
     expect(openApiController).toContain('OpenUserListResponseDto');
-    expect(openApiController).not.toContain('result.items.map((user: any) => ({');
+    expect(openApiController).toContain('OpenApiUserService');
+    expect(openApiController).not.toContain("from '~/modules/user/services/user.service'");
+    expect(openApiController).not.toContain('findUsers(');
+    expect(fileController).not.toContain('this.fileService.findOne(');
+    expect(fileController).not.toContain("BusinessException.notFound('文件', id)");
   });
 
   it('removes BaseService inheritance from business services', () => {

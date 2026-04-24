@@ -32,6 +32,8 @@ interface NotificationQueryOptions {
   endDate?: string;
 }
 
+const NOTIFICATION_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'readAt', 'priority']);
+
 @Injectable()
 export class NotificationService {
   constructor(
@@ -241,8 +243,7 @@ export class NotificationService {
       ),
     );
 
-    const recipients =
-      recipientIds.length > 0 ? await this.findUsersByIds(recipientIds) : [];
+    const recipients = recipientIds.length > 0 ? await this.findUsersByIds(recipientIds) : [];
     const recipientMap = new Map(recipients.map((recipient) => [recipient.id, recipient]));
 
     for (const notification of notifications) {
@@ -390,7 +391,7 @@ export class NotificationService {
       });
     }
 
-    if (pagination.sort) {
+    if (pagination.sort && NOTIFICATION_SORT_FIELDS.has(pagination.sort)) {
       qb.orderBy(`notification.${pagination.sort}`, pagination.order || 'DESC');
     }
 

@@ -50,10 +50,10 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('未登录或登录已过期');
     }
 
-    const allowAuthenticated = this.reflector.getAllAndOverride<boolean>(
-      ALLOW_AUTHENTICATED_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const allowAuthenticated = this.reflector.getAllAndOverride<boolean>(ALLOW_AUTHENTICATED_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (allowAuthenticated) {
       this.logger.debug(
@@ -74,9 +74,7 @@ export class PermissionsGuard implements CanActivate {
 
     // 默认拒绝：非公开接口必须显式声明权限，避免新增接口遗漏鉴权。
     if (!requiredPermissions || requiredPermissions.length === 0) {
-      this.logger.warn(
-        `接口未声明权限，已拒绝访问 method=${request.method}, url=${request.url}`,
-      );
+      this.logger.warn(`接口未声明权限，已拒绝访问 method=${request.method}, url=${request.url}`);
       throw new ForbiddenException('接口未配置访问权限');
     }
 

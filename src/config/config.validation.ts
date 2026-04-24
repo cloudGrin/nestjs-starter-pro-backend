@@ -4,6 +4,7 @@
  */
 
 import * as Joi from 'joi';
+import { DEFAULT_FILE_MAX_SIZE } from './constants';
 
 /**
  * 检查是否为不安全的默认密钥
@@ -178,7 +179,7 @@ export const configValidationSchema = Joi.object({
 
   FILE_BASE_URL: Joi.string().default('/uploads'),
 
-  FILE_MAX_SIZE: Joi.number().min(1024).default(52428800), // 50MB
+  FILE_MAX_SIZE: Joi.number().min(1024).default(DEFAULT_FILE_MAX_SIZE), // 50MB
 
   FILE_ALLOWED_TYPES: Joi.string().default(
     '.jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip',

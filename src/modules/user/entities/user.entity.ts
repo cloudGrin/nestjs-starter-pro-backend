@@ -164,16 +164,6 @@ export class UserEntity extends SoftDeleteBaseEntity {
   twoFactorSecret?: string;
 
   @Column({
-    type: 'varchar',
-    length: 500,
-    nullable: true,
-    select: false,
-    comment: '刷新Token',
-  })
-  @Exclude()
-  refreshToken?: string;
-
-  @Column({
     type: 'json',
     nullable: true,
     comment: '用户设置',

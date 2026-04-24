@@ -1,13 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import {
-  ConflictException,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
+import { RefreshTokenEntity } from '~/modules/auth/entities/refresh-token.entity';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import {
@@ -38,12 +35,14 @@ describe('UserService', () => {
   let service: UserService;
   let userRepository: any;
   let roleRepository: jest.Mocked<any>;
+  let refreshTokenRepository: jest.Mocked<any>;
   let cache: jest.Mocked<CacheService>;
   let logger: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
     const mockUserRepository = createMockRepository<UserEntity>();
     const mockRoleRepository = createMockRepository<RoleEntity>();
+    const mockRefreshTokenRepository = createMockRepository<RefreshTokenEntity>();
     const mockCache = createMockCacheService();
     const mockLogger = createMockLogger();
 
@@ -59,6 +58,10 @@ describe('UserService', () => {
           useValue: mockRoleRepository,
         },
         {
+          provide: getRepositoryToken(RefreshTokenEntity),
+          useValue: mockRefreshTokenRepository,
+        },
+        {
           provide: LoggerService,
           useValue: mockLogger,
         },
@@ -72,6 +75,7 @@ describe('UserService', () => {
     service = module.get<UserService>(UserService);
     userRepository = module.get(getRepositoryToken(UserEntity));
     roleRepository = module.get(getRepositoryToken(RoleEntity));
+    refreshTokenRepository = module.get(getRepositoryToken(RefreshTokenEntity));
     cache = module.get(CacheService);
     logger = module.get(LoggerService);
   });
@@ -183,6 +187,18 @@ describe('UserService', () => {
       expect(result.items).toEqual(mockUsers);
       expect(result.meta.totalItems).toBe(2);
     });
+
+    it('ignores unsupported sort fields and falls back to createdAt ordering', async () => {
+      const qb = createUserQueryBuilderMock();
+
+      userRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+
+      await service.findUsers({ page: 1, limit: 10, sort: 'id;DROP TABLE users' } as any);
+
+      expect(qb.orderBy).toHaveBeenCalledWith('user.createdAt', 'DESC');
+      expect(qb.orderBy).not.toHaveBeenCalledWith('user.id;DROP TABLE users', expect.anything());
+    });
   });
 
   describe('findUserById', () => {
@@ -204,12 +220,12 @@ describe('UserService', () => {
   });
 
   describe('changePassword', () => {
-    it('应该成功修改密码并清除refresh token', async () => {
+    it('应该成功修改密码并撤销refresh token表中的有效令牌', async () => {
       const user = UserMockFactory.create({ id: 1 });
       user.validatePassword = jest.fn().mockResolvedValue(true);
       userRepository.findOne.mockResolvedValue(user);
       userRepository.save.mockResolvedValue(user);
-      userRepository.update.mockResolvedValue(undefined);
+      refreshTokenRepository.update.mockResolvedValue(undefined);
 
       await service.changePassword(1, {
         oldPassword: 'old',
@@ -218,7 +234,10 @@ describe('UserService', () => {
       });
 
       expect(userRepository.save).toHaveBeenCalledWith(user);
-      expect(userRepository.update).toHaveBeenCalledWith(1, { refreshToken: undefined });
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 1, isRevoked: false },
+        { isRevoked: true },
+      );
     });
 
     it('旧密码错误时抛出BadRequestException', async () => {
@@ -241,12 +260,15 @@ describe('UserService', () => {
       const user = UserMockFactory.create({ id: 1 });
       userRepository.findOne.mockResolvedValue(user);
       userRepository.save.mockResolvedValue(user);
-      userRepository.update.mockResolvedValue(undefined);
+      refreshTokenRepository.update.mockResolvedValue(undefined);
 
       await service.resetPassword(1, { password: 'Password123!' });
 
       expect(userRepository.save).toHaveBeenCalledWith(user);
-      expect(userRepository.update).toHaveBeenCalledWith(1, { refreshToken: undefined });
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 1, isRevoked: false },
+        { isRevoked: true },
+      );
     });
   });
 
@@ -261,16 +283,19 @@ describe('UserService', () => {
       expect(result.status).toBe(UserStatus.ACTIVE);
     });
 
-    it('应该禁用用户并清除refresh token', async () => {
+    it('应该禁用用户并撤销refresh token表中的有效令牌', async () => {
       const user = UserMockFactory.create({ id: 1, status: UserStatus.ACTIVE });
       userRepository.findOne.mockResolvedValue(user);
       userRepository.save.mockResolvedValue({ ...user, status: UserStatus.DISABLED });
-      userRepository.update.mockResolvedValue(undefined);
+      refreshTokenRepository.update.mockResolvedValue(undefined);
 
       const result = await service.disableUser(1);
 
       expect(result.status).toBe(UserStatus.DISABLED);
-      expect(userRepository.update).toHaveBeenCalledWith(1, { refreshToken: undefined });
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 1, isRevoked: false },
+        { isRevoked: true },
+      );
     });
   });
 
@@ -300,7 +325,10 @@ describe('UserService', () => {
       roleRepository.find.mockResolvedValue(roles);
       userRepository.save.mockResolvedValue({ ...user, roles });
 
-      const result = await service.assignRoles(1, roles.map((role) => role.id));
+      const result = await service.assignRoles(
+        1,
+        roles.map((role) => role.id),
+      );
 
       expect(result.roles).toEqual(roles);
       expect(userRepository.save).toHaveBeenCalled();

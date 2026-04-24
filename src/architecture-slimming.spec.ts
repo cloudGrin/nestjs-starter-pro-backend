@@ -34,8 +34,8 @@ describe('architecture slimming', () => {
     const service = readSource('modules/file/services/file.service.ts');
     const configuration = readSource('config/configuration.ts');
 
-    expect(controller).not.toContain("upload/chunk");
-    expect(controller).not.toContain("signed-url");
+    expect(controller).not.toContain('upload/chunk');
+    expect(controller).not.toContain('signed-url');
     expect(service).not.toContain('uploadChunk');
     expect(service).not.toContain('generateDownloadUrl');
     expect(service).not.toContain('processImageIfNeeded');
@@ -50,7 +50,13 @@ describe('architecture slimming', () => {
     const module = readSource('modules/api-auth/api-auth.module.ts');
     const packageJson = readProject('package.json');
 
-    for (const token of ['callbackUrl', 'webhookUrl', 'ipWhitelist', 'rateLimitPerHour', 'rateLimitPerDay']) {
+    for (const token of [
+      'callbackUrl',
+      'webhookUrl',
+      'ipWhitelist',
+      'rateLimitPerHour',
+      'rateLimitPerDay',
+    ]) {
       expect(appEntity).not.toContain(token);
       expect(dto).not.toContain(token);
     }
@@ -70,8 +76,8 @@ describe('architecture slimming', () => {
     const roleController = readSource('modules/role/controllers/role.controller.ts');
     const roleService = readSource('modules/role/services/role.service.ts');
 
-    expect(openApiController).not.toContain("statistics");
-    expect(apiAppController).not.toContain("statistics");
+    expect(openApiController).not.toContain('statistics');
+    expect(apiAppController).not.toContain('statistics');
     expect(roleController).not.toContain('effective-permissions');
     expect(roleController).not.toContain('check-exclusive');
     expect(roleService).not.toContain('getEffectivePermissions');
@@ -117,6 +123,44 @@ describe('architecture slimming', () => {
     expect(existsInSource('core/base/crud.controller.ts')).toBe(false);
   });
 
+  it('removes stale register references from e2e tests and helpers', () => {
+    const authE2e = readProject('test/auth.e2e-spec.ts');
+    const testHelper = readProject('test/test-helper.ts');
+
+    expect(authE2e).not.toContain('/auth/register');
+    expect(authE2e).not.toContain('POST /auth/register');
+    expect(testHelper).not.toContain('/auth/register');
+    expect(testHelper).not.toContain('registerTestUser');
+    expect(testHelper).not.toContain('registerSuperAdmin');
+  });
+
+  it('removes unused open api order placeholder DTOs', () => {
+    const apiAuthQuickstart = readProject('API_AUTH_QUICKSTART.md');
+
+    expect(existsInSource('modules/open-api/dto/create-order.dto.ts')).toBe(false);
+    expect(existsInSource('modules/open-api/dto/query-order.dto.ts')).toBe(false);
+    expect(apiAuthQuickstart).not.toContain('/open/orders');
+    expect(apiAuthQuickstart).not.toContain('/open/statistics');
+    expect(apiAuthQuickstart).not.toContain('/webhooks/subscribe');
+  });
+
+  it('removes unused custom validation pipe in favor of Nest built-in ValidationPipe', () => {
+    const main = readSource('main.ts');
+
+    expect(main).toContain("from '@nestjs/common'");
+    expect(main).toContain('new ValidationPipe({');
+    expect(existsInSource('core/pipes/validation.pipe.ts')).toBe(false);
+  });
+
+  it('removes tracked backup files and starter package metadata', () => {
+    const packageJson = readProject('package.json');
+
+    expect(existsSync(join(projectRoot, 'test/notification.e2e-spec.ts.backup'))).toBe(false);
+    expect(packageJson).not.toContain('nestjs-starter-pro');
+    expect(packageJson).not.toContain('YOUR_USERNAME');
+    expect(packageJson).toContain('"private": true');
+  });
+
   it('uses DTO validation for open api user query instead of runtime-only interfaces', () => {
     const openApiController = readSource('modules/open-api/controllers/open-api.controller.ts');
     const dto = readSource('modules/open-api/dto/open-user-list-query.dto.ts');
@@ -131,10 +175,14 @@ describe('architecture slimming', () => {
     const authController = readSource('modules/auth/controllers/auth.controller.ts');
     const userController = readSource('modules/user/controllers/user.controller.ts');
     const roleController = readSource('modules/role/controllers/role.controller.ts');
-    const permissionController = readSource('modules/permission/controllers/permission.controller.ts');
+    const permissionController = readSource(
+      'modules/permission/controllers/permission.controller.ts',
+    );
     const menuController = readSource('modules/menu/controllers/menu.controller.ts');
     const fileController = readSource('modules/file/controllers/file.controller.ts');
-    const notificationController = readSource('modules/notification/controllers/notification.controller.ts');
+    const notificationController = readSource(
+      'modules/notification/controllers/notification.controller.ts',
+    );
     expect(existsInSource('core/decorators/api-response.decorator.ts')).toBe(false);
     expect(existsInSource('core/decorators/api-docs.decorator.ts')).toBe(false);
     expect(existsInSource('core/decorators/api-example.decorator.ts')).toBe(false);
@@ -225,7 +273,9 @@ describe('architecture slimming', () => {
 
   it('keeps api app and notification command responses in explicit response DTOs', () => {
     const apiAppController = readSource('modules/api-auth/controllers/api-app.controller.ts');
-    const notificationController = readSource('modules/notification/controllers/notification.controller.ts');
+    const notificationController = readSource(
+      'modules/notification/controllers/notification.controller.ts',
+    );
 
     expect(apiAppController).toContain('ApiAppDeleteResponseDto');
     expect(apiAppController).toContain('ApiKeyCreatedResponseDto');
@@ -325,7 +375,7 @@ describe('architecture slimming', () => {
     expect(main).toContain("configService.get<string>('app.apiVersion'");
     expect(main).toContain("configService.get<boolean>('swagger.enable'");
     expect(main).toContain("configService.get<string>('swagger.title'");
-    expect(main).toContain("configService.get<string>('swagger.description'");
+    expect(main).toMatch(/configService\.get<string>\(\s*'swagger\.description'/);
     expect(main).toContain("configService.get<string>('swagger.version'");
     expect(main).toContain("configService.get<string>('swagger.path'");
     expect(main).toContain("configService.get<number>('app.port'");

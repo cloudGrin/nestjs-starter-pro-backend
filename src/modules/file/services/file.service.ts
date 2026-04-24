@@ -11,6 +11,7 @@ import { CacheService } from '~/shared/cache/cache.service';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileUtil } from '~/common/utils';
 import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
+import { DEFAULT_FILE_MAX_SIZE } from '~/config/constants';
 import { FileEntity, FileStatus, FileStorageType } from '../entities/file.entity';
 import { UploadFileDto } from '../dto/upload-file.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
@@ -30,6 +31,8 @@ interface FileQueryOptions {
   module?: string;
   isPublic?: boolean;
 }
+
+const FILE_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'originalName', 'filename', 'size']);
 
 @Injectable()
 export class FileService {
@@ -53,7 +56,7 @@ export class FileService {
       FileStorageType.LOCAL,
     );
     this.uploadRoot = this.resolvePath(this.configService.get<string>('file.uploadDir', 'uploads'));
-    this.maxFileSize = this.getNumber('file.maxSize', 50 * 1024 * 1024);
+    this.maxFileSize = this.getNumber('file.maxSize', DEFAULT_FILE_MAX_SIZE);
     this.allowedTypes = this.normalizeAllowedTypes(
       this.configService.get<string | string[]>('file.allowedTypes', [
         '.jpg',
@@ -112,22 +115,22 @@ export class FileService {
 
     const entity = await this.fileRepository.save(
       this.fileRepository.create({
-      originalName: file.originalname,
-      filename: stored.filename,
-      path: stored.path,
-      url: stored.url,
-      mimeType: file.mimetype,
-      size: stored.size,
-      category,
-      storage: this.storageType,
-      hash,
-      module: options.module,
-      tags: options.tags,
-      isPublic: options.isPublic ?? false,
-      remark: options.remark,
-      status: FileStatus.AVAILABLE,
-      metadata: stored.metadata,
-      uploaderId,
+        originalName: file.originalname,
+        filename: stored.filename,
+        path: stored.path,
+        url: stored.url,
+        mimeType: file.mimetype,
+        size: stored.size,
+        category,
+        storage: this.storageType,
+        hash,
+        module: options.module,
+        tags: options.tags,
+        isPublic: options.isPublic ?? false,
+        remark: options.remark,
+        status: FileStatus.AVAILABLE,
+        metadata: stored.metadata,
+        uploaderId,
       }),
     );
 
@@ -185,12 +188,10 @@ export class FileService {
     }
 
     // 检查是否有管理员权限
-    const hasAdminPermission = user.roles?.some(
-      (role) => {
-        const code = typeof role === 'string' ? role : role.code;
-        return code === 'admin' || code === 'super_admin';
-      },
-    );
+    const hasAdminPermission = user.roles?.some((role) => {
+      const code = typeof role === 'string' ? role : role.code;
+      return code === 'admin' || code === 'super_admin';
+    });
 
     if (!hasAdminPermission) {
       throw BusinessException.forbidden('无权下载此文件');
@@ -409,7 +410,9 @@ export class FileService {
     }
 
     qb.orderBy(
-      pagination.sort ? `file.${pagination.sort}` : 'file.createdAt',
+      pagination.sort && FILE_SORT_FIELDS.has(pagination.sort)
+        ? `file.${pagination.sort}`
+        : 'file.createdAt',
       pagination.order || 'DESC',
     );
 

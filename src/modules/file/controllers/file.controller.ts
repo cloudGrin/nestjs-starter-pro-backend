@@ -38,6 +38,7 @@ import { FileEntity } from '../entities/file.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
+import { DEFAULT_FILE_MAX_SIZE } from '~/config/constants';
 
 @ApiTags('文件管理')
 @ApiBearerAuth()
@@ -50,7 +51,7 @@ export class FileController {
   @RequirePermissions('file:upload')
   @ApiOperation({
     summary: '上传文件（直传）',
-    description: '上传单个文件，默认最大文件大小为100MB。支持常见文件格式。',
+    description: '上传单个文件，默认最大文件大小为50MB。支持常见文件格式。',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -60,7 +61,7 @@ export class FileController {
         file: {
           type: 'string',
           format: 'binary',
-          description: '要上传的文件（最大100MB）',
+          description: '要上传的文件（默认最大50MB）',
         },
         module: {
           type: 'string',
@@ -93,6 +94,9 @@ export class FileController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
+      limits: {
+        fileSize: DEFAULT_FILE_MAX_SIZE,
+      },
     }),
   )
   async upload(

@@ -43,5 +43,4 @@ export interface FileStorageStrategy {
    * 获取真实路径（仅本地存储需要）
    */
   toAbsolutePath?(path: string): string;
-
 }

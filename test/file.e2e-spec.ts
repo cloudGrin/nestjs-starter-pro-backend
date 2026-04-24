@@ -3,8 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import {
   createTestApp,
-  registerSuperAdmin,
-  registerTestUser,
+  createSuperAdminCredentials,
+  createTestUserCredentials,
   authenticatedRequest,
   TestCredentials,
   generateTestUsername,
@@ -37,7 +37,7 @@ describe('文件管理模块 (e2e)', () => {
     app = await createTestApp();
 
     // 创建超级管理员用户（拥有所有权限）
-    credentials = await registerSuperAdmin(app, {
+    credentials = await createSuperAdminCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'Admin@123456',

@@ -5,8 +5,8 @@ import { AppModule } from '~/app.module';
 import { ValidationPipe } from '@nestjs/common';
 import {
   createTestApp,
-  registerSuperAdmin,
-  registerTestUser,
+  createSuperAdminCredentials,
+  createTestUserCredentials,
   generateTestUsername,
   generateTestEmail,
   authenticatedRequest,
@@ -30,7 +30,7 @@ describe('Role Module (E2E)', () => {
     dataSource = app.get(DataSource);
 
     // 创建超级管理员(用于测试管理功能)
-    adminCredentials = await registerSuperAdmin(app, {
+    adminCredentials = await createSuperAdminCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'Admin@123456',
@@ -38,7 +38,7 @@ describe('Role Module (E2E)', () => {
     });
 
     // 创建普通用户(用于测试权限边界)
-    normalUserCredentials = await registerTestUser(app, {
+    normalUserCredentials = await createTestUserCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'User@123456',

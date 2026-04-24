@@ -10,7 +10,14 @@ import {
   Query,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery, ApiOkResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+  ApiOkResponse,
+} from '@nestjs/swagger';
 import { AllowAuthenticated, RequirePermissions } from '~/core/decorators';
 import { MenuService } from '../services/menu.service';
 import {

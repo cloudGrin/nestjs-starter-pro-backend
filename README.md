@@ -152,8 +152,8 @@ See [docs/ADR.md](docs/ADR.md) for detailed architecture decisions.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/nestjs-starter-pro.git
-cd nestjs-starter-pro
+git clone <your-repo-url>
+cd home-admin
 
 # Install dependencies
 npm install
@@ -183,7 +183,7 @@ After the schema is initialized and the app starts against an empty `users` tabl
 ## 📁 Project Structure
 
 ```
-nestjs-starter-pro/
+home-admin/
 ├── src/
 │   ├── common/                 # Shared utilities
 │   │   ├── constants/          # Constants
@@ -235,7 +235,6 @@ nestjs-starter-pro/
 
 ```typescript
 @Controller('users')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UserController {
   // Single permission required
   @Post()
@@ -306,8 +305,8 @@ npm run test:cov
 ### Docker
 
 ```bash
-docker build -t nestjs-starter-pro .
-docker run -d -p 3000:3000 --name app nestjs-starter-pro
+docker build -t home-admin .
+docker run -d -p 3000:3000 --name home-admin home-admin
 ```
 
 ### PM2
@@ -492,8 +491,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ```bash
 # 克隆项目
-git clone https://github.com/yourusername/nestjs-starter-pro.git
-cd nestjs-starter-pro
+git clone <your-repo-url>
+cd home-admin
 
 # 安装依赖
 npm install

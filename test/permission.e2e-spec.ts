@@ -5,8 +5,8 @@ import { AppModule } from '~/app.module';
 import { ValidationPipe } from '@nestjs/common';
 import {
   createTestApp,
-  registerSuperAdmin,
-  registerTestUser,
+  createSuperAdminCredentials,
+  createTestUserCredentials,
   generateTestUsername,
   generateTestEmail,
   authenticatedRequest,
@@ -30,7 +30,7 @@ describe('Permission Module (E2E)', () => {
     dataSource = app.get(DataSource);
 
     // 创建超级管理员
-    adminCredentials = await registerSuperAdmin(app, {
+    adminCredentials = await createSuperAdminCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'Admin@123456',
@@ -38,7 +38,7 @@ describe('Permission Module (E2E)', () => {
     });
 
     // 创建普通用户
-    normalUserCredentials = await registerTestUser(app, {
+    normalUserCredentials = await createTestUserCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'User@123456',
@@ -473,7 +473,7 @@ describe('Permission Module (E2E)', () => {
       // 4. 创建用户
       const username = generateTestUsername();
       const email = generateTestEmail();
-      limitedUserCredentials = await registerTestUser(app, {
+      limitedUserCredentials = await createTestUserCredentials(app, {
         username,
         email,
         password: 'Limited@123456',
@@ -531,7 +531,7 @@ describe('Permission Module (E2E)', () => {
 
     it('有 user:read 权限但缺少 user:delete 权限的用户应该被拒绝删除操作', async () => {
       // 先创建一个测试用户用于删除
-      const targetUser = await registerTestUser(app, {
+      const targetUser = await createTestUserCredentials(app, {
         username: generateTestUsername(),
         email: generateTestEmail(),
         password: 'Target@123456',

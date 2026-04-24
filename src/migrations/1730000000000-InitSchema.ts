@@ -27,7 +27,6 @@ export class InitSchema1730000000000 implements MigrationInterface {
         isPhoneVerified tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否验证手机',
         isTwoFactorEnabled tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否启用双因素认证',
         twoFactorSecret varchar(100) NULL COMMENT '双因素认证密钥',
-        refreshToken varchar(500) NULL COMMENT '刷新Token',
         settings json NULL COMMENT '用户设置',
         extra json NULL COMMENT '扩展信息',
         createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -280,7 +279,6 @@ export class InitSchema1730000000000 implements MigrationInterface {
         CONSTRAINT FK_api_keys_app FOREIGN KEY (appId) REFERENCES api_apps(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

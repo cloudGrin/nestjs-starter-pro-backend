@@ -5,7 +5,7 @@
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import {
   createTestApp,
-  registerSuperAdmin,
+  createSuperAdminCredentials,
   authenticatedRequest,
   TestCredentials,
   generateTestUsername,
@@ -22,7 +22,7 @@ describe('角色-菜单关联 (e2e)', () => {
     app = await createTestApp();
 
     // 创建超级管理员并登录
-    credentials = await registerSuperAdmin(app, {
+    credentials = await createSuperAdminCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'Test@123456',

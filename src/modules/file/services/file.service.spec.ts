@@ -138,6 +138,22 @@ describe('FileService', () => {
       expect(result.meta.currentPage).toBe(1);
       expect(repository.createQueryBuilder).toHaveBeenCalledWith('file');
     });
+
+    it('ignores unsupported sort fields and falls back to createdAt ordering', async () => {
+      const qb = {
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      };
+      repository.createQueryBuilder.mockReturnValue(qb as any);
+
+      await service.findFiles({ page: 1, limit: 10, sort: 'id;DROP TABLE files' } as any);
+
+      expect(qb.orderBy).toHaveBeenCalledWith('file.createdAt', 'DESC');
+      expect(qb.orderBy).not.toHaveBeenCalledWith('file.id;DROP TABLE files', expect.anything());
+    });
   });
 
   describe('findById', () => {

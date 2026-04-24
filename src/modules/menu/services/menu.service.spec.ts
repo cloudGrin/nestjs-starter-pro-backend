@@ -216,9 +216,11 @@ describe('MenuService', () => {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([
-          { code: 'editor', menus: [createMockMenu({ id: 1, path: '/user', isVisible: true })] },
-        ]),
+        getMany: jest
+          .fn()
+          .mockResolvedValue([
+            { code: 'editor', menus: [createMockMenu({ id: 1, path: '/user', isVisible: true })] },
+          ]),
       };
       roleRepository.createQueryBuilder.mockReturnValue(qb as any);
 

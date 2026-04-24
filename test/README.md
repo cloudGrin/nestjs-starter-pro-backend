@@ -76,7 +76,7 @@ test/
 ```typescript
 import {
   createTestApp,
-  registerTestUser,
+  createTestUserCredentials,
   loginTestUser,
   generateTestUsername,
   generateTestEmail,
@@ -102,7 +102,7 @@ describe('我的功能 (e2e)', () => {
       password: 'Test@123456',
     };
 
-    const { accessToken } = await registerTestUser(app, userData);
+    const { accessToken } = await createTestUserCredentials(app, userData);
 
     // 发送认证请求
     const response = await authenticatedRequest(app, accessToken)

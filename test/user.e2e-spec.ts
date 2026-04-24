@@ -6,8 +6,8 @@ import { INestApplication, HttpStatus } from '@nestjs/common';
 import request from 'supertest';
 import {
   createTestApp,
-  registerSuperAdmin,
-  registerTestUser,
+  createSuperAdminCredentials,
+  createTestUserCredentials,
   authenticatedRequest,
   TestCredentials,
   generateTestUsername,
@@ -24,14 +24,14 @@ describe('用户模块 (e2e)', () => {
     app = await createTestApp();
 
     // 创建超级管理员用户（拥有所有权限）
-    adminCredentials = await registerSuperAdmin(app, {
+    adminCredentials = await createSuperAdminCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'Admin@123456',
     });
 
     // 创建普通用户（用于权限测试）
-    normalUserCredentials = await registerTestUser(app, {
+    normalUserCredentials = await createTestUserCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'User@123456',
@@ -383,7 +383,7 @@ describe('用户模块 (e2e)', () => {
   describe('PUT /users/password', () => {
     it('任何已认证用户应该能够修改自己的密码', async () => {
       // 创建一个临时用户测试密码修改
-      const tempUser = await registerTestUser(app, {
+      const tempUser = await createTestUserCredentials(app, {
         username: generateTestUsername(),
         email: generateTestEmail(),
         password: 'TempPassword@123',

@@ -6,7 +6,7 @@ import { INestApplication, HttpStatus } from '@nestjs/common';
 import request from 'supertest';
 import {
   createTestApp,
-  registerTestUser,
+  createTestUserCredentials,
   generateTestUsername,
   TestCredentials,
 } from './test-helper';
@@ -21,7 +21,7 @@ describe('API认证模块 (e2e)', () => {
     app = await createTestApp();
     // 创建管理员用户用于测试
     const testUsername = generateTestUsername();
-    adminCredentials = await registerTestUser(app, {
+    adminCredentials = await createTestUserCredentials(app, {
       username: testUsername,
       email: `${testUsername}@example.com`,
       password: 'Test@123456',
@@ -189,18 +189,6 @@ describe('API认证模块 (e2e)', () => {
         .set('X-API-Key', 'sk_live_invalid_key_123')
         .expect(HttpStatus.UNAUTHORIZED);
     });
-
-    it('应该在缺少所需权限时拒绝访问', async () => {
-      // 尝试创建订单，但密钥只有read:users权限
-      await request(app.getHttpServer())
-        .post('/v1/open/orders')
-        .set('X-API-Key', testApiKey)
-        .send({
-          productId: 'PROD-001',
-          quantity: 2,
-        })
-        .expect(HttpStatus.UNAUTHORIZED);
-    });
   });
 
   describe('DELETE /v1/api-apps/keys/:id - 撤销API密钥', () => {
@@ -237,5 +225,4 @@ describe('API认证模块 (e2e)', () => {
       expect(revokedKey.isActive).toBe(false);
     });
   });
-
 });

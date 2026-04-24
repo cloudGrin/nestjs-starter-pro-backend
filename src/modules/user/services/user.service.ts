@@ -10,6 +10,7 @@ import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '~/common/constants/cache.constants';
 import { PaginationResult } from '~/common/types/pagination.types';
+import { RefreshTokenEntity } from '~/modules/auth/entities/refresh-token.entity';
 import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { CreateUserDto } from '../dto/create-user.dto';
@@ -18,6 +19,8 @@ import { QueryUserDto } from '../dto/query-user.dto';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto';
 import { UserStatus } from '~/common/enums/user.enum';
 
+const USER_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'username', 'email', 'lastLoginAt']);
+
 @Injectable()
 export class UserService {
   constructor(
@@ -25,6 +28,8 @@ export class UserService {
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
+    @InjectRepository(RefreshTokenEntity)
+    private readonly refreshTokenRepository: Repository<RefreshTokenEntity>,
     private readonly logger: LoggerService,
     private readonly cache: CacheService,
   ) {
@@ -263,7 +268,7 @@ export class UserService {
     this.logger.debug(`用户密码更新成功 userId=${userId}`);
 
     // 清除用户的刷新Token（强制重新登录）
-    await this.updateRefreshToken(userId, undefined);
+    await this.revokeRefreshTokens(userId);
     this.logger.debug(`清除用户刷新Token userId=${userId}`);
 
     // 清除缓存
@@ -289,7 +294,7 @@ export class UserService {
     this.logger.debug(`用户密码重置保存成功 userId=${userId}`);
 
     // 清除用户的刷新Token（强制重新登录）
-    await this.updateRefreshToken(userId, undefined);
+    await this.revokeRefreshTokens(userId);
     this.logger.debug(`重置密码后清除刷新Token userId=${userId}`);
 
     // 清除缓存
@@ -337,7 +342,7 @@ export class UserService {
     this.logger.debug(`用户禁用保存成功 id=${id}`);
 
     // 清除用户的刷新Token（强制下线）
-    await this.updateRefreshToken(id, undefined);
+    await this.revokeRefreshTokens(id);
     this.logger.debug(`禁用用户后清除刷新Token userId=${id}`);
 
     // 清除缓存
@@ -592,16 +597,7 @@ export class UserService {
   private async findWithPassword(id: number): Promise<UserEntity | null> {
     return this.userRepository.findOne({
       where: { id },
-      select: [
-        'id',
-        'username',
-        'email',
-        'password',
-        'status',
-        'loginAttempts',
-        'lockedUntil',
-        'refreshToken',
-      ],
+      select: ['id', 'username', 'email', 'password', 'status', 'loginAttempts', 'lockedUntil'],
       relations: ['roles', 'roles.permissions'],
     });
   }
@@ -653,7 +649,7 @@ export class UserService {
       qb.andWhere('role.id = :roleId', { roleId });
     }
 
-    if (sort) {
+    if (sort && USER_SORT_FIELDS.has(sort)) {
       qb.orderBy(`user.${sort}`, order || 'ASC');
     } else {
       qb.orderBy('user.createdAt', 'DESC');
@@ -675,7 +671,7 @@ export class UserService {
     });
   }
 
-  private async updateRefreshToken(userId: number, refreshToken: string | undefined): Promise<void> {
-    await this.userRepository.update(userId, { refreshToken: refreshToken || undefined });
+  private async revokeRefreshTokens(userId: number): Promise<void> {
+    await this.refreshTokenRepository.update({ userId, isRevoked: false }, { isRevoked: true });
   }
 }

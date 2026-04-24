@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsEnum, IsEmail } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsEnum, IsEmail, IsInt, Min } from 'class-validator';
 import { PaginationDto } from '~/common/dto/pagination.dto';
 import { UserStatus, UserGender } from '~/common/enums/user.enum';
 
@@ -53,5 +54,8 @@ export class QueryUserDto extends PaginationDto {
     type: Number,
   })
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   roleId?: number;
 }

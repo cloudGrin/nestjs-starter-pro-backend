@@ -6,7 +6,7 @@ import { INestApplication, HttpStatus } from '@nestjs/common';
 import request from 'supertest';
 import {
   createTestApp,
-  registerSuperAdmin,
+  createSuperAdminCredentials,
   authenticatedRequest,
   TestCredentials,
   generateTestUsername,
@@ -28,7 +28,7 @@ describe('菜单模块 (e2e)', () => {
       password: 'Test@123456',
     };
 
-    credentials = await registerSuperAdmin(app, userData);
+    credentials = await createSuperAdminCredentials(app, userData);
   });
 
   afterAll(async () => {

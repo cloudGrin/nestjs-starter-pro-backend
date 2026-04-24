@@ -82,12 +82,14 @@ describe('OpenApiController', () => {
   });
 
   it('uses a dedicated response dto instead of inline response shaping', () => {
-    const source = require('fs').readFileSync(require('path').join(__dirname, 'open-api.controller.ts'), 'utf8');
+    const source = require('fs').readFileSync(
+      require('path').join(__dirname, 'open-api.controller.ts'),
+      'utf8',
+    );
 
     expect(source).toContain('OpenUserListResponseDto');
     expect(source).toContain('OpenApiUserService');
     expect(source).not.toContain("from '~/modules/user/services/user.service'");
     expect(source).not.toContain('findUsers(');
   });
-
 });

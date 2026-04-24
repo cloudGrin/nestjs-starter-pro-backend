@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsOptional, IsPositive, Min, IsIn, IsString } from 'class-validator';
+import { IsOptional, IsPositive, Min, IsIn, IsString, Max } from 'class-validator';
 
 export class PaginationDto {
   @ApiProperty({
@@ -23,6 +23,7 @@ export class PaginationDto {
   })
   @Type(() => Number)
   @Min(1)
+  @Max(100)
   @IsOptional()
   limit?: number = 10;
 

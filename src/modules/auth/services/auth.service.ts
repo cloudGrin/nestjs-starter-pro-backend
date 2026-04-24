@@ -177,7 +177,7 @@ export class AuthService {
     this.logger.log(`User ${user.username} logged in from ${ipAddress}`);
 
     // 移除敏感信息
-    const { password, refreshToken, ...userWithoutSensitiveData } = user;
+    const { password, ...userWithoutSensitiveData } = user;
 
     // ✅ 添加超级管理员标识（与 JWT Strategy 逻辑一致）
     const roleCodes = user.roles?.map((role) => role.code) || [];
@@ -290,10 +290,7 @@ export class AuthService {
         await this.refreshTokenRepository.update({ token: refreshToken }, { isRevoked: true });
       } else {
         // 撤销该用户的所有刷新令牌
-        await this.refreshTokenRepository.update(
-          { userId, isRevoked: false },
-          { isRevoked: true },
-        );
+        await this.refreshTokenRepository.update({ userId, isRevoked: false }, { isRevoked: true });
       }
 
       // 清除缓存
@@ -522,7 +519,7 @@ export class AuthService {
   private async findUserForLogin(account: string): Promise<UserEntity | null> {
     let user = await this.userRepository
       .createQueryBuilder('user')
-      .addSelect(['user.password', 'user.refreshToken'])
+      .addSelect(['user.password'])
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
       .where('user.username = :account', { account })
@@ -531,7 +528,7 @@ export class AuthService {
     if (!user) {
       user = await this.userRepository
         .createQueryBuilder('user')
-        .addSelect(['user.password', 'user.refreshToken'])
+        .addSelect(['user.password'])
         .leftJoinAndSelect('user.roles', 'role')
         .leftJoinAndSelect('role.permissions', 'permission')
         .where('user.email = :account', { account })
@@ -541,7 +538,7 @@ export class AuthService {
     if (!user && /^\d{11}$/.test(account)) {
       user = await this.userRepository
         .createQueryBuilder('user')
-        .addSelect(['user.password', 'user.refreshToken'])
+        .addSelect(['user.password'])
         .leftJoinAndSelect('user.roles', 'role')
         .leftJoinAndSelect('role.permissions', 'permission')
         .where('user.phone = :account', { account })
@@ -551,7 +548,11 @@ export class AuthService {
     return user;
   }
 
-  private async updateLoginInfo(userId: number, ip: string, loginTime: Date = new Date()): Promise<void> {
+  private async updateLoginInfo(
+    userId: number,
+    ip: string,
+    loginTime: Date = new Date(),
+  ): Promise<void> {
     await this.userRepository.update(userId, {
       lastLoginIp: ip,
       lastLoginAt: loginTime,

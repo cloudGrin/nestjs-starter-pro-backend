@@ -20,24 +20,13 @@ npm run build
 npm run start:prod
 ```
 
-### 3. 运行测试脚本
-
-```bash
-# 赋予执行权限
-chmod +x test-api-auth.sh
-
-# 运行测试
-./test-api-auth.sh
-```
-
 ## 📋 核心功能清单
 
 ### API应用管理
 
 - ✅ 创建API应用
 - ✅ 配置权限范围（Scopes）
-- ✅ 设置速率限制
-- ✅ IP白名单（可选）
+- ✅ 启用/停用应用
 
 ### API密钥管理
 
@@ -52,51 +41,35 @@ chmod +x test-api-auth.sh
 - ✅ 基于Scope的权限控制
 - ✅ 独立于JWT用户认证
 
-### 监控限流
-
-- ✅ API调用日志
-- ✅ 使用统计分析
-- ✅ 速率限制（小时/天）
-- ✅ 滑动窗口算法
-
 ## 🔑 API端点列表
 
 ### 管理端点（需要JWT认证）
 
-| 方法   | 端点                            | 说明         | 权限           |
-| ------ | ------------------------------- | ------------ | -------------- |
-| POST   | /api/v1/api-apps                | 创建API应用  | api:app:create |
-| POST   | /api/v1/api-apps/:id/keys       | 生成API密钥  | api:key:create |
-| GET    | /api/v1/api-apps/:id/keys       | 查看应用密钥 | api:key:read   |
-| DELETE | /api/v1/api-apps/keys/:id       | 撤销密钥     | api:key:delete |
-| GET    | /api/v1/api-apps/:id/statistics | 查看使用统计 | api:app:read   |
+| 方法   | 端点                      | 说明         | 权限               |
+| ------ | ------------------------- | ------------ | ------------------ |
+| GET    | /api/v1/api-apps          | 查看应用列表 | api-app:read       |
+| POST   | /api/v1/api-apps          | 创建API应用  | api-app:create     |
+| GET    | /api/v1/api-apps/:id      | 查看应用详情 | api-app:read       |
+| PUT    | /api/v1/api-apps/:id      | 更新API应用  | api-app:update     |
+| DELETE | /api/v1/api-apps/:id      | 停用API应用  | api-app:delete     |
+| POST   | /api/v1/api-apps/:id/keys | 生成API密钥  | api-app:key:create |
+| GET    | /api/v1/api-apps/:id/keys | 查看应用密钥 | api-app:key:read   |
+| DELETE | /api/v1/api-apps/keys/:id | 撤销密钥     | api-app:key:delete |
 
 ### 开放端点（使用API Key认证）
 
-| 方法 | 端点                            | 说明         | 所需Scope       |
-| ---- | ------------------------------- | ------------ | --------------- |
-| GET  | /api/v1/open/users              | 获取用户列表 | read:users      |
-| GET  | /api/v1/open/orders             | 获取订单列表 | read:orders     |
-| POST | /api/v1/open/orders             | 创建订单     | write:orders    |
-| POST | /api/v1/open/webhooks/subscribe | 订阅Webhook  | manage:webhooks |
-| GET  | /api/v1/open/statistics         | 获取API统计  | 无              |
+| 方法 | 端点               | 说明         | 所需Scope  |
+| ---- | ------------------ | ------------ | ---------- |
+| GET  | /api/v1/open/users | 获取用户列表 | read:users |
 
 ## 🎯 典型使用场景
 
-### 场景1：第三方电商平台集成
+### 场景1：小程序读取用户数据
 
 ```javascript
 const client = new HomeApiClient('sk_live_xxxxx');
 
-// 同步订单数据
-const orders = await client.getOrders();
-
-// 创建新订单
-const newOrder = await client.createOrder({
-  productId: 'PROD-001',
-  quantity: 2,
-  customerEmail: 'customer@example.com',
-});
+const users = await client.getUsers({ page: 1, pageSize: 20 });
 ```
 
 ### 场景2：数据分析平台
@@ -106,16 +79,8 @@ const newOrder = await client.createOrder({
 const analyticsClient = new HomeApiClient('sk_live_read_only_key');
 
 const users = await analyticsClient.getUsers();
-const orders = await analyticsClient.getOrders();
 
 // 生成报表...
-```
-
-### 场景3：Webhook事件订阅
-
-```javascript
-// 订阅订单创建事件
-await client.subscribeWebhook('order.created', 'https://your-server.com/webhook');
 ```
 
 ## ⚠️ 注意事项
@@ -125,22 +90,18 @@ await client.subscribeWebhook('order.created', 'https://your-server.com/webhook'
 1. **永远不要**在前端代码中使用API密钥
 2. **定期轮换**API密钥（建议每3个月）
 3. **使用环境变量**存储密钥，不要硬编码
-4. **配置IP白名单**限制访问来源
-5. **监控异常调用**，及时发现安全问题
+4. **只给应用分配需要的 Scope**，避免扩大外部访问范围
 
 ### 性能优化
 
 1. 使用**连接池**复用HTTP连接
-2. 实施**缓存策略**减少重复请求
-3. **批量操作**替代多次单个调用
-4. 合理设置**超时时间**
+2. 合理设置**超时时间**
 
 ### 最佳实践
 
 1. 为不同环境使用不同密钥（开发/测试/生产）
 2. 按功能划分Scope，实现最小权限原则
-3. 记录详细的API调用日志用于问题排查
-4. 实施优雅的错误处理和重试机制
+3. 实施明确的错误处理和重试机制
 
 ## 🔧 故障排查
 

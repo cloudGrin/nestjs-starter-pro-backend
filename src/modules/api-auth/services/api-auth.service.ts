@@ -92,7 +92,13 @@ export class ApiAuthService {
   async updateApp(appId: number, dto: UpdateApiAppDto): Promise<ApiAppEntity> {
     const app = await this.getApp(appId);
     Object.assign(app, dto);
-    return this.appRepository.save(app);
+    const updated = await this.appRepository.save(app);
+
+    if (dto.scopes !== undefined || 'isActive' in dto) {
+      await this.clearAppKeyCache(appId);
+    }
+
+    return updated;
   }
 
   /**
@@ -103,10 +109,7 @@ export class ApiAuthService {
     await this.appRepository.update(appId, { isActive: false });
 
     // 删除应用时，禁用所有相关密钥
-    const keys = await this.keyRepository.find({
-      where: { appId },
-      order: { createdAt: 'DESC' },
-    });
+    const keys = await this.findAppKeys(appId);
     for (const key of keys) {
       await this.keyRepository.update(key.id, { isActive: false });
       await this.cacheService.del(`api_key:${key.keyHash}`);
@@ -197,8 +200,10 @@ export class ApiAuthService {
     };
 
     // 更新最后使用时间（异步，不等待）
-    void this.keyRepository.increment({ id: key.id }, 'usageCount', 1);
-    void this.keyRepository.update(key.id, { lastUsedAt: new Date() });
+    await Promise.all([
+      this.keyRepository.increment({ id: key.id }, 'usageCount', 1),
+      this.keyRepository.update(key.id, { lastUsedAt: new Date() }),
+    ]);
 
     // 缓存密钥验证结果
     await this.cacheService.set(cacheKey, validatedApp, API_AUTH_CONSTANTS.KEY_CACHE_TTL);
@@ -224,10 +229,19 @@ export class ApiAuthService {
    * 获取应用的所有密钥
    */
   async getAppKeys(appId: number): Promise<ApiKeyEntity[]> {
+    return this.findAppKeys(appId);
+  }
+
+  private async findAppKeys(appId: number): Promise<ApiKeyEntity[]> {
     return this.keyRepository.find({
       where: { appId },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  private async clearAppKeyCache(appId: number): Promise<void> {
+    const keys = await this.findAppKeys(appId);
+    await Promise.all(keys.map((key) => this.cacheService.del(`api_key:${key.keyHash}`)));
   }
 
   private async paginateApps(

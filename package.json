@@ -1,18 +1,10 @@
 {
-  "name": "nestjs-starter-pro",
+  "name": "home-admin",
   "version": "2.0.0",
-  "description": "A lightweight, production-ready admin backend built with NestJS. Enterprise-grade code quality with simplified features.",
-  "author": "NestJS Starter Pro Team",
-  "private": false,
+  "description": "Personal admin backend built with NestJS.",
+  "author": "Grin",
+  "private": true,
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/nestjs-starter-pro.git"
-  },
-  "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/nestjs-starter-pro/issues"
-  },
-  "homepage": "https://github.com/YOUR_USERNAME/nestjs-starter-pro#readme",
   "keywords": [
     "nestjs",
     "typescript",

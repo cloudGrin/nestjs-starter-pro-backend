@@ -3,13 +3,7 @@ import { ApiKeyEntity } from '../entities/api-key.entity';
 
 type ApiKeyResponseSource = Pick<
   ApiKeyEntity,
-  | 'id'
-  | 'name'
-  | 'prefix'
-  | 'suffix'
-  | 'scopes'
-  | 'expiresAt'
-  | 'createdAt'
+  'id' | 'name' | 'prefix' | 'suffix' | 'scopes' | 'expiresAt' | 'createdAt'
 > & {
   rawKey?: string;
   isActive?: boolean;

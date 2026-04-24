@@ -250,35 +250,6 @@ export class FileUtil {
   }
 
   /**
-   * 根据文件大小获取建议的上传策略
-   */
-  static getUploadStrategy(size: number): {
-    strategy: 'direct' | 'multipart' | 'resumable';
-    chunkSize?: number;
-  } {
-    const mb = 1024 * 1024;
-
-    // 小于10MB，直接上传
-    if (size < 10 * mb) {
-      return { strategy: 'direct' };
-    }
-
-    // 10MB-100MB，分片上传
-    if (size < 100 * mb) {
-      return {
-        strategy: 'multipart',
-        chunkSize: 5 * mb, // 5MB per chunk
-      };
-    }
-
-    // 大于100MB，断点续传
-    return {
-      strategy: 'resumable',
-      chunkSize: 10 * mb, // 10MB per chunk
-    };
-  }
-
-  /**
    * 计算文件上传进度
    */
   static calculateProgress(uploaded: number, total: number): number {

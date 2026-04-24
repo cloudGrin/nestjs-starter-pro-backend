@@ -1,6 +1,7 @@
 import { DataSourceOptions } from 'typeorm';
 import { join } from 'path';
 import type { Configuration } from './config.types';
+import { DEFAULT_FILE_MAX_SIZE } from './constants';
 
 /**
  * 获取数据库配置
@@ -160,7 +161,7 @@ export const configuration = (): Configuration => ({
     /** 文件访问基础 URL */
     baseUrl: process.env.FILE_BASE_URL || '/uploads',
     /** 最大文件大小（字节），默认 50MB */
-    maxSize: parseInt(process.env.FILE_MAX_SIZE || `${50 * 1024 * 1024}`, 10),
+    maxSize: parseInt(process.env.FILE_MAX_SIZE || `${DEFAULT_FILE_MAX_SIZE}`, 10),
     /** 允许的文件类型（扩展名列表） */
     allowedTypes: (
       process.env.FILE_ALLOWED_TYPES ||

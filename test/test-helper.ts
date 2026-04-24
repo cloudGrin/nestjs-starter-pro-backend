@@ -50,9 +50,9 @@ export interface TestCredentials {
 }
 
 /**
- * 注册测试用户
+ * 创建测试用户并登录
  */
-export async function registerTestUser(
+export async function createTestUserCredentials(
   app: INestApplication,
   userData: {
     username: string;
@@ -61,18 +61,27 @@ export async function registerTestUser(
     realName?: string;
   },
 ): Promise<TestCredentials> {
-  const response = await request(app.getHttpServer())
-    .post('/auth/register')
-    .send(userData)
-    .expect(201);
+  const dataSource = app.get(DataSource);
+  const userRepository = dataSource.getRepository(UserEntity);
 
-  // 适配新的API响应结构: { tokens: {...}, user: {...} }
-  const data = response.body.data;
-  return {
-    accessToken: data.tokens?.accessToken || data.accessToken,
-    refreshToken: data.tokens?.refreshToken || data.refreshToken,
-    user: data.user || data,
-  };
+  const existing = await userRepository.findOne({
+    where: [{ username: userData.username }, { email: userData.email }] as any,
+  });
+
+  if (!existing) {
+    await userRepository.save(
+      userRepository.create({
+        ...userData,
+        status: UserStatus.ACTIVE,
+        roles: [],
+      }),
+    );
+  }
+
+  return loginTestUser(app, {
+    username: userData.username,
+    password: userData.password,
+  });
 }
 
 /**
@@ -194,9 +203,9 @@ export async function createSuperAdminRole(app: INestApplication): Promise<RoleE
 }
 
 /**
- * 注册超级管理员用户并登录
+ * 创建超级管理员用户并登录
  */
-export async function registerSuperAdmin(
+export async function createSuperAdminCredentials(
   app: INestApplication,
   userData: {
     username: string;
@@ -207,29 +216,22 @@ export async function registerSuperAdmin(
 ): Promise<TestCredentials> {
   const dataSource = app.get(DataSource);
   const userRepository = dataSource.getRepository(UserEntity);
-  const cacheService = app.get(CacheService);
 
   // 创建超级管理员角色
   const superAdminRole = await createSuperAdminRole(app);
 
-  // 先注册普通用户
-  const registerResponse = await request(app.getHttpServer()).post('/auth/register').send(userData);
-
-  if (registerResponse.status !== 201) {
-    console.error('注册失败:', registerResponse.status, registerResponse.body);
-    throw new Error(`注册失败: ${JSON.stringify(registerResponse.body)}`);
-  }
-
-  const credentials: TestCredentials = registerResponse.body.data;
-
-  // 通过数据库直接给用户分配超级管理员角色
-  const user = await userRepository.findOne({
-    where: { id: credentials.user.id } as any,
+  let user = await userRepository.findOne({
+    where: [{ username: userData.username }, { email: userData.email }] as any,
     relations: ['roles'],
   });
 
   if (!user) {
-    throw new Error(`用户不存在: ${credentials.user.id}`);
+    user = userRepository.create({
+      ...userData,
+      status: UserStatus.ACTIVE,
+      roles: [superAdminRole],
+    });
+    user = await userRepository.save(user);
   }
 
   const userId = (user as UserEntity).id; // 提取 id 避免 TypeScript 类型推断问题
@@ -261,23 +263,7 @@ export async function registerSuperAdmin(
   }
 
   // 清除与用户权限相关的缓存，避免 RBAC 2.0 缓存命中导致权限缺失
-  const cacheKeysToClear = [
-    CACHE_KEYS.USER_PERMISSIONS(userId),
-    CACHE_KEYS.USER_MENUS(userId),
-    CACHE_KEYS.USER_DETAIL(userId),
-    `UserEntity:permissions:${userId}`,
-    `User:permissions:${userId}`,
-  ];
-
-  await Promise.all(
-    cacheKeysToClear.map(async (key) => {
-      try {
-        await cacheService.del(key);
-      } catch (error) {
-        console.warn(`[测试辅助] 清除缓存 ${key} 失败:`, error?.message || error);
-      }
-    }),
-  );
+  await app.get(CacheService).del(CACHE_KEYS.USER_PERMISSIONS(userId));
 
   // 重新登录以获取包含新权限的JWT token
   const loginResponse = await request(app.getHttpServer())

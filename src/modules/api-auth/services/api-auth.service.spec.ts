@@ -157,6 +157,32 @@ describe('ApiAuthService', () => {
     });
   });
 
+  describe('updateApp', () => {
+    it('clears cached API key auth when app scopes or active status changes', async () => {
+      const keys = [
+        createMockKey({ id: 11, keyHash: 'hash-11' }),
+        createMockKey({ id: 12, keyHash: 'hash-12' }),
+      ];
+      const app = createMockApp({ id: 1, scopes: ['read:users'], isActive: true });
+
+      appRepository.findOne.mockResolvedValue(app);
+      appRepository.save.mockResolvedValue({
+        ...app,
+        scopes: ['read:users', 'write:users'],
+      });
+      keyRepository.find.mockResolvedValue(keys);
+
+      await service.updateApp(1, { scopes: ['read:users', 'write:users'] });
+
+      expect(keyRepository.find).toHaveBeenCalledWith({
+        where: { appId: 1 },
+        order: { createdAt: 'DESC' },
+      });
+      expect(cacheService.del).toHaveBeenCalledWith('api_key:hash-11');
+      expect(cacheService.del).toHaveBeenCalledWith('api_key:hash-12');
+    });
+  });
+
   describe('generateApiKey', () => {
     it('generates API key once', async () => {
       const dto: CreateApiKeyDto = {

@@ -6,11 +6,7 @@ import { UploadFileDto } from '../dto/upload-file.dto';
 
 describe('FileController', () => {
   it('uses UploadFileDto for upload body validation', () => {
-    const paramTypes = Reflect.getMetadata(
-      'design:paramtypes',
-      FileController.prototype,
-      'upload',
-    );
+    const paramTypes = Reflect.getMetadata('design:paramtypes', FileController.prototype, 'upload');
 
     expect(paramTypes[1]).toBe(UploadFileDto);
   });
@@ -28,5 +24,13 @@ describe('FileController', () => {
 
     expect(source).not.toContain('this.fileService.findOne(');
     expect(source).not.toContain("BusinessException.notFound('文件', id)");
+  });
+
+  it('limits uploaded files at the multer layer before buffering them in memory', () => {
+    const source = readFileSync(join(__dirname, 'file.controller.ts'), 'utf8');
+
+    expect(source).toContain('limits:');
+    expect(source).toContain('fileSize: DEFAULT_FILE_MAX_SIZE');
+    expect(source).not.toContain('最大100MB');
   });
 });

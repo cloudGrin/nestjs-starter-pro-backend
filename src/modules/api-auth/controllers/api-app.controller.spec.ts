@@ -41,7 +41,7 @@ describe('ApiAppController', () => {
     expect(source).toContain('ApiKeyListItemDto');
     expect(source).toContain('ApiKeyRevokeResponseDto');
     expect(source).not.toContain("return { success: true, message: 'API应用已删除' }");
-    expect(source).not.toContain("return {\n      id: key.id");
+    expect(source).not.toContain('return {\n      id: key.id');
     expect(source).not.toContain('return keys.map((key) => ({');
     expect(source).not.toContain("message: 'API密钥已撤销'");
   });

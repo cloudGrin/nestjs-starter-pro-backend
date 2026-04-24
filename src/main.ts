@@ -57,7 +57,10 @@ async function bootstrap() {
   // Swagger 文档
   const swaggerEnabled = configService.get<boolean>('swagger.enable', true);
   const swaggerTitle = configService.get<string>('swagger.title', 'home API');
-  const swaggerDescription = configService.get<string>('swagger.description', 'home Backend Management System API Documentation');
+  const swaggerDescription = configService.get<string>(
+    'swagger.description',
+    'home Backend Management System API Documentation',
+  );
   const swaggerVersion = configService.get<string>('swagger.version', '1.0.0');
   const swaggerPath = configService.get<string>('swagger.path', 'api-docs');
 

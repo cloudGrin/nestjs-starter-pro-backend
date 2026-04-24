@@ -1,6 +1,6 @@
 import { IsOptional, IsEnum, IsString, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { MenuType } from '../entities/menu.entity';
 
 export class QueryMenuDto {
@@ -17,12 +17,12 @@ export class QueryMenuDto {
   @ApiPropertyOptional({ description: '是否启用' })
   @IsOptional()
   @IsBoolean()
-  @Type(() => Boolean)
+  @Transform(({ value }) => value === true || value === 'true')
   isActive?: boolean;
 
   @ApiPropertyOptional({ description: '是否显示' })
   @IsOptional()
   @IsBoolean()
-  @Type(() => Boolean)
+  @Transform(({ value }) => value === true || value === 'true')
   isVisible?: boolean;
 }

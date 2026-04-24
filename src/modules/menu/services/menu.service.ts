@@ -348,7 +348,11 @@ export class MenuService {
           throw new NotFoundException(`父菜单 ID ${targetParentId} 不存在`);
         }
 
-        const hasCircular = await this.checkCircularDependency(id, targetParentId, transactionalRepo);
+        const hasCircular = await this.checkCircularDependency(
+          id,
+          targetParentId,
+          transactionalRepo,
+        );
         if (hasCircular) {
           this.logger.debug(
             `移动菜单失败，检测到循环依赖 id=${id}, targetParentId=${targetParentId}`,

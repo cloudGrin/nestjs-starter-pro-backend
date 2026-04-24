@@ -13,3 +13,5 @@ export const ENVIRONMENTS = {
 } as const;
 
 export type Environment = (typeof ENVIRONMENTS)[keyof typeof ENVIRONMENTS];
+
+export const DEFAULT_FILE_MAX_SIZE = 50 * 1024 * 1024;

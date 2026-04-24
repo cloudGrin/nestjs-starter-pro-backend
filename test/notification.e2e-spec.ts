@@ -2,8 +2,8 @@ import { INestApplication, HttpStatus } from '@nestjs/common';
 import {
   authenticatedRequest,
   createTestApp,
-  registerSuperAdmin,
-  registerTestUser,
+  createSuperAdminCredentials,
+  createTestUserCredentials,
   generateTestUsername,
   generateTestEmail,
 } from './test-helper';
@@ -21,14 +21,14 @@ describe('Notification Module (E2E)', () => {
     app = await createTestApp();
 
     // 创建超级管理员用户（拥有所有权限）
-    adminCredentials = await registerSuperAdmin(app, {
+    adminCredentials = await createSuperAdminCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'Admin@123456',
     });
 
     // 创建普通用户（用于权限测试）
-    normalUserCredentials = await registerTestUser(app, {
+    normalUserCredentials = await createTestUserCredentials(app, {
       username: generateTestUsername(),
       email: generateTestEmail(),
       password: 'User@123456',

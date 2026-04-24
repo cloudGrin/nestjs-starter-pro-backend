@@ -1,6 +1,6 @@
 import { IsOptional, IsEnum, IsString, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { PaginationDto } from '~/common/dto/pagination.dto';
 import { PermissionType } from '../entities/permission.entity';
 
@@ -28,12 +28,12 @@ export class QueryPermissionDto extends PaginationDto {
   @ApiPropertyOptional({ description: '是否启用' })
   @IsOptional()
   @IsBoolean()
-  @Type(() => Boolean)
+  @Transform(({ value }) => value === true || value === 'true')
   isActive?: boolean;
 
   @ApiPropertyOptional({ description: '是否为系统内置' })
   @IsOptional()
   @IsBoolean()
-  @Type(() => Boolean)
+  @Transform(({ value }) => value === true || value === 'true')
   isSystem?: boolean;
 }

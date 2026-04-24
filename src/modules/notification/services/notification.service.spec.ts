@@ -154,6 +154,30 @@ describe('NotificationService', () => {
       expect(result.meta.currentPage).toBe(1);
       expect(notificationRepository.createQueryBuilder).toHaveBeenCalledWith('notification');
     });
+
+    it('ignores unsupported sort fields and keeps createdAt ordering', async () => {
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      };
+      notificationRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+      await service.findUserNotifications(1, {
+        page: 1,
+        limit: 10,
+        sort: 'id;DROP TABLE notifications',
+      } as any);
+
+      expect(qb.orderBy).toHaveBeenCalledWith('notification.createdAt', 'DESC');
+      expect(qb.orderBy).not.toHaveBeenCalledWith(
+        'notification.id;DROP TABLE notifications',
+        expect.anything(),
+      );
+    });
   });
 
   describe('markAsRead', () => {

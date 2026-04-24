@@ -83,7 +83,10 @@ export class RoleController {
   @ApiOperation({ summary: '分配权限' })
   @ApiParam({ name: 'id', description: '角色ID' })
   @ApiOkResponse({ type: RoleEntity })
-  async assignPermissions(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignPermissionsDto) {
+  async assignPermissions(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignPermissionsDto,
+  ) {
     return this.roleService.assignPermissions(id, dto.permissionIds);
   }
 

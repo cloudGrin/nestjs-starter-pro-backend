@@ -268,6 +268,23 @@ describe('architecture slimming', () => {
     expect(main).not.toContain("configService.get<number>('PORT'");
   });
 
+  it('keeps shared infrastructure imported only at app root and avoids unnecessary global/export module patterns', () => {
+    const appModule = readSource('app.module.ts');
+    const sharedModule = readSource('shared/shared.module.ts');
+    const authModule = readSource('modules/auth/auth.module.ts');
+    const apiAuthModule = readSource('modules/api-auth/api-auth.module.ts');
+    const cronModule = readSource('modules/cron/cron.module.ts');
+    const healthModule = readSource('modules/health/health.module.ts');
+
+    expect(sharedModule).toContain('@Global()');
+    expect(appModule).toContain('SharedModule');
+    expect(authModule).not.toContain('@Global()');
+    expect(authModule).not.toContain('exports: [AuthService, JwtModule]');
+    expect(apiAuthModule).not.toContain('SharedModule');
+    expect(cronModule).not.toContain('exports: [CronService]');
+    expect(healthModule).not.toContain('exports: [HealthService]');
+  });
+
   it('injects direct TypeORM repositories for auth/api-auth instead of extra thin repository wrappers', () => {
     const apiAuthModule = readSource('modules/api-auth/api-auth.module.ts');
     const apiAuthService = readSource('modules/api-auth/services/api-auth.service.ts');

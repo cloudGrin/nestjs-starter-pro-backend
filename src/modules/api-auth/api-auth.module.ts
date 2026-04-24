@@ -7,13 +7,11 @@ import { ApiAuthService } from './services/api-auth.service';
 import { ApiAppController } from './controllers/api-app.controller';
 import { ApiKeyStrategy } from './strategies/simple-api-key.strategy';
 import { ApiKeyGuard } from './guards/api-key.guard';
-import { SharedModule } from '~/shared/shared.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ApiAppEntity, ApiKeyEntity]),
     PassportModule.register({ defaultStrategy: 'api-key' }),
-    SharedModule, // 包含CacheService
   ],
   controllers: [ApiAppController],
   providers: [ApiAuthService, ApiKeyStrategy, ApiKeyGuard],

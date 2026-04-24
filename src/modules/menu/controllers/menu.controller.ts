@@ -19,6 +19,7 @@ import {
   QueryMenuDto,
   BatchUpdateMenuStatusDto,
   MoveMenuDto,
+  ValidateMenuPathDto,
 } from '../dto';
 import { MenuEntity } from '../entities/menu.entity';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
@@ -72,9 +73,8 @@ export class MenuController {
     type: Number,
     required: false,
   })
-  async validatePath(@Query('path') path: string, @Query('excludeId') excludeIdStr?: string) {
-    const excludeId = excludeIdStr ? parseInt(excludeIdStr, 10) : undefined;
-    const isUnique = await this.menuService.validatePath(path, excludeId);
+  async validatePath(@Query() query: ValidateMenuPathDto) {
+    const isUnique = await this.menuService.validatePath(query.path, query.excludeId);
     return { isUnique };
   }
 

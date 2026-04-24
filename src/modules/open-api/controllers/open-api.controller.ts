@@ -6,6 +6,7 @@ import { ApiKeyGuard } from '~/modules/api-auth/guards/api-key.guard';
 import { RequireApiScopes } from '~/modules/api-auth/decorators/api-scopes.decorator';
 import { ApiRequest } from '../types/request.types';
 import { OpenUserListQueryDto } from '../dto/open-user-list-query.dto';
+import { OpenUserListResponseDto } from '../dto/open-user-response.dto';
 
 @ApiTags('开放API')
 @ApiHeader({
@@ -22,7 +23,7 @@ export class OpenApiController {
   @Get('users')
   @RequireApiScopes('read:users')
   @ApiOperation({ summary: '获取用户列表', description: '需要 read:users 权限' })
-  async getUsers(@Query() query: OpenUserListQueryDto, @Req() req: ApiRequest) {
+  async getUsers(@Query() query: OpenUserListQueryDto, @Req() req: ApiRequest): Promise<OpenUserListResponseDto> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
     const result = await this.userService.findUsers({
@@ -30,26 +31,9 @@ export class OpenApiController {
       limit: pageSize,
     });
 
-    return {
-      data: result.items.map((user: any) => ({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        realName: user.realName,
-        nickname: user.nickname,
-        avatar: user.avatar,
-        status: user.status,
-        createdAt: user.createdAt,
-      })),
-      pagination: {
-        total: result.meta.totalItems,
-        page: result.meta.currentPage,
-        pageSize: result.meta.itemsPerPage,
-      },
-      app: {
-        id: req.user.id,
-        name: req.user.name,
-      },
-    };
+    return OpenUserListResponseDto.fromResult(result, {
+      id: req.user.id,
+      name: req.user.name,
+    });
   }
 }

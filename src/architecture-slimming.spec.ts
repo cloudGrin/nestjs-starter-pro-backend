@@ -206,6 +206,18 @@ describe('architecture slimming', () => {
     expect(roleController).not.toContain('@Body() permissionIds: number[]');
   });
 
+  it('uses DTOs and response mappers for menu path validation and open api user responses', () => {
+    const menuController = readSource('modules/menu/controllers/menu.controller.ts');
+    const openApiController = readSource('modules/open-api/controllers/open-api.controller.ts');
+
+    expect(menuController).toContain('ValidateMenuPathDto');
+    expect(menuController).not.toContain("@Query('path') path: string");
+    expect(menuController).not.toContain("@Query('excludeId') excludeIdStr?: string");
+    expect(menuController).not.toContain('parseInt(excludeIdStr, 10)');
+    expect(openApiController).toContain('OpenUserListResponseDto');
+    expect(openApiController).not.toContain('result.items.map((user: any) => ({');
+  });
+
   it('removes BaseService inheritance from business services', () => {
     const userService = readSource('modules/user/services/user.service.ts');
     const roleService = readSource('modules/role/services/role.service.ts');

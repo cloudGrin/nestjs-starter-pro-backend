@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsOptional, IsString, MaxLength, IsBoolean } from 'class-validator';
+import { toOptionalBoolean } from '~/common/utils';
 
 export class UploadFileDto {
   @ApiPropertyOptional({
@@ -29,18 +30,7 @@ export class UploadFileDto {
     type: Boolean,
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (value === '' || value === undefined || value === null) {
-      return undefined;
-    }
-    if (value === true || value === 'true') {
-      return true;
-    }
-    if (value === false || value === 'false') {
-      return false;
-    }
-    return value;
-  })
+  @Transform(({ value }) => toOptionalBoolean(value))
   @IsBoolean()
   isPublic?: boolean;
 

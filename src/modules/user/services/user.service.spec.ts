@@ -126,20 +126,31 @@ describe('UserService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('角色不存在时抛出BadRequestException', async () => {
+    it('创建用户时忽略 roleIds，角色只能走专用分配接口', async () => {
       const qb = createUserQueryBuilderMock();
+      const createDto = {
+        username: 'roleuser',
+        email: 'role@example.com',
+        password: 'Password123!',
+        roleIds: [1],
+      };
+      const mockUser = UserMockFactory.create({ id: 1, username: createDto.username });
+
       userRepository.createQueryBuilder.mockReturnValue(qb);
       qb.getCount.mockResolvedValue(0);
-      roleRepository.find.mockResolvedValue([RoleMockFactory.create()]);
+      userRepository.create.mockReturnValue(mockUser);
+      userRepository.save.mockResolvedValue(mockUser);
 
-      await expect(
-        service.createUser({
-          username: 'testuser',
-          email: 'test@example.com',
-          password: 'Password123!',
-          roleIds: [1, 2],
-        } as any),
-      ).rejects.toThrow(BadRequestException);
+      await service.createUser(createDto as any);
+
+      expect(roleRepository.find).not.toHaveBeenCalled();
+      expect(userRepository.create).toHaveBeenCalledWith({
+        username: createDto.username,
+        email: createDto.email,
+        password: createDto.password,
+        roles: [],
+      });
+      expect(userRepository.create.mock.calls[0][0]).not.toHaveProperty('roleIds');
     });
 
     it('创建用户时不把 roleIds 写入用户实体', async () => {
@@ -149,13 +160,11 @@ describe('UserService', () => {
         password: 'Password123!',
         roleIds: [1],
       };
-      const role = RoleMockFactory.create({ id: 1, isActive: true });
       const mockUser = UserMockFactory.create({ id: 1, username: createDto.username });
       const qb = createUserQueryBuilderMock();
 
       userRepository.createQueryBuilder.mockReturnValue(qb);
       qb.getCount.mockResolvedValue(0);
-      roleRepository.find.mockResolvedValue([role]);
       userRepository.create.mockReturnValue(mockUser);
       userRepository.save.mockResolvedValue(mockUser);
 
@@ -165,7 +174,7 @@ describe('UserService', () => {
         username: createDto.username,
         email: createDto.email,
         password: createDto.password,
-        roles: [role],
+        roles: [],
       });
       expect(userRepository.create.mock.calls[0][0]).not.toHaveProperty('roleIds');
     });
@@ -202,16 +211,15 @@ describe('UserService', () => {
 
     it('更新用户时不把 roleIds 写入用户实体', async () => {
       const existingUser = UserMockFactory.create({ id: 1, email: 'old@example.com' });
-      const role = RoleMockFactory.create({ id: 2, isActive: true });
 
       userRepository.findOne.mockResolvedValue(existingUser);
-      roleRepository.find.mockResolvedValue([role]);
       userRepository.save.mockImplementation(async (entity) => entity);
 
       await service.updateUser(1, { nickname: '新昵称', roleIds: [2] } as any);
 
       const savedUser = userRepository.save.mock.calls[0][0];
-      expect(savedUser).toMatchObject({ nickname: '新昵称', roles: [role] });
+      expect(roleRepository.find).not.toHaveBeenCalled();
+      expect(savedUser).toMatchObject({ nickname: '新昵称' });
       expect(savedUser).not.toHaveProperty('roleIds');
     });
   });

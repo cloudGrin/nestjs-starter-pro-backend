@@ -38,6 +38,7 @@ export class FileService {
   private readonly uploadRoot: string;
   private readonly maxFileSize: number;
   private readonly allowedTypes: string[];
+  private readonly publicFileBaseUrl: string;
 
   constructor(
     @InjectRepository(FileEntity)
@@ -46,13 +47,12 @@ export class FileService {
     private readonly storageFactory: FileStorageFactory,
     private readonly logger: LoggerService,
   ) {
-    this.logger.setContext(FileService.name);
-
     this.storageType = this.configService.get<FileStorageType>(
       'file.storage',
       FileStorageType.LOCAL,
     );
     this.uploadRoot = this.resolvePath(this.configService.get<string>('file.uploadDir', 'uploads'));
+    this.publicFileBaseUrl = this.configService.get<string>('file.baseUrl', '/api/v1/files');
     this.maxFileSize = this.getNumber('file.maxSize', DEFAULT_FILE_MAX_SIZE);
     this.allowedTypes = this.normalizeAllowedTypes(
       this.configService.get<string | string[]>('file.allowedTypes', [
@@ -130,6 +130,11 @@ export class FileService {
       }),
     );
 
+    if (entity.isPublic && entity.storage === FileStorageType.LOCAL) {
+      entity.url = this.buildPublicDownloadUrl(entity.id);
+      await this.fileRepository.update(entity.id, { url: entity.url });
+    }
+
     return entity;
   }
 
@@ -202,7 +207,7 @@ export class FileService {
       await storage.delete(entity.path);
     }
 
-    const deleteResult = await this.fileRepository.delete(id);
+    const deleteResult = await this.fileRepository.softDelete(id);
     if (!deleteResult.affected) {
       throw BusinessException.notFound('File', id);
     }
@@ -216,6 +221,22 @@ export class FileService {
     const storage = this.getStorageStrategy(entity.storage);
 
     return storage.getStream(entity.path);
+  }
+
+  async getPublicDownload(id: number): Promise<{
+    file: FileEntity;
+    stream: NodeJS.ReadableStream;
+  }> {
+    const file = await this.findById(id);
+    if (!file.isPublic) {
+      throw BusinessException.notFound('File', id);
+    }
+
+    const storage = this.getStorageStrategy(file.storage);
+    return {
+      file,
+      stream: await storage.getStream(file.path),
+    };
   }
 
   /**
@@ -234,6 +255,13 @@ export class FileService {
    */
   private computeHash(buffer: Buffer): string {
     return createHash('md5').update(buffer).digest('hex');
+  }
+
+  private buildPublicDownloadUrl(fileId: number): string {
+    const base = this.publicFileBaseUrl.endsWith('/')
+      ? this.publicFileBaseUrl.slice(0, -1)
+      : this.publicFileBaseUrl;
+    return `${base}/${fileId}/public`;
   }
 
   /**

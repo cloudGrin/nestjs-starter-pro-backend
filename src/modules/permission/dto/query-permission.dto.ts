@@ -2,6 +2,7 @@ import { IsOptional, IsString, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { PaginationDto } from '~/common/dto/pagination.dto';
+import { toOptionalBoolean } from '~/common/utils';
 
 export class QueryPermissionDto extends PaginationDto {
   @ApiPropertyOptional({ description: '权限编码（模糊搜索）' })
@@ -22,12 +23,12 @@ export class QueryPermissionDto extends PaginationDto {
   @ApiPropertyOptional({ description: '是否启用' })
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => value === true || value === 'true')
+  @Transform(({ value }) => toOptionalBoolean(value))
   isActive?: boolean;
 
   @ApiPropertyOptional({ description: '是否为系统内置' })
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => value === true || value === 'true')
+  @Transform(({ value }) => toOptionalBoolean(value))
   isSystem?: boolean;
 }

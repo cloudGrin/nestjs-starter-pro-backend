@@ -4,7 +4,6 @@ import {
   IsOptional,
   IsBoolean,
   IsNumber,
-  IsArray,
   MinLength,
   MaxLength,
   Matches,
@@ -57,14 +56,4 @@ export class CreateRoleDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
-
-  @ApiPropertyOptional({
-    description: '权限ID列表',
-    type: [Number],
-    example: [1, 2, 3],
-  })
-  @IsOptional()
-  @IsArray()
-  @IsNumber({}, { each: true })
-  permissionIds?: number[];
 }

@@ -101,7 +101,6 @@ describe('AuthService', () => {
     };
 
     const mockLogger = {
-      setContext: jest.fn(),
       log: jest.fn(),
       error: jest.fn(),
       warn: jest.fn(),
@@ -165,6 +164,15 @@ describe('AuthService', () => {
 
       expect(result.tokens.accessToken).toBe('mock-access-token');
       expect(result.tokens.refreshToken).toBe('mock-refresh-token');
+      expect(result.user).toMatchObject({
+        id: mockUser.id,
+        username: mockUser.username,
+        email: mockUser.email,
+        roles: [],
+        isSuperAdmin: false,
+      });
+      expect(result.user).not.toHaveProperty('password');
+      expect(result.user).not.toHaveProperty('loginAttempts');
       expect(mockUser.validatePassword).toHaveBeenCalledWith(mockLoginDto.password);
       expect(userRepository.update).toHaveBeenCalledWith(
         mockUser.id,
@@ -260,7 +268,7 @@ describe('AuthService', () => {
       expect(result.refreshToken).toBe(mockRefreshTokenString);
       expect(refreshTokenRepository.findOne).toHaveBeenCalledWith({
         where: { token: mockRefreshTokenString },
-        relations: ['user', 'user.roles', 'user.roles.permissions'],
+        relations: ['user', 'user.roles'],
       });
     });
 

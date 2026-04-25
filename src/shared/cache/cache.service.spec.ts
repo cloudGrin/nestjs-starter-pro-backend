@@ -6,7 +6,6 @@ describe('CacheService', () => {
   let service: CacheService;
 
   const logger = {
-    setContext: jest.fn(),
     debug: jest.fn(),
     error: jest.fn(),
     warn: jest.fn(),

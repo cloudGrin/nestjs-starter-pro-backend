@@ -85,7 +85,7 @@ export class UserController {
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   @ApiNotFoundResponse({ description: '请求的资源不存在' })
   async updateProfile(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateProfileDto) {
-    return this.userService.updateUser(user.id, dto);
+    return this.userService.updateUser(user.id, dto, user);
   }
 
   @Put('password')
@@ -107,8 +107,8 @@ export class UserController {
   @ApiBadRequestResponse({ description: '参数验证失败' })
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
-  async removeMany(@Body() dto: DeleteUsersDto) {
-    await this.userService.deleteUsers(dto.ids);
+  async removeMany(@Body() dto: DeleteUsersDto, @CurrentUser() user: AuthenticatedUser) {
+    await this.userService.deleteUsers(dto.ids, user);
     return MessageResponseDto.of('批量删除成功');
   }
 
@@ -133,8 +133,12 @@ export class UserController {
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   @ApiNotFoundResponse({ description: '请求的资源不存在' })
-  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUserDto) {
-    return this.userService.updateUser(id, dto);
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.userService.updateUser(id, dto, user);
   }
 
   @Delete(':id')
@@ -145,8 +149,8 @@ export class UserController {
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
   @ApiNotFoundResponse({ description: '请求的资源不存在' })
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    await this.userService.deleteUser(id);
+  async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    await this.userService.deleteUser(id, user);
     return MessageResponseDto.of('删除成功');
   }
 
@@ -155,8 +159,12 @@ export class UserController {
   @ApiOperation({ summary: '重置用户密码（管理员）' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: MessageResponseDto })
-  async resetPassword(@Param('id', ParseIntPipe) id: number, @Body() dto: ResetPasswordDto) {
-    await this.userService.resetPassword(id, dto);
+  async resetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResetPasswordDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.userService.resetPassword(id, dto, user);
     return MessageResponseDto.of('密码重置成功');
   }
 
@@ -165,8 +173,8 @@ export class UserController {
   @ApiOperation({ summary: '启用用户' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: UserEntity })
-  async enable(@Param('id', ParseIntPipe) id: number) {
-    return this.userService.enableUser(id);
+  async enable(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.userService.enableUser(id, user);
   }
 
   @Put(':id/disable')
@@ -174,8 +182,8 @@ export class UserController {
   @ApiOperation({ summary: '禁用用户' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: UserEntity })
-  async disable(@Param('id', ParseIntPipe) id: number) {
-    return this.userService.disableUser(id);
+  async disable(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.userService.disableUser(id, user);
   }
 
   @Put(':id/roles')
@@ -183,8 +191,12 @@ export class UserController {
   @ApiOperation({ summary: '分配角色' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: UserEntity })
-  async assignRoles(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignUserRolesDto) {
-    return this.userService.assignRoles(id, dto.roleIds);
+  async assignRoles(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignUserRolesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.userService.assignRoles(id, dto.roleIds, user);
   }
 
   @Get(':id/permissions')

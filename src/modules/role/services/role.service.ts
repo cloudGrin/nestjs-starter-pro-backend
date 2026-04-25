@@ -27,17 +27,17 @@ export class RoleService {
     private readonly menuRepository: Repository<MenuEntity>,
     private readonly logger: LoggerService,
     private readonly cache: CacheService,
-  ) {
-    this.logger.setContext(RoleService.name);
-  }
+  ) {}
 
   /**
    * 创建角色
    */
   async createRole(dto: CreateRoleDto): Promise<RoleEntity> {
-    this.logger.debug(
-      `准备创建角色，code=${dto.code}, name=${dto.name}, permissionIds=${JSON.stringify(dto.permissionIds || [])}`,
-    );
+    this.logger.debug(`准备创建角色，code=${dto.code}, name=${dto.name}`);
+
+    if (dto.code === 'super_admin') {
+      throw new BadRequestException('super_admin 为系统保留角色编码');
+    }
 
     // 检查角色编码是否存在
     if (await this.isCodeExist(dto.code)) {
@@ -45,37 +45,17 @@ export class RoleService {
       throw new ConflictException('角色编码已存在');
     }
 
-    // 获取权限
-    let permissions: PermissionEntity[] = [];
-    if (dto.permissionIds && dto.permissionIds.length > 0) {
-      permissions = await this.permissionRepository.find({
-        where: { id: In(dto.permissionIds), isActive: true },
-      });
-
-      this.logger.debug(
-        `创建角色查询权限数量: 请求=${dto.permissionIds.length}, 实际=${permissions.length}`,
-      );
-
-      if (permissions.length !== dto.permissionIds.length) {
-        this.logger.debug(
-          `创建角色失败，部分权限不存在或禁用: ${JSON.stringify(dto.permissionIds)}`,
-        );
-        throw new BadRequestException('部分权限不存在或已禁用');
-      }
-    }
-
-    const { permissionIds: _permissionIds, ...roleData } = dto;
+    const { permissionIds: _ignoredPermissionIds, ...roleData } = dto as CreateRoleDto & {
+      permissionIds?: number[];
+    };
 
     // 创建角色
     const role = this.roleRepository.create({
       ...roleData,
-      permissions,
       isSystem: false,
     });
 
-    this.logger.debug(
-      `创建角色实体准备保存 code=${role.code}, permissionCount=${role.permissions?.length || 0}`,
-    );
+    this.logger.debug(`创建角色实体准备保存 code=${role.code}`);
 
     const savedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色保存成功 id=${savedRole.id}, code=${savedRole.code}`);
@@ -109,38 +89,19 @@ export class RoleService {
 
     // 检查角色编码是否存在
     if (dto.code && dto.code !== role.code) {
+      if (dto.code === 'super_admin') {
+        throw new BadRequestException('super_admin 为系统保留角色编码');
+      }
+
       if (await this.isCodeExist(dto.code, id)) {
         this.logger.debug(`更新角色失败，新编码重复 code=${dto.code}, id=${id}`);
         throw new ConflictException('角色编码已存在');
       }
     }
 
-    // 更新权限
-    if (dto.permissionIds !== undefined) {
-      this.logger.debug(
-        `更新角色权限，roleId=${id}, permissionIds=${JSON.stringify(dto.permissionIds)}`,
-      );
-
-      const permissions =
-        dto.permissionIds.length > 0
-          ? await this.permissionRepository.find({
-              where: { id: In(dto.permissionIds), isActive: true },
-            })
-          : [];
-
-      this.logger.debug(
-        `角色权限查询完成，roleId=${id}, 请求数量=${dto.permissionIds.length}, 查询数量=${permissions.length}`,
-      );
-
-      if (dto.permissionIds.length > 0 && permissions.length !== dto.permissionIds.length) {
-        this.logger.debug(`更新角色失败，权限校验不通过 roleId=${id}`);
-        throw new BadRequestException('部分权限不存在或已禁用');
-      }
-
-      role.permissions = permissions;
-    }
-
-    const { permissionIds: _permissionIds, ...roleData } = dto;
+    const { permissionIds: _ignoredPermissionIds, ...roleData } = dto as UpdateRoleDto & {
+      permissionIds?: number[];
+    };
 
     // 更新角色信息
     Object.assign(role, roleData);

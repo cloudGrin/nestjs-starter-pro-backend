@@ -21,9 +21,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     @InjectRepository(MenuEntity)
     private readonly menuRepository: Repository<MenuEntity>,
     private readonly logger: LoggerService,
-  ) {
-    this.logger.setContext(AdminBootstrapService.name);
-  }
+  ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     const userCount = await this.userRepository.count({ withDeleted: true });

@@ -86,7 +86,7 @@ describe('AdminBootstrapService', () => {
           path: '/system',
         }),
       )
-      .mockImplementationOnce(async (data) => data as MenuEntity[]);
+      .mockImplementationOnce(async (data) => data as unknown as MenuEntity);
     userRepository.create.mockImplementation((data) => Object.assign(user, data));
     userRepository.save.mockResolvedValue(user);
 

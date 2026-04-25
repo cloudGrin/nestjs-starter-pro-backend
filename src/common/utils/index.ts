@@ -7,3 +7,4 @@ export * from './tree.util';
 export * from './ip.util';
 export * from './file.util';
 export * from './crypto.util';
+export * from './boolean-transform.util';

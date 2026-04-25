@@ -68,14 +68,6 @@ export class FileUtil {
   }
 
   /**
-   * 获取文件扩展名（不包含点号）
-   * @example getExtensionWithoutDot('file.txt') => 'txt'
-   */
-  static getExtensionWithoutDot(filename: string): string {
-    return this.getExtension(filename).substring(1);
-  }
-
-  /**
    * 获取文件名（不含扩展名）
    * @example getBasename('path/to/file.txt') => 'file'
    */
@@ -94,14 +86,6 @@ export class FileUtil {
   }
 
   /**
-   * 根据MIME类型获取扩展名
-   */
-  static getExtensionByMime(mimeType: string): string {
-    const entry = Object.entries(this.MIME_TYPES).find(([_, mime]) => mime === mimeType);
-    return entry ? entry[0] : '';
-  }
-
-  /**
    * 格式化文件大小
    * @example formatSize(1024) => '1.00 KB'
    */
@@ -113,42 +97,6 @@ export class FileUtil {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
 
     return `${(bytes / Math.pow(k, i)).toFixed(decimals)} ${sizes[i]}`;
-  }
-
-  /**
-   * 解析文件大小字符串为字节数
-   * @example parseSize('1.5 MB') => 1572864
-   */
-  static parseSize(sizeStr: string): number {
-    const units: Record<string, number> = {
-      B: 1,
-      KB: 1024,
-      MB: 1024 * 1024,
-      GB: 1024 * 1024 * 1024,
-      TB: 1024 * 1024 * 1024 * 1024,
-    };
-
-    const match = sizeStr.match(/^([\d.]+)\s*([A-Z]+)$/i);
-    if (!match) return 0;
-
-    const [, size, unit] = match;
-    const unitMultiplier = units[unit.toUpperCase()] || 1;
-
-    return parseFloat(size) * unitMultiplier;
-  }
-
-  /**
-   * 生成安全的文件名
-   * 移除特殊字符，保留扩展名
-   */
-  static generateSafeFilename(original: string): string {
-    const ext = this.getExtension(original);
-    const base = this.getBasename(original);
-
-    // 移除特殊字符，只保留字母、数字、下划线、连字符
-    const safeName = base.replace(/[^a-zA-Z0-9_-]/g, '_');
-
-    return `${safeName}${ext}`;
   }
 
   /**
@@ -247,46 +195,5 @@ export class FileUtil {
     if (this.isDocument(filename)) return 'document';
     if (this.isArchive(filename)) return 'archive';
     return 'other';
-  }
-
-  /**
-   * 计算文件上传进度
-   */
-  static calculateProgress(uploaded: number, total: number): number {
-    if (total === 0) return 0;
-    const progress = (uploaded / total) * 100;
-    return Math.min(100, Math.round(progress * 100) / 100);
-  }
-
-  /**
-   * 估算剩余上传时间
-   * @param uploaded 已上传字节数
-   * @param total 总字节数
-   * @param speed 上传速度（字节/秒）
-   * @returns 剩余秒数
-   */
-  static estimateRemainingTime(uploaded: number, total: number, speed: number): number {
-    if (speed === 0) return Infinity;
-    const remaining = total - uploaded;
-    return Math.ceil(remaining / speed);
-  }
-
-  /**
-   * 格式化剩余时间
-   */
-  static formatRemainingTime(seconds: number): string {
-    if (!isFinite(seconds)) return '计算中...';
-
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}小时${minutes}分钟`;
-    }
-    if (minutes > 0) {
-      return `${minutes}分钟${secs}秒`;
-    }
-    return `${secs}秒`;
   }
 }

@@ -43,7 +43,6 @@ describe('FileService', () => {
       saveFile: jest.fn().mockResolvedValue({
         filename: 'test_123.jpg',
         path: 'uploads/2024/01/20/test_123.jpg',
-        url: '/files/uploads/2024/01/20/test_123.jpg',
         size: 1024 * 100,
         metadata: {},
       }),
@@ -77,7 +76,6 @@ describe('FileService', () => {
 
   it('应该正确初始化服务', () => {
     expect(service).toBeDefined();
-    expect(logger.setContext).toHaveBeenCalledWith('FileService');
   });
 
   describe('upload', () => {

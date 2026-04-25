@@ -33,7 +33,7 @@ describe('LoggerService', () => {
     jest.clearAllMocks();
   });
 
-  it('does not keep mutable shared context from setContext', () => {
+  it('does not keep mutable shared context on the singleton logger', () => {
     const logger = new LoggerService({
       get: jest.fn((key: string, defaultValue?: unknown) => {
         const config = {
@@ -46,8 +46,6 @@ describe('LoggerService', () => {
       }),
     } as unknown as ConfigService);
 
-    logger.setContext('UserService');
-    logger.setContext('RoleService');
     logger.log('created');
 
     expect(loggerMock.info).toHaveBeenCalledWith('created', { context: undefined });

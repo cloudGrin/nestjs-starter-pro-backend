@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { LoggerService } from '~/shared/logger/logger.service';
+import { AuthService } from '~/modules/auth/services/auth.service';
 
 /**
  * Code-defined cron extension point.
@@ -9,7 +11,19 @@ import { LoggerService } from '~/shared/logger/logger.service';
  */
 @Injectable()
 export class CronService {
-  constructor(private readonly logger: LoggerService) {}
+  constructor(
+    private readonly logger: LoggerService,
+    private readonly authService: AuthService,
+  ) {}
+
+  @Cron('0 3 * * *')
+  async cleanupExpiredRefreshTokens(): Promise<void> {
+    try {
+      await this.authService.cleanupExpiredTokens();
+    } catch (error) {
+      this.logJobError('cleanupExpiredRefreshTokens', error);
+    }
+  }
 
   logJobError(jobName: string, error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);

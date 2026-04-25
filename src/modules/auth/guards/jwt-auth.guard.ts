@@ -11,7 +11,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     private readonly logger: LoggerService,
   ) {
     super();
-    this.logger.setContext(JwtAuthGuard.name);
   }
 
   canActivate(context: ExecutionContext) {

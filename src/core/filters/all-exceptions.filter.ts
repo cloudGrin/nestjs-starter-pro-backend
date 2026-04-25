@@ -25,9 +25,7 @@ export interface ErrorResponse {
 @Catch()
 @Injectable()
 export class AllExceptionsFilter implements ExceptionFilter {
-  constructor(private readonly logger: LoggerService) {
-    this.logger.setContext(AllExceptionsFilter.name);
-  }
+  constructor(private readonly logger: LoggerService) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -36,6 +34,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let status: number;
     let message: string;
+    let logMessage = 'Internal server error';
     let error: string | undefined;
     let stack: string | undefined;
 
@@ -57,14 +56,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
       } else {
         message = exception.message;
       }
+      logMessage = message;
     } else if (exception instanceof Error) {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = exception.message || 'Internal server error';
+      logMessage = exception.message || 'Internal server error';
+      message = process.env.NODE_ENV === 'development' ? logMessage : 'Internal server error';
       error = 'Internal Server Error';
       stack = exception.stack;
     } else {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = 'Unknown error occurred';
+      logMessage = 'Unknown error occurred';
+      message = process.env.NODE_ENV === 'development' ? logMessage : 'Internal server error';
       error = 'Unknown Error';
     }
 
@@ -85,7 +87,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // 记录错误日志
-    this.logger.error(`${request.method} ${request.url} - ${status} - ${message}`, stack);
+    this.logger.error(`${request.method} ${request.url} - ${status} - ${logMessage}`, stack);
 
     // 记录请求详情（仅在调试模式，脱敏后记录）
     if (process.env.NODE_ENV === 'development') {

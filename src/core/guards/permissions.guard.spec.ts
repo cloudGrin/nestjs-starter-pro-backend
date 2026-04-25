@@ -32,7 +32,6 @@ describe('PermissionsGuard', () => {
         {
           provide: LoggerService,
           useValue: {
-            setContext: jest.fn(),
             log: jest.fn(),
             error: jest.fn(),
             warn: jest.fn(),

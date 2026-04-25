@@ -29,11 +29,26 @@ export interface AuthTokens {
   sessionId: string;
 }
 
+export interface AuthUserResponse {
+  id: number;
+  username: string;
+  email: string;
+  realName?: string;
+  nickname?: string;
+  avatar?: string;
+  phone?: string;
+  status: UserStatus;
+  roles: Array<{
+    id: number;
+    code: string;
+    name: string;
+  }>;
+  isSuperAdmin: boolean;
+  roleCode?: string;
+}
+
 export interface AuthResponse {
-  user: Partial<UserEntity> & {
-    isSuperAdmin?: boolean; // 超级管理员标识（拥有 super_admin 角色）
-    roleCode?: string; // 主要角色码（第一个角色或 super_admin）
-  };
+  user: AuthUserResponse;
   tokens: AuthTokens;
 }
 
@@ -54,7 +69,6 @@ export class AuthService {
     private readonly logger: LoggerService,
     private readonly cache: CacheService,
   ) {
-    this.logger.setContext(AuthService.name);
     this.accessTokenSecret = this.configService.get('jwt.secret') || 'default-secret';
     this.accessTokenExpiresIn = this.configService.get('jwt.expiresIn') || '7d';
     this.refreshTokenSecret =
@@ -168,20 +182,8 @@ export class AuthService {
 
     this.logger.log(`User ${user.username} logged in from ${ipAddress}`);
 
-    // 移除敏感信息
-    const { password: _password, ...userWithoutSensitiveData } = user;
-
-    // ✅ 添加超级管理员标识（与 JWT Strategy 逻辑一致）
-    const roleCodes = user.roles?.map((role) => role.code) || [];
-    // isSuperAdmin 已在前面定义，直接使用
-    const roleCode = isSuperAdmin ? 'super_admin' : roleCodes[0];
-
     return {
-      user: {
-        ...userWithoutSensitiveData,
-        isSuperAdmin, // ← 前端权限判断需要
-        roleCode, // ← 前端权限判断需要
-      },
+      user: this.toAuthUserResponse(user),
       tokens,
     };
   }
@@ -199,7 +201,7 @@ export class AuthService {
       // 查找存储的刷新令牌
       const storedToken = await this.refreshTokenRepository.findOne({
         where: { token: refreshToken },
-        relations: ['user', 'user.roles', 'user.roles.permissions'],
+        relations: ['user', 'user.roles'],
       });
 
       if (!storedToken) {
@@ -506,7 +508,6 @@ export class AuthService {
       .createQueryBuilder('user')
       .addSelect(['user.password'])
       .leftJoinAndSelect('user.roles', 'role')
-      .leftJoinAndSelect('role.permissions', 'permission')
       .where('user.username = :account', { account })
       .getOne();
 
@@ -515,7 +516,6 @@ export class AuthService {
         .createQueryBuilder('user')
         .addSelect(['user.password'])
         .leftJoinAndSelect('user.roles', 'role')
-        .leftJoinAndSelect('role.permissions', 'permission')
         .where('user.email = :account', { account })
         .getOne();
     }
@@ -525,12 +525,35 @@ export class AuthService {
         .createQueryBuilder('user')
         .addSelect(['user.password'])
         .leftJoinAndSelect('user.roles', 'role')
-        .leftJoinAndSelect('role.permissions', 'permission')
         .where('user.phone = :account', { account })
         .getOne();
     }
 
     return user;
+  }
+
+  private toAuthUserResponse(user: UserEntity): AuthUserResponse {
+    const roles = (user.roles || []).map((role) => ({
+      id: role.id,
+      code: role.code,
+      name: role.name,
+    }));
+    const roleCodes = roles.map((role) => role.code);
+    const isSuperAdmin = roleCodes.includes('super_admin');
+
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      realName: user.realName,
+      nickname: user.nickname,
+      avatar: user.avatar,
+      phone: user.phone,
+      status: user.status,
+      roles,
+      isSuperAdmin,
+      roleCode: isSuperAdmin ? 'super_admin' : roleCodes[0],
+    };
   }
 
   private async updateLoginInfo(

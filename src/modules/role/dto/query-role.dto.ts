@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { toOptionalBoolean } from '~/common/utils';
 
 export class QueryRoleDto {
   @ApiPropertyOptional({ description: '角色名称', example: '管理员' })
@@ -15,15 +16,7 @@ export class QueryRoleDto {
 
   @ApiPropertyOptional({ description: '是否启用', example: true })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (value === undefined || value === null || value === '') {
-      return undefined;
-    }
-    if (typeof value === 'boolean') {
-      return value;
-    }
-    return value === 'true';
-  })
+  @Transform(({ value }) => toOptionalBoolean(value))
   @IsBoolean()
   isActive?: boolean;
 

@@ -15,9 +15,7 @@ export class MenuService {
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
     private readonly logger: LoggerService,
-  ) {
-    this.logger.setContext(MenuService.name);
-  }
+  ) {}
 
   /**
    * 创建菜单

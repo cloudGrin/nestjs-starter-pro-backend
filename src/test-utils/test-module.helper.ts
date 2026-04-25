@@ -99,7 +99,6 @@ export function createMockLogger(): jest.Mocked<LoggerService> {
     warn: jest.fn(),
     debug: jest.fn(),
     verbose: jest.fn(),
-    setContext: jest.fn(),
   } as any;
 }
 

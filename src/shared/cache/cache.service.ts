@@ -10,9 +10,7 @@ interface CacheEntry<T = unknown> {
 export class CacheService {
   private readonly store = new Map<string, CacheEntry>();
 
-  constructor(private readonly logger: LoggerService) {
-    this.logger.setContext(CacheService.name);
-  }
+  constructor(private readonly logger: LoggerService) {}
 
   async get<T>(key: string): Promise<T | null> {
     const entry = this.store.get(key);

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsEnum, IsEmail, IsInt, Min } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsInt, Min, MaxLength } from 'class-validator';
 import { PaginationDto } from '~/common/dto/pagination.dto';
 import { UserStatus, UserGender } from '~/common/enums/user.enum';
 
@@ -16,7 +16,8 @@ export class QueryUserDto extends PaginationDto {
     description: '邮箱（模糊查询）',
   })
   @IsOptional()
-  @IsEmail()
+  @IsString()
+  @MaxLength(100)
   email?: string;
 
   @ApiPropertyOptional({

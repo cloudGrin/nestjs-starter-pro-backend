@@ -180,4 +180,3 @@ pnpm test:env:up
 - [NestJS Testing文档](https://docs.nestjs.com/fundamentals/testing)
 - [Jest文档](https://jestjs.io/docs/getting-started)
 - [Supertest文档](https://github.com/visionmedia/supertest)
-- [项目测试进度](../docs/plans/testing-progress.md)

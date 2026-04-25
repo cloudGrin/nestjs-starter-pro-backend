@@ -39,9 +39,7 @@ export class NotificationService {
     private readonly barkChannelAdapter: BarkChannelAdapter,
     private readonly feishuChannelAdapter: FeishuChannelAdapter,
     private readonly logger: LoggerService,
-  ) {
-    this.logger.setContext(NotificationService.name);
-  }
+  ) {}
 
   /**
    * 创建通知（支持广播与多用户发送）

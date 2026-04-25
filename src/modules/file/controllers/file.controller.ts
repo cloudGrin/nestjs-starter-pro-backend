@@ -32,7 +32,7 @@ import { StreamableFile } from '@nestjs/common';
 import { FileService } from '../services/file.service';
 import { UploadFileDto } from '../dto/upload-file.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
-import { RequirePermissions, CurrentUser } from '~/core/decorators';
+import { RequirePermissions, CurrentUser, Public } from '~/core/decorators';
 import { FileEntity } from '../entities/file.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -143,6 +143,25 @@ export class FileController {
   @ApiParam({ name: 'id', description: '文件ID' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.fileService.remove(id);
+  }
+
+  @Get(':id/public')
+  @Public()
+  @ApiOperation({ summary: '公开下载文件' })
+  @ApiParam({ name: 'id', description: '文件ID' })
+  async publicDownload(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { file, stream } = await this.fileService.getPublicDownload(id);
+
+    res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+    );
+
+    return new StreamableFile(stream as any);
   }
 
   @Get(':id/download')

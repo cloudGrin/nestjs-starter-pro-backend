@@ -36,15 +36,12 @@ describe('RoleService', () => {
 
   it('does not persist permissionIds as a role entity field during create', async () => {
     const qb = { where: jest.fn().mockReturnThis(), getCount: jest.fn().mockResolvedValue(0) };
-    const permission = Object.assign(new PermissionEntity(), { id: 1, isActive: true });
     const role = Object.assign(new RoleEntity(), {
       id: 1,
       code: 'editor',
-      permissions: [permission],
     });
 
     roleRepository.createQueryBuilder.mockReturnValue(qb as any);
-    permissionRepository.find.mockResolvedValue([permission]);
     roleRepository.create.mockReturnValue(role);
     roleRepository.save.mockResolvedValue(role);
 
@@ -52,19 +49,18 @@ describe('RoleService', () => {
       code: 'editor',
       name: '编辑',
       permissionIds: [1],
-    });
+    } as any);
 
     expect(roleRepository.create).toHaveBeenCalledWith({
       code: 'editor',
       name: '编辑',
-      permissions: [permission],
       isSystem: false,
     });
+    expect(permissionRepository.find).not.toHaveBeenCalled();
     expect(roleRepository.create.mock.calls[0][0]).not.toHaveProperty('permissionIds');
   });
 
   it('does not persist permissionIds as a role entity field during update', async () => {
-    const permission = Object.assign(new PermissionEntity(), { id: 2, isActive: true });
     const role = Object.assign(new RoleEntity(), {
       id: 1,
       code: 'editor',
@@ -74,13 +70,13 @@ describe('RoleService', () => {
     });
 
     roleRepository.findOne.mockResolvedValue(role);
-    permissionRepository.find.mockResolvedValue([permission]);
     roleRepository.save.mockImplementation(async (entity) => entity as RoleEntity);
 
-    await service.updateRole(1, { name: '编辑员', permissionIds: [2] });
+    await service.updateRole(1, { name: '编辑员', permissionIds: [2] } as any);
 
     const savedRole = roleRepository.save.mock.calls[0][0];
-    expect(savedRole).toMatchObject({ name: '编辑员', permissions: [permission] });
+    expect(permissionRepository.find).not.toHaveBeenCalled();
+    expect(savedRole).toMatchObject({ name: '编辑员', permissions: [] });
     expect(savedRole).not.toHaveProperty('permissionIds');
   });
 });

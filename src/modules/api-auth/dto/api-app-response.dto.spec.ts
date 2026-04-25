@@ -20,7 +20,7 @@ describe('api app response DTOs', () => {
       expiresAt,
       createdAt,
       keyHash: 'hash-should-not-leak',
-    });
+    } as any);
 
     expect(response).toEqual({
       id: 1,
@@ -54,7 +54,7 @@ describe('api app response DTOs', () => {
       expiresAt,
       createdAt,
       keyHash: 'hash-should-not-leak',
-    });
+    } as any);
 
     expect(response).toEqual({
       id: 2,

@@ -31,5 +31,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtStrategy,
     // JwtAuthGuard 和 PermissionsGuard 已在 app.module.ts 中全局注册，此处无需重复注册
   ],
+  exports: [AuthService],
 })
 export class AuthModule {}

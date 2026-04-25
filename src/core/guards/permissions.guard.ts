@@ -26,9 +26,7 @@ export class PermissionsGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly userService: UserService,
     private readonly logger: LoggerService,
-  ) {
-    this.logger.setContext(PermissionsGuard.name);
-  }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [

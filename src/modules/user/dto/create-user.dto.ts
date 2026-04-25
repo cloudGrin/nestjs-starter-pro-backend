@@ -8,8 +8,6 @@ import {
   MaxLength,
   IsPhoneNumber,
   IsDateString,
-  IsArray,
-  IsNumber,
   Matches,
 } from 'class-validator';
 import { UserGender, UserStatus } from '~/common/enums/user.enum';
@@ -125,14 +123,4 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(UserStatus)
   status?: UserStatus;
-
-  @ApiPropertyOptional({
-    description: '角色ID列表',
-    type: [Number],
-    example: [1, 2],
-  })
-  @IsOptional()
-  @IsArray()
-  @IsNumber({}, { each: true })
-  roleIds?: number[];
 }

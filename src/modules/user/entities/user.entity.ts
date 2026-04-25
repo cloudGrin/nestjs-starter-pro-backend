@@ -132,7 +132,7 @@ export class UserEntity extends SoftDeleteBaseEntity {
   })
   lockedUntil?: Date | null;
 
-  @ManyToMany(() => RoleEntity, (role) => role.users, { cascade: true })
+  @ManyToMany(() => RoleEntity, (role) => role.users)
   @JoinTable({
     name: 'user_roles',
     joinColumn: { name: 'user_id', referencedColumnName: 'id' },

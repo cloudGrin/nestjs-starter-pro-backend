@@ -27,7 +27,6 @@ export class HealthService {
     private readonly cacheService: CacheService,
     private readonly logger: LoggerService,
   ) {
-    this.logger.setContext(HealthService.name);
     this.startTime = Date.now();
   }
 

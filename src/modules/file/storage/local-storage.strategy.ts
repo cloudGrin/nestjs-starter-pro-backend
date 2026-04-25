@@ -11,12 +11,10 @@ import {
 @Injectable()
 export class LocalStorageStrategy implements FileStorageStrategy {
   private readonly rootDir: string;
-  private readonly baseUrl: string;
 
   constructor(private readonly configService: ConfigService) {
     const uploadDir = this.configService.get<string>('file.uploadDir', 'uploads');
     this.rootDir = this.resolveRoot(uploadDir);
-    this.baseUrl = this.configService.get<string>('file.baseUrl', '/uploads');
   }
 
   /**
@@ -82,10 +80,6 @@ export class LocalStorageStrategy implements FileStorageStrategy {
       size,
       metadata: options.metadata,
     };
-
-    if (options.isPublic) {
-      metadata.url = this.getPublicUrl(relativePath);
-    }
 
     return metadata;
   }
@@ -153,14 +147,5 @@ export class LocalStorageStrategy implements FileStorageStrategy {
   private getRelativePath(absolutePath: string): string {
     const relativePath = relative(this.rootDir, absolutePath);
     return relativePath.split('\\').join('/');
-  }
-
-  /**
-   * 构建公开访问地址
-   */
-  private getPublicUrl(relativePath: string): string {
-    const normalized = relativePath.replace(/^\//, '');
-    const base = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
-    return `${base}/${normalized}`;
   }
 }

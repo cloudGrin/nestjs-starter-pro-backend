@@ -78,10 +78,6 @@ export class LoggerService implements NestLoggerService {
     });
   }
 
-  setContext(_context: string) {
-    // LoggerService is a singleton; keeping mutable context here causes cross-service log pollution.
-  }
-
   log(message: any, context?: string) {
     this.logger.info(message, { context });
   }

@@ -274,12 +274,15 @@ describe('ApiAuthService', () => {
       };
       const keyHash = ApiKeyEntity.hashKey(apiKey);
 
-      cacheService.get.mockResolvedValue(cachedAuth);
+      cacheService.get.mockResolvedValue({ keyId: 9, app: cachedAuth });
+      keyRepository.increment.mockResolvedValue(undefined);
+      keyRepository.update.mockResolvedValue(undefined);
 
       const result = await service.validateApiKey(apiKey);
 
       expect(result).toEqual(cachedAuth);
       expect(cacheService.get).toHaveBeenCalledWith(`api_key:${keyHash}`);
+      expect(keyRepository.increment).toHaveBeenCalledWith({ id: 9 }, 'usageCount', 1);
       expect(keyRepository.findOne).not.toHaveBeenCalled();
     });
 
@@ -311,11 +314,14 @@ describe('ApiAuthService', () => {
       expect(cacheService.set).toHaveBeenCalledWith(
         `api_key:${keyHash}`,
         {
-          id: mockApp.id,
-          name: mockApp.name,
-          ownerId: mockApp.ownerId,
-          scopes: ['read:users'],
-          type: 'api-app',
+          keyId: mockKey.id,
+          app: {
+            id: mockApp.id,
+            name: mockApp.name,
+            ownerId: mockApp.ownerId,
+            scopes: ['read:users'],
+            type: 'api-app',
+          },
         },
         300,
       );
@@ -342,7 +348,10 @@ describe('ApiAuthService', () => {
 
       expect(cacheService.set).toHaveBeenCalledWith(
         `api_key:${keyHash}`,
-        expect.objectContaining({ id: mockApp.id, type: 'api-app' }),
+        expect.objectContaining({
+          keyId: mockKey.id,
+          app: expect.objectContaining({ id: mockApp.id, type: 'api-app' }),
+        }),
         45,
       );
       jest.useRealTimers();

@@ -13,7 +13,16 @@ Or with Docker:
 
 ```bash
 docker build -t home-admin .
-docker run -d -p 3000:3000 --name home-admin home-admin
+docker run -d -p 3000:3000 --name home-admin \
+  -e NODE_ENV=production \
+  -e DB_HOST=host.docker.internal \
+  -e DB_USERNAME=home \
+  -e DB_PASSWORD=change-me \
+  -e DB_DATABASE=home \
+  -e JWT_SECRET=change-me-access-secret \
+  -e JWT_REFRESH_SECRET=change-me-refresh-secret \
+  -e CORS_ORIGIN=https://your-domain.example \
+  home-admin
 docker logs -f home-admin
 ```
 

@@ -182,7 +182,7 @@ export const configValidationSchema = Joi.object({
 
   FILE_UPLOAD_DIR: Joi.string().default('uploads'),
 
-  FILE_BASE_URL: Joi.string().default('/uploads'),
+  FILE_BASE_URL: Joi.string().default('/api/v1/files'),
 
   FILE_MAX_SIZE: Joi.number().min(1024).default(DEFAULT_FILE_MAX_SIZE), // 50MB
 

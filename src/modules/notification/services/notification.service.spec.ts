@@ -64,7 +64,6 @@ describe('NotificationService', () => {
 
   it('应该正确初始化服务', () => {
     expect(service).toBeDefined();
-    expect(logger.setContext).toHaveBeenCalledWith('NotificationService');
   });
 
   describe('createNotification', () => {
@@ -78,8 +77,8 @@ describe('NotificationService', () => {
       const notifications = [{ id: 1, recipientId: 1 }] as NotificationEntity[];
 
       userRepository.find.mockResolvedValue([{ id: 1, username: 'test' }] as UserEntity[]);
-      notificationRepository.create.mockReturnValue(notifications);
-      notificationRepository.save.mockResolvedValue(notifications);
+      notificationRepository.create.mockReturnValue(notifications as any);
+      notificationRepository.save.mockResolvedValue(notifications as any);
 
       const result = await service.createNotification(dto, 2);
 
@@ -105,8 +104,8 @@ describe('NotificationService', () => {
       ] as NotificationEntity[];
 
       userRepository.find.mockResolvedValue([{ id: 1, username: 'test' }] as UserEntity[]);
-      notificationRepository.create.mockReturnValue(notifications);
-      notificationRepository.save.mockResolvedValue(notifications);
+      notificationRepository.create.mockReturnValue(notifications as any);
+      notificationRepository.save.mockResolvedValue(notifications as any);
       feishuAdapter.send.mockResolvedValue({
         channel: NotificationChannel.FEISHU,
         success: true,
@@ -129,11 +128,11 @@ describe('NotificationService', () => {
       notificationRepository.create.mockReturnValue([
         { id: 1, recipientId: 1 },
         { id: 2, recipientId: 2 },
-      ] as NotificationEntity[]);
+      ] as any);
       notificationRepository.save.mockResolvedValue([
         { id: 1, recipientId: 1 },
         { id: 2, recipientId: 2 },
-      ] as NotificationEntity[]);
+      ] as any);
 
       await service.createNotification({
         title: '广播通知',

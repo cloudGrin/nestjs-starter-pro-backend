@@ -15,6 +15,7 @@ const API_AUTH_CONSTANTS = {
   MAX_KEYS_PER_APP: 5, // 每个应用最大密钥数
   KEY_CACHE_TTL: 300, // 密钥缓存时间（秒）
 } as const;
+const API_APP_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'name']);
 
 export interface ValidatedApiApp {
   id: number;
@@ -22,6 +23,11 @@ export interface ValidatedApiApp {
   ownerId?: number;
   scopes: string[];
   type: 'api-app';
+}
+
+interface ApiKeyCacheEntry {
+  keyId: number;
+  app: ValidatedApiApp;
 }
 
 @Injectable()
@@ -44,6 +50,8 @@ export class ApiAuthService {
       {
         page,
         limit,
+        sort: query.sort && API_APP_SORT_FIELDS.has(query.sort) ? query.sort : undefined,
+        order: query.order,
       },
       {
         where: { isActive: true },
@@ -160,9 +168,10 @@ export class ApiAuthService {
   async validateApiKey(apiKey: string): Promise<ValidatedApiApp | null> {
     const keyHash = ApiKeyEntity.hashKey(apiKey);
     const cacheKey = `api_key:${keyHash}`;
-    const cached = await this.cacheService.get<ValidatedApiApp>(cacheKey);
+    const cached = await this.cacheService.get<ApiKeyCacheEntry>(cacheKey);
     if (cached) {
-      return cached;
+      await this.recordKeyUsage(cached.keyId);
+      return cached.app;
     }
 
     // 查询密钥
@@ -194,14 +203,11 @@ export class ApiAuthService {
     };
 
     // 更新最后使用时间（异步，不等待）
-    await Promise.all([
-      this.keyRepository.increment({ id: key.id }, 'usageCount', 1),
-      this.keyRepository.update(key.id, { lastUsedAt: new Date() }),
-    ]);
+    await this.recordKeyUsage(key.id);
 
     const cacheTtl = this.getApiKeyCacheTtl(key.expiresAt);
     if (cacheTtl > 0) {
-      await this.cacheService.set(cacheKey, validatedApp, cacheTtl);
+      await this.cacheService.set(cacheKey, { keyId: key.id, app: validatedApp }, cacheTtl);
     }
 
     return validatedApp;
@@ -250,6 +256,13 @@ export class ApiAuthService {
   private async clearAppKeyCache(appId: number): Promise<void> {
     const keys = await this.findAppKeys(appId);
     await Promise.all(keys.map((key) => this.cacheService.del(`api_key:${key.keyHash}`)));
+  }
+
+  private async recordKeyUsage(keyId: number): Promise<void> {
+    await Promise.all([
+      this.keyRepository.increment({ id: keyId }, 'usageCount', 1),
+      this.keyRepository.update(keyId, { lastUsedAt: new Date() }),
+    ]);
   }
 
   private async paginateApps(

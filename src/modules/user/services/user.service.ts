@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
@@ -21,6 +22,14 @@ import { UserStatus } from '~/common/enums/user.enum';
 const USER_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'username', 'email', 'lastLoginAt']);
 const USER_PERMISSION_CACHE_TTL_SECONDS = 1800;
 const userPermissionsCacheKey = (userId: number) => `user:permissions:${userId}`;
+const SUPER_ADMIN_ROLE_CODE = 'super_admin';
+
+interface UserActionActor {
+  id: number;
+  isSuperAdmin?: boolean;
+  roleCode?: string;
+  roles?: string[];
+}
 
 @Injectable()
 export class UserService {
@@ -33,17 +42,13 @@ export class UserService {
     private readonly refreshTokenRepository: Repository<RefreshTokenEntity>,
     private readonly logger: LoggerService,
     private readonly cache: CacheService,
-  ) {
-    this.logger.setContext(UserService.name);
-  }
+  ) {}
 
   /**
    * 创建用户
    */
   async createUser(dto: CreateUserDto): Promise<UserEntity> {
-    this.logger.debug(
-      `准备创建用户 username=${dto.username}, email=${dto.email}, roleIds=${JSON.stringify(dto.roleIds || [])}`,
-    );
+    this.logger.debug(`准备创建用户 username=${dto.username}, email=${dto.email}`);
 
     // 检查用户名是否存在
     if (await this.isUsernameExist(dto.username)) {
@@ -63,31 +68,14 @@ export class UserService {
       throw new ConflictException('手机号已被注册');
     }
 
-    // 获取角色
-    let roles: RoleEntity[] = [];
-    if (dto.roleIds && dto.roleIds.length > 0) {
-      roles = await this.roleRepository.find({
-        where: { id: In(dto.roleIds), isActive: true },
-      });
-
-      this.logger.debug(
-        `创建用户角色查询结果 username=${dto.username}, 请求数量=${dto.roleIds.length}, 查询数量=${roles.length}`,
-      );
-
-      if (roles.length !== dto.roleIds.length) {
-        this.logger.debug(
-          `创建用户失败，部分角色不存在或禁用 username=${dto.username}, roleIds=${JSON.stringify(dto.roleIds)}`,
-        );
-        throw new BadRequestException('部分角色不存在或已禁用');
-      }
-    }
-
-    const { roleIds: _roleIds, ...userData } = dto;
+    const { roleIds: _ignoredRoleIds, ...userData } = dto as CreateUserDto & {
+      roleIds?: number[];
+    };
 
     // 创建用户
     const user = this.userRepository.create({
       ...userData,
-      roles,
+      roles: [],
     });
 
     const savedUser = await this.userRepository.save(user);
@@ -104,11 +92,13 @@ export class UserService {
   /**
    * 更新用户
    */
-  async updateUser(id: number, dto: UpdateUserDto): Promise<UserEntity> {
+  async updateUser(id: number, dto: UpdateUserDto, actor?: UserActionActor): Promise<UserEntity> {
     this.logger.debug(`准备更新用户 id=${id}, payload=${JSON.stringify(dto)}`);
 
-    const user = await this.findByIdOrFail(id);
+    const user = await this.findByIdWithRolesOrFail(id);
     this.logger.debug(`更新用户时找到用户 id=${id}, username=${user.username}`);
+
+    this.ensureCanMutateSuperAdminTarget(user, actor, '修改超级管理员');
 
     // 检查邮箱是否存在
     if (dto.email && dto.email !== user.email) {
@@ -126,42 +116,19 @@ export class UserService {
       }
     }
 
-    // 更新角色
-    let rolesChanged = false;
-    if (dto.roleIds !== undefined) {
-      this.logger.debug(`更新用户角色 id=${id}, roleIds=${JSON.stringify(dto.roleIds)}`);
-      const roles =
-        dto.roleIds.length > 0
-          ? await this.roleRepository.find({
-              where: { id: In(dto.roleIds), isActive: true },
-            })
-          : [];
-
-      this.logger.debug(
-        `更新用户角色查询结果 id=${id}, 请求数量=${dto.roleIds.length}, 查询数量=${roles.length}`,
-      );
-
-      if (dto.roleIds.length > 0 && roles.length !== dto.roleIds.length) {
-        this.logger.debug(`更新用户失败，部分角色不存在或禁用 id=${id}`);
-        throw new BadRequestException('部分角色不存在或已禁用');
-      }
-
-      user.roles = roles;
-      rolesChanged = true;
+    if (dto.status && dto.status !== user.status && this.isSuperAdminUser(user)) {
+      await this.ensureNotLastActiveSuperAdmin(user, dto.status);
     }
 
-    const { roleIds: _roleIds, ...userData } = dto;
+    const { roleIds: _ignoredRoleIds, ...userData } = dto as UpdateUserDto & {
+      roleIds?: number[];
+    };
 
     // 更新用户信息
     Object.assign(user, userData);
     this.logger.debug(`用户信息合并完成，准备保存 id=${id}`);
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`用户更新保存成功 id=${updatedUser.id}`);
-
-    // 如果角色发生变更，清除权限缓存，确保权限立即生效
-    if (rolesChanged) {
-      await this.clearUserPermissionCache(id);
-    }
 
     this.logger.log(`Updated user: ${updatedUser.username} (ID: ${updatedUser.id})`);
 
@@ -196,7 +163,7 @@ export class UserService {
 
     const user = await this.userRepository.findOne({
       where: { id },
-      relations: ['roles', 'roles.permissions'],
+      relations: ['roles'],
     });
 
     if (!user) {
@@ -218,7 +185,7 @@ export class UserService {
     this.logger.debug(`根据用户名查询用户 username=${username}`);
     const result = await this.userRepository.findOne({
       where: { username },
-      relations: ['roles', 'roles.permissions'],
+      relations: ['roles'],
     });
     this.logger.debug(`根据用户名查询用户结果 username=${username}, exists=${result ? 'Y' : 'N'}`);
     return result;
@@ -275,10 +242,15 @@ export class UserService {
   /**
    * 重置密码（管理员操作）
    */
-  async resetPassword(userId: number, dto: ResetPasswordDto): Promise<void> {
+  async resetPassword(
+    userId: number,
+    dto: ResetPasswordDto,
+    actor?: UserActionActor,
+  ): Promise<void> {
     this.logger.debug(`管理员重置密码 userId=${userId}`);
 
-    const user = await this.findByIdOrFail(userId);
+    const user = await this.findByIdWithRolesOrFail(userId);
+    this.ensureCanMutateSuperAdminTarget(user, actor, '重置超级管理员密码');
 
     // 更新密码
     user.password = dto.password;
@@ -297,10 +269,11 @@ export class UserService {
   /**
    * 启用用户
    */
-  async enableUser(id: number): Promise<UserEntity> {
+  async enableUser(id: number, actor?: UserActionActor): Promise<UserEntity> {
     this.logger.debug(`启用用户 id=${id}`);
 
-    const user = await this.findByIdOrFail(id);
+    const user = await this.findByIdWithRolesOrFail(id);
+    this.ensureCanMutateSuperAdminTarget(user, actor, '启用超级管理员');
 
     user.status = UserStatus.ACTIVE;
     user.loginAttempts = 0;
@@ -317,10 +290,12 @@ export class UserService {
   /**
    * 禁用用户
    */
-  async disableUser(id: number): Promise<UserEntity> {
+  async disableUser(id: number, actor?: UserActionActor): Promise<UserEntity> {
     this.logger.debug(`禁用用户 id=${id}`);
 
-    const user = await this.findByIdOrFail(id);
+    const user = await this.findByIdWithRolesOrFail(id);
+    this.ensureCanMutateSuperAdminTarget(user, actor, '禁用超级管理员');
+    await this.ensureNotLastActiveSuperAdmin(user, UserStatus.DISABLED);
 
     user.status = UserStatus.DISABLED;
 
@@ -339,10 +314,12 @@ export class UserService {
   /**
    * 删除用户
    */
-  async deleteUser(id: number): Promise<void> {
+  async deleteUser(id: number, actor?: UserActionActor): Promise<void> {
     this.logger.debug(`删除用户 id=${id}`);
 
-    const user = await this.findByIdOrFail(id);
+    const user = await this.findByIdWithRolesOrFail(id);
+    this.ensureCanMutateSuperAdminTarget(user, actor, '删除超级管理员');
+    await this.ensureNotLastActiveSuperAdmin(user, undefined);
 
     await this.userRepository.softDelete(id);
     await this.revokeRefreshTokens(id);
@@ -354,7 +331,7 @@ export class UserService {
   /**
    * 批量删除用户
    */
-  async deleteUsers(ids: number[]): Promise<void> {
+  async deleteUsers(ids: number[], actor?: UserActionActor): Promise<void> {
     this.logger.debug(`批量删除用户 ids=${JSON.stringify(ids)}`);
 
     const users = await this.findByIds(ids);
@@ -365,6 +342,11 @@ export class UserService {
       );
       throw new BadRequestException('部分用户不存在');
     }
+
+    for (const user of users) {
+      this.ensureCanMutateSuperAdminTarget(user, actor, '删除超级管理员');
+    }
+    await this.ensureBatchDoesNotRemoveLastActiveSuperAdmin(users);
 
     for (const user of users) {
       await this.userRepository.softDelete(user.id);
@@ -378,7 +360,11 @@ export class UserService {
   /**
    * 分配角色
    */
-  async assignRoles(userId: number, roleIds: number[]): Promise<UserEntity> {
+  async assignRoles(
+    userId: number,
+    roleIds: number[],
+    actor?: UserActionActor,
+  ): Promise<UserEntity> {
     this.logger.debug(`分配角色 userId=${userId}, roleIds=${JSON.stringify(roleIds)}`);
 
     const user = await this.userRepository.findOne({
@@ -402,6 +388,17 @@ export class UserService {
     if (roles.length !== roleIds.length) {
       this.logger.debug(`分配角色失败，部分角色不存在或禁用 userId=${userId}`);
       throw new BadRequestException('部分角色不存在或已禁用');
+    }
+
+    const currentlySuperAdmin = this.isSuperAdminUser(user);
+    const nextSuperAdmin = roles.some((role) => role.code === SUPER_ADMIN_ROLE_CODE);
+
+    if (currentlySuperAdmin || nextSuperAdmin) {
+      this.ensureActorIsSuperAdmin(actor, '只有超级管理员可以分配或移除 super_admin 角色');
+    }
+
+    if (currentlySuperAdmin && !nextSuperAdmin) {
+      await this.ensureNotLastActiveSuperAdmin(user, undefined);
     }
 
     user.roles = roles;
@@ -519,9 +516,10 @@ export class UserService {
     return (await qb.getCount()) > 0;
   }
 
-  private async findByIdOrFail(id: number): Promise<UserEntity> {
+  private async findByIdWithRolesOrFail(id: number): Promise<UserEntity> {
     const entity = await this.userRepository.findOne({
       where: { id } as FindOptionsWhere<UserEntity>,
+      relations: ['roles'],
     });
 
     if (!entity) {
@@ -531,11 +529,86 @@ export class UserService {
     return entity;
   }
 
+  private isSuperAdminUser(user: UserEntity): boolean {
+    return user.roles?.some((role) => role.code === SUPER_ADMIN_ROLE_CODE) ?? false;
+  }
+
+  private isActorSuperAdmin(actor?: UserActionActor): boolean {
+    return (
+      actor?.isSuperAdmin === true ||
+      actor?.roleCode === SUPER_ADMIN_ROLE_CODE ||
+      actor?.roles?.includes(SUPER_ADMIN_ROLE_CODE) === true
+    );
+  }
+
+  private ensureActorIsSuperAdmin(actor: UserActionActor | undefined, message: string): void {
+    if (!this.isActorSuperAdmin(actor)) {
+      throw new ForbiddenException(message);
+    }
+  }
+
+  private ensureCanMutateSuperAdminTarget(
+    target: UserEntity,
+    actor: UserActionActor | undefined,
+    action: string,
+  ): void {
+    if (!this.isSuperAdminUser(target)) {
+      return;
+    }
+
+    this.ensureActorIsSuperAdmin(actor, `只有超级管理员可以${action}`);
+  }
+
+  private async ensureNotLastActiveSuperAdmin(
+    user: UserEntity,
+    nextStatus: UserStatus | undefined,
+  ): Promise<void> {
+    if (!this.isSuperAdminUser(user) || user.status !== UserStatus.ACTIVE) {
+      return;
+    }
+
+    if (nextStatus === UserStatus.ACTIVE) {
+      return;
+    }
+
+    const activeSuperAdminCount = await this.countActiveSuperAdmins();
+    if (activeSuperAdminCount <= 1) {
+      throw new BadRequestException('至少需要保留一个可用的超级管理员');
+    }
+  }
+
+  private async ensureBatchDoesNotRemoveLastActiveSuperAdmin(users: UserEntity[]): Promise<void> {
+    const removingActiveSuperAdminIds = new Set(
+      users
+        .filter((user) => user.status === UserStatus.ACTIVE && this.isSuperAdminUser(user))
+        .map((user) => user.id),
+    );
+
+    if (removingActiveSuperAdminIds.size === 0) {
+      return;
+    }
+
+    const activeSuperAdminCount = await this.countActiveSuperAdmins();
+    if (activeSuperAdminCount - removingActiveSuperAdminIds.size < 1) {
+      throw new BadRequestException('至少需要保留一个可用的超级管理员');
+    }
+  }
+
+  private async countActiveSuperAdmins(): Promise<number> {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .innerJoin('user.roles', 'role')
+      .where('user.status = :status', { status: UserStatus.ACTIVE })
+      .andWhere('role.code = :roleCode', { roleCode: SUPER_ADMIN_ROLE_CODE })
+      .andWhere('role.isActive = :roleActive', { roleActive: true })
+      .getCount();
+  }
+
   private async findWithPassword(id: number): Promise<UserEntity | null> {
     return this.userRepository.findOne({
       where: { id },
       select: ['id', 'username', 'email', 'password', 'status', 'loginAttempts', 'lockedUntil'],
-      relations: ['roles', 'roles.permissions'],
+      relations: ['roles'],
     });
   }
 

@@ -170,9 +170,11 @@ describe('architecture slimming', () => {
 
   it('removes unused custom validation pipe in favor of Nest built-in ValidationPipe', () => {
     const main = readSource('main.ts');
+    const configureApp = readSource('bootstrap/configure-app.ts');
 
-    expect(main).toContain("from '@nestjs/common'");
-    expect(main).toContain('new ValidationPipe({');
+    expect(main).toContain("from './bootstrap/configure-app'");
+    expect(configureApp).toContain("from '@nestjs/common'");
+    expect(configureApp).toContain('new ValidationPipe({');
     expect(existsInSource('core/pipes/validation.pipe.ts')).toBe(false);
   });
 
@@ -632,12 +634,13 @@ describe('architecture slimming', () => {
   it('keeps Docker deployment migration-based without init.sql or obsolete compose syntax', () => {
     const compose = readProject('docker-compose.yml');
     const testCompose = readProject('docker-compose.test.yml');
+    const dockerfile = readProject('Dockerfile');
 
     expect(compose).not.toContain("version: '3.8'");
     expect(testCompose).not.toContain("version: '3.8'");
     expect(compose).not.toContain('init.sql');
-    expect(compose).toContain('pnpm run migration:run');
-    expect(compose).toContain('node dist/main');
+    expect(dockerfile).toContain('pnpm run migration:run');
+    expect(dockerfile).toContain('node dist/main');
   });
 
   it('uses configured file upload size at the multer layer', () => {
@@ -652,11 +655,10 @@ describe('architecture slimming', () => {
   });
 
   it('removes stale redis captcha excel and removed file-processing env examples', () => {
-    const env = readProject('.env');
     const envTest = readProject('.env.test');
     const envExample = readProject('.env.example');
 
-    for (const content of [env, envTest, envExample]) {
+    for (const content of [envTest, envExample]) {
       expect(content).not.toMatch(/REDIS_|Redis|CAPTCHA|captcha/);
       expect(content).not.toMatch(/DB_SYNCHRONIZE|DB_ACQUIRE_TIMEOUT|DB_QUERY_TIMEOUT/);
       expect(content).not.toMatch(/FILE_CHUNK|FILE_IMAGE/);

@@ -12,6 +12,15 @@ import { PaginationResult } from '~/common/types/pagination.types';
 import { PermissionEntity } from '../entities/permission.entity';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 
+const PERMISSION_SORT_FIELDS = new Set([
+  'module',
+  'sort',
+  'createdAt',
+  'updatedAt',
+  'code',
+  'name',
+]);
+
 @Injectable()
 export class PermissionService {
   constructor(
@@ -19,9 +28,7 @@ export class PermissionService {
     private readonly permissionRepo: Repository<PermissionEntity>,
     private readonly logger: LoggerService,
     private readonly cache: CacheService,
-  ) {
-    this.logger.setContext(PermissionService.name);
-  }
+  ) {}
 
   /**
    * 创建权限
@@ -35,7 +42,11 @@ export class PermissionService {
       throw new ConflictException(`权限编码 ${dto.code} 已存在`);
     }
 
-    const entity = this.permissionRepo.create(dto);
+    const { isSystem: _ignoredIsSystem, ...permissionData } = dto as CreatePermissionDto & {
+      isSystem?: boolean;
+    };
+
+    const entity = this.permissionRepo.create(permissionData);
     this.logger.debug(`权限实体构建完成，准备保存 code=${entity.code}`);
     const saved = await this.permissionRepo.save(entity);
     this.logger.debug(`权限保存成功 id=${saved.id}, code=${saved.code}`);
@@ -63,7 +74,11 @@ export class PermissionService {
       this.logger.debug(`更新权限编码通过校验 id=${id}, newCode=${dto.code}`);
     }
 
-    Object.assign(entity, dto);
+    const { isSystem: _ignoredIsSystem, ...permissionData } = dto as UpdatePermissionDto & {
+      isSystem?: boolean;
+    };
+
+    Object.assign(entity, permissionData);
     this.logger.debug(`权限信息合并完成，准备保存 id=${id}`);
     const updated = await this.permissionRepo.save(entity);
     this.logger.debug(`权限更新保存成功 id=${updated.id}`);
@@ -240,11 +255,15 @@ export class PermissionService {
     const page = query.page || 1;
     const limit = query.limit || 20;
 
-    qb.orderBy('permission.module', 'ASC')
-      .addOrderBy('permission.sort', 'ASC')
-      .addOrderBy('permission.createdAt', 'ASC')
-      .skip((page - 1) * limit)
-      .take(limit);
+    if (query.sort && PERMISSION_SORT_FIELDS.has(query.sort)) {
+      qb.orderBy(`permission.${query.sort}`, query.order || 'ASC');
+    } else {
+      qb.orderBy('permission.module', 'ASC')
+        .addOrderBy('permission.sort', 'ASC')
+        .addOrderBy('permission.createdAt', 'ASC');
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
 
     return qb.getManyAndCount();
   }

@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PaginationDto } from '~/common/dto/pagination.dto';
+import { toOptionalBoolean } from '~/common/utils';
 import { FileStorageType } from '../entities/file.entity';
 
 export class QueryFileDto extends PaginationDto {
@@ -42,7 +43,7 @@ export class QueryFileDto extends PaginationDto {
     description: '是否公开访问',
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) => toOptionalBoolean(value))
   @IsBoolean()
   isPublic?: boolean;
 }

@@ -178,8 +178,8 @@ export const configuration = (): Configuration => ({
     storage: (process.env.FILE_STORAGE as 'local' | 'oss') || 'local',
     /** 上传文件保存目录 */
     uploadDir: process.env.FILE_UPLOAD_DIR || 'uploads',
-    /** 文件访问基础 URL */
-    baseUrl: process.env.FILE_BASE_URL || '/uploads',
+    /** 本地公开文件下载基础 URL */
+    baseUrl: process.env.FILE_BASE_URL || '/api/v1/files',
     /** 最大文件大小（字节），默认 50MB */
     maxSize: parseInt(process.env.FILE_MAX_SIZE || `${DEFAULT_FILE_MAX_SIZE}`, 10),
     /** 允许的文件类型（扩展名列表） */

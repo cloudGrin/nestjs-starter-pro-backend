@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { promises as fsPromises, constants as fsConstants, createReadStream } from 'fs';
+import { promises as fsPromises, createReadStream } from 'fs';
 import { join, resolve, normalize, relative } from 'path';
 import {
   FileStorageStrategy,
@@ -33,31 +33,6 @@ export class LocalStorageStrategy implements FileStorageStrategy {
   }
 
   /**
-   * 从临时文件移动到目标目录
-   */
-  async saveFromPath(
-    tempPath: string,
-    options: FileStorageSaveOptions,
-  ): Promise<StoredFileMetadata> {
-    const targetDirectory = this.getTargetDirectory(options.relativePath);
-    await fsPromises.mkdir(targetDirectory, { recursive: true });
-
-    const absolutePath = join(targetDirectory, options.filename);
-
-    // 如果目标已存在，先删除避免跨平台 rename 失败
-    try {
-      await fsPromises.unlink(absolutePath);
-    } catch {
-      // ignore if not exists
-    }
-
-    await fsPromises.rename(tempPath, absolutePath);
-    const stats = await fsPromises.stat(absolutePath);
-
-    return this.buildMetadata(absolutePath, stats.size, options);
-  }
-
-  /**
    * 删除文件
    */
   async delete(path: string): Promise<void> {
@@ -81,22 +56,9 @@ export class LocalStorageStrategy implements FileStorageStrategy {
   }
 
   /**
-   * 判断文件是否存在
-   */
-  async exists(path: string): Promise<boolean> {
-    const absolutePath = this.toAbsolutePath(path);
-    try {
-      await fsPromises.access(absolutePath, fsConstants.F_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
    * 获取绝对路径（用于服务内部操作）
    */
-  toAbsolutePath(path: string): string {
+  private toAbsolutePath(path: string): string {
     const safePath = this.sanitizeRelativePath(path);
     return resolve(this.rootDir, safePath);
   }

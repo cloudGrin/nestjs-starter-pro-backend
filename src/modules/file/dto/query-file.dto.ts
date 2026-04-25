@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PaginationDto } from '~/common/dto/pagination.dto';
-import { FileStatus, FileStorageType } from '../entities/file.entity';
+import { FileStorageType } from '../entities/file.entity';
 
 export class QueryFileDto extends PaginationDto {
   @ApiPropertyOptional({
@@ -19,14 +19,6 @@ export class QueryFileDto extends PaginationDto {
   @IsOptional()
   @IsEnum(FileStorageType)
   storage?: FileStorageType;
-
-  @ApiPropertyOptional({
-    description: '文件状态过滤',
-    enum: FileStatus,
-  })
-  @IsOptional()
-  @IsEnum(FileStatus)
-  status?: FileStatus;
 
   @ApiPropertyOptional({
     description: '文件类别过滤',

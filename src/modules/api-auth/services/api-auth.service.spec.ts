@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ApiAuthService } from './api-auth.service';
 import { ApiAppEntity } from '../entities/api-app.entity';
@@ -83,6 +83,7 @@ describe('ApiAuthService', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.clearAllMocks();
   });
 
@@ -106,6 +107,7 @@ describe('ApiAuthService', () => {
         },
       });
       expect(appRepository.findAndCount).toHaveBeenCalledWith({
+        where: { isActive: true },
         skip: 5,
         take: 5,
         order: { createdAt: 'DESC' },
@@ -320,6 +322,32 @@ describe('ApiAuthService', () => {
       expect(keyRepository.increment).toHaveBeenCalledWith({ id: mockKey.id }, 'usageCount', 1);
     });
 
+    it('does not cache API key validation beyond the key expiration time', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+      const apiKey = 'sk_live_testkey123';
+      const mockApp = createMockApp();
+      const mockKey = createMockKey({
+        app: mockApp,
+        expiresAt: new Date('2026-01-01T00:00:45.000Z'),
+      });
+      const keyHash = ApiKeyEntity.hashKey(apiKey);
+
+      cacheService.get.mockResolvedValue(null);
+      keyRepository.findOne.mockResolvedValue(mockKey);
+      cacheService.set.mockResolvedValue(undefined);
+      keyRepository.increment.mockResolvedValue(undefined);
+      keyRepository.update.mockResolvedValue(undefined);
+
+      await service.validateApiKey(apiKey);
+
+      expect(cacheService.set).toHaveBeenCalledWith(
+        `api_key:${keyHash}`,
+        expect.objectContaining({ id: mockApp.id, type: 'api-app' }),
+        45,
+      );
+      jest.useRealTimers();
+    });
+
     it('rejects expired key', async () => {
       cacheService.get.mockResolvedValue(null);
       keyRepository.findOne.mockResolvedValue(
@@ -363,19 +391,35 @@ describe('ApiAuthService', () => {
       expect(keyRepository.update).toHaveBeenCalledWith(1, { isActive: false });
       expect(cacheService.del).toHaveBeenCalledWith(`api_key:${mockKey.keyHash}`);
     });
+
+    it('throws when revoking a missing API key', async () => {
+      keyRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.revokeApiKey(404)).rejects.toThrow(NotFoundException);
+      expect(keyRepository.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('getAppKeys', () => {
     it('returns all keys for app', async () => {
       const mockKeys = [createMockKey(), createMockKey({ id: 2 })];
 
+      appRepository.findOne.mockResolvedValue(createMockApp({ id: 1 }));
       keyRepository.find.mockResolvedValue(mockKeys);
 
       await expect(service.getAppKeys(1)).resolves.toEqual(mockKeys);
+      expect(appRepository.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
       expect(keyRepository.find).toHaveBeenCalledWith({
         where: { appId: 1 },
         order: { createdAt: 'DESC' },
       });
+    });
+
+    it('throws when listing keys for a missing app', async () => {
+      appRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.getAppKeys(404)).rejects.toThrow(NotFoundException);
+      expect(keyRepository.find).not.toHaveBeenCalled();
     });
   });
 });

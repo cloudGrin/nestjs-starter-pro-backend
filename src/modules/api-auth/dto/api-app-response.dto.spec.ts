@@ -73,11 +73,9 @@ describe('api app response DTOs', () => {
 
   it('keeps command responses explicit', () => {
     expect(ApiAppDeleteResponseDto.success()).toEqual({
-      success: true,
-      message: 'API应用已删除',
+      message: 'API应用已停用',
     });
     expect(ApiKeyRevokeResponseDto.success()).toEqual({
-      success: true,
       message: 'API密钥已撤销',
     });
   });

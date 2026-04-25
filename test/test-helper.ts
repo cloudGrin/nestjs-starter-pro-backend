@@ -187,10 +187,6 @@ export async function createSuperAdminRole(app: INestApplication): Promise<RoleE
     where: { isActive: true },
   });
 
-  if (allPermissions.length === 0) {
-    console.warn('警告：数据库中没有权限数据，超级管理员将没有任何权限');
-  }
-
   // 关联所有权限（无论是否新建/已有都会刷新权限集，确保不会缺失）
   superAdminRole.permissions = allPermissions;
 

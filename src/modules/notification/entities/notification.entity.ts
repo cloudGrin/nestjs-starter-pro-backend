@@ -138,9 +138,9 @@ export class NotificationEntity extends SoftDeleteBaseEntity {
   @Column({
     type: 'boolean',
     default: false,
-    comment: '离线时是否触发外部渠道',
+    comment: '是否触发外部渠道',
   })
-  sendExternalWhenOffline: boolean;
+  sendExternal: boolean;
 
   @Column({
     type: 'json',

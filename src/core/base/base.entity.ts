@@ -2,7 +2,6 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
-  Column,
   DeleteDateColumn,
 } from 'typeorm';
 
@@ -25,22 +24,6 @@ export abstract class BaseEntity {
     comment: '更新时间',
   })
   updatedAt: Date;
-
-  @Column({
-    type: 'varchar',
-    length: 50,
-    nullable: true,
-    comment: '创建人',
-  })
-  createdBy?: string;
-
-  @Column({
-    type: 'varchar',
-    length: 50,
-    nullable: true,
-    comment: '更新人',
-  })
-  updatedBy?: string;
 }
 
 /**
@@ -52,12 +35,4 @@ export abstract class SoftDeleteBaseEntity extends BaseEntity {
     comment: '删除时间',
   })
   deletedAt?: Date;
-
-  @Column({
-    type: 'varchar',
-    length: 50,
-    nullable: true,
-    comment: '删除人',
-  })
-  deletedBy?: string;
 }

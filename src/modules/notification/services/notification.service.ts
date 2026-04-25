@@ -67,9 +67,9 @@ export class NotificationService {
 
     const isSystem = dto.isBroadcast || dto.type === NotificationType.SYSTEM;
     const channels = this.normalizeChannels(dto.channels);
-    const sendExternalWhenOffline = dto.sendExternalWhenOffline ?? false;
+    const sendExternal = dto.sendExternal ?? false;
     this.logger?.debug(
-      `[Notification] Prepare notification for recipients=${uniqueRecipientIds.join(',')} channels=${channels.join(',')} sendExternalWhenOffline=${sendExternalWhenOffline}`,
+      `[Notification] Prepare notification for recipients=${uniqueRecipientIds.join(',')} channels=${channels.join(',')} sendExternal=${sendExternal}`,
     );
     const payloads: DeepPartial<NotificationEntity>[] = uniqueRecipientIds.map((recipientId) => ({
       title: dto.title,
@@ -82,7 +82,7 @@ export class NotificationService {
       isSystem,
       metadata: dto.metadata,
       channels: [...channels],
-      sendExternalWhenOffline,
+      sendExternal,
       expireAt: dto.expireAt ? new Date(dto.expireAt) : undefined,
     }));
 
@@ -90,7 +90,7 @@ export class NotificationService {
     const notifications = await this.notificationRepository.save(
       this.notificationRepository.create(payloads),
     );
-    const deliveryMap = await this.dispatchExternal(notifications, sendExternalWhenOffline);
+    const deliveryMap = await this.dispatchExternal(notifications, sendExternal);
 
     await Promise.all(
       notifications.map(async (notification) => {
@@ -149,26 +149,35 @@ export class NotificationService {
    * 获取未读通知
    */
   async findUnread(userId: number): Promise<NotificationEntity[]> {
-    return this.notificationRepository.find({
-      where: {
-        recipientId: userId,
+    return this.notificationRepository
+      .createQueryBuilder('notification')
+      .where('notification.recipientId = :userId AND notification.status = :status', {
+        userId,
         status: NotificationStatus.UNREAD,
-      },
-      order: { createdAt: 'DESC' },
-    });
+      })
+      .andWhere('(notification.expireAt IS NULL OR notification.expireAt > CURRENT_TIMESTAMP)')
+      .orderBy('notification.createdAt', 'DESC')
+      .getMany();
   }
 
   /**
    * 标记单条通知为已读
    */
   async markAsRead(id: number, userId: number): Promise<void> {
-    const result = await this.notificationRepository.update(
-      { id, recipientId: userId, status: NotificationStatus.UNREAD },
-      {
+    const result = await this.notificationRepository
+      .createQueryBuilder()
+      .update(NotificationEntity)
+      .set({
         status: NotificationStatus.READ,
         readAt: () => 'CURRENT_TIMESTAMP',
-      },
-    );
+      })
+      .where('id = :id AND recipientId = :userId AND status = :status', {
+        id,
+        userId,
+        status: NotificationStatus.UNREAD,
+      })
+      .andWhere('(expireAt IS NULL OR expireAt > CURRENT_TIMESTAMP)')
+      .execute();
     if (!result.affected) {
       throw BusinessException.notFound('通知', id);
     }
@@ -179,13 +188,19 @@ export class NotificationService {
    * 批量标记已读
    */
   async markAllAsRead(userId: number): Promise<number> {
-    const result = await this.notificationRepository.update(
-      { recipientId: userId, status: NotificationStatus.UNREAD },
-      {
+    const result = await this.notificationRepository
+      .createQueryBuilder()
+      .update(NotificationEntity)
+      .set({
         status: NotificationStatus.READ,
         readAt: () => 'CURRENT_TIMESTAMP',
-      },
-    );
+      })
+      .where('recipientId = :userId AND status = :status', {
+        userId,
+        status: NotificationStatus.UNREAD,
+      })
+      .andWhere('(expireAt IS NULL OR expireAt > CURRENT_TIMESTAMP)')
+      .execute();
     const affected = result.affected || 0;
     this.logger?.log(`[Notification] User ${userId} mark ${affected} notifications as read`);
     return affected;
@@ -241,7 +256,7 @@ export class NotificationService {
         continue;
       }
 
-      const shouldSendExternal = forceExternal || notification.sendExternalWhenOffline;
+      const shouldSendExternal = forceExternal || notification.sendExternal;
       if (!shouldSendExternal) {
         continue;
       }
@@ -342,6 +357,7 @@ export class NotificationService {
     const qb = this.notificationRepository
       .createQueryBuilder('notification')
       .where('notification.recipientId = :userId', { userId })
+      .andWhere('(notification.expireAt IS NULL OR notification.expireAt > CURRENT_TIMESTAMP)')
       .orderBy('notification.createdAt', 'DESC');
 
     if (query.status) {

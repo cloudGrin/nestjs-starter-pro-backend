@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { promises as fsPromises } from 'fs';
 import { posix } from 'path';
 import OSS from 'ali-oss';
 import {
@@ -61,19 +60,6 @@ export class OssStorageStrategy implements FileStorageStrategy {
     return this.buildMetadata(key, buffer.length, options.metadata, result.url);
   }
 
-  async saveFromPath(
-    tempPath: string,
-    options: FileStorageSaveOptions,
-  ): Promise<StoredFileMetadata> {
-    const client = this.ensureClient();
-    const key = this.buildObjectKey(options);
-
-    const stats = await fsPromises.stat(tempPath);
-    await client.put(key, tempPath);
-
-    return this.buildMetadata(key, stats.size, options.metadata);
-  }
-
   async delete(path: string): Promise<void> {
     const client = this.ensureClient();
     try {
@@ -90,23 +76,6 @@ export class OssStorageStrategy implements FileStorageStrategy {
     const client = this.ensureClient();
     const result = await client.getStream(path);
     return result.stream;
-  }
-
-  async exists(path: string): Promise<boolean> {
-    const client = this.ensureClient();
-    try {
-      await client.head(path);
-      return true;
-    } catch (error: unknown) {
-      if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
-        return false;
-      }
-      throw error;
-    }
-  }
-
-  toAbsolutePath(path: string): string {
-    return this.buildUrl(path) || path;
   }
 
   private ensureClient(): OSS {

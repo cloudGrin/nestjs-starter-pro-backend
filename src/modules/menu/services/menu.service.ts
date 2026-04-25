@@ -203,6 +203,10 @@ export class MenuService {
       `根据角色获取用户菜单 userId=${userId}, roleCodes=${JSON.stringify(roleCodes)}`,
     );
 
+    if (!roleCodes.length) {
+      return [];
+    }
+
     let menus: MenuEntity[];
 
     // 1. 超级管理员特殊处理：自动拥有所有菜单
@@ -224,21 +228,21 @@ export class MenuService {
 
       this.logger.debug(`查询角色及关联菜单结果 userId=${userId}, 角色数量=${roles.length}`);
 
-      const menuSet = new Set<MenuEntity>();
+      const menuMap = new Map<number, MenuEntity>();
 
       // 3. 收集所有菜单
       for (const role of roles) {
         if (role.menus) {
           role.menus.forEach((menu) => {
             if (menu.isActive && menu.isVisible) {
-              menuSet.add(menu);
+              menuMap.set(menu.id, menu);
             }
           });
         }
         this.logger.debug(`角色 ${role.code} 菜单数量=${role.menus?.length || 0}`);
       }
 
-      menus = Array.from(menuSet);
+      menus = await this.includeVisibleAncestors(Array.from(menuMap.values()));
       this.logger.debug(`根据角色汇总菜单数量=${menus.length}`);
     }
 
@@ -392,9 +396,32 @@ export class MenuService {
 
   private async findChildrenByParentId(parentId: number): Promise<MenuEntity[]> {
     return this.menuRepository.find({
-      where: { parentId, isActive: true },
+      where: { parentId },
       order: { sort: 'ASC' },
     });
+  }
+
+  private async includeVisibleAncestors(menus: MenuEntity[]): Promise<MenuEntity[]> {
+    const menuMap = new Map<number, MenuEntity>();
+    for (const menu of menus) {
+      menuMap.set(menu.id, menu);
+    }
+
+    for (const menu of menus) {
+      let parentId = menu.parentId;
+      while (parentId && !menuMap.has(parentId)) {
+        const parent = await this.menuRepository.findOne({
+          where: { id: parentId, isActive: true, isVisible: true },
+        });
+        if (!parent) {
+          break;
+        }
+        menuMap.set(parent.id, parent);
+        parentId = parent.parentId;
+      }
+    }
+
+    return Array.from(menuMap.values());
   }
 
   private async findMenusWithQuery(query: QueryMenuDto): Promise<MenuEntity[]> {

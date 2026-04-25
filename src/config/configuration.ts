@@ -62,7 +62,7 @@ export const configuration = (): Configuration => ({
    */
   app: {
     /** 应用名称 */
-    name: process.env.APP_NAME || 'home-server',
+    name: process.env.APP_NAME || 'home-admin',
     /** 服务端口号 */
     port: parseInt(process.env.PORT || '3000', 10),
     /** 运行环境：development | test | production */
@@ -71,6 +71,8 @@ export const configuration = (): Configuration => ({
     apiPrefix: process.env.API_PREFIX || 'api',
     /** API 版本号 */
     apiVersion: process.env.API_VERSION || '1',
+    /** 是否信任反向代理传入的客户端 IP 头 */
+    trustProxy: process.env.TRUST_PROXY === 'true',
   },
 
   /**
@@ -107,6 +109,8 @@ export const configuration = (): Configuration => ({
     level: (process.env.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error') || 'debug',
     /** 日志文件存储目录 */
     dir: process.env.LOG_DIR || './logs',
+    /** 是否输出到控制台（生产默认开启，测试可关闭以减少噪音） */
+    console: process.env.LOG_CONSOLE === undefined ? true : process.env.LOG_CONSOLE === 'true',
   },
 
   /**
@@ -119,10 +123,9 @@ export const configuration = (): Configuration => ({
         ? process.env.NODE_ENV !== 'production'
         : process.env.SWAGGER_ENABLE === 'true',
     /** 文档标题 */
-    title: process.env.SWAGGER_TITLE || 'home API',
+    title: process.env.SWAGGER_TITLE || 'Home Admin API',
     /** 文档描述 */
-    description:
-      process.env.SWAGGER_DESCRIPTION || 'home Backend Management System API Documentation',
+    description: process.env.SWAGGER_DESCRIPTION || 'Home Admin API Documentation',
     /** API 版本号 */
     version: process.env.SWAGGER_VERSION || '1.0.0',
     /** 文档访问路径 */
@@ -191,7 +194,8 @@ export const configuration = (): Configuration => ({
         /** 访问密钥 */
         accessKeySecret: process.env.FILE_OSS_ACCESS_KEY_SECRET,
         /** 是否使用 HTTPS（默认 true） */
-        secure: process.env.FILE_OSS_SECURE === 'true',
+        secure:
+          process.env.FILE_OSS_SECURE === undefined ? true : process.env.FILE_OSS_SECURE === 'true',
         /** CDN 或自定义域名 */
         baseUrl: process.env.FILE_OSS_BASE_URL,
       },

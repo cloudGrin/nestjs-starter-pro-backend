@@ -46,6 +46,17 @@ describe('CacheService', () => {
     await expect(service.get('short-key')).resolves.toBeNull();
   });
 
+  it('treats ttl values consistently as seconds', async () => {
+    jest.useFakeTimers();
+    await service.set('ttl-key', 'value', 60);
+
+    jest.advanceTimersByTime(60_000 - 1);
+    await expect(service.get('ttl-key')).resolves.toBe('value');
+
+    jest.advanceTimersByTime(1);
+    await expect(service.get('ttl-key')).resolves.toBeNull();
+  });
+
   it('increments counters in memory', async () => {
     await expect(service.incr('counter')).resolves.toBe(1);
     await expect(service.incr('counter')).resolves.toBe(2);

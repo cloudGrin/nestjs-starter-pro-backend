@@ -2,11 +2,6 @@ import { Entity, Column, ManyToMany, Index } from 'typeorm';
 import { BaseEntity } from '~/core/base/base.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 
-export enum PermissionType {
-  API = 'api', // API接口权限
-  FEATURE = 'feature', // 功能权限
-}
-
 /**
  * 权限实体 - 简化版（轻量级实现）
  * 职责：定义系统中的权限点，控制用户能调用哪些API、能访问哪些功能
@@ -34,14 +29,6 @@ export class PermissionEntity extends BaseEntity {
     comment: '权限名称',
   })
   name: string;
-
-  @Column({
-    type: 'enum',
-    enum: PermissionType,
-    default: PermissionType.API,
-    comment: '权限类型',
-  })
-  type: PermissionType;
 
   @Column({
     type: 'varchar',

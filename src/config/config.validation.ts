@@ -25,11 +25,13 @@ export const configValidationSchema = Joi.object({
 
   PORT: Joi.number().port().default(3000),
 
-  APP_NAME: Joi.string().default('home-server'),
+  APP_NAME: Joi.string().default('home-admin'),
 
   API_PREFIX: Joi.string().default('api'),
 
   API_VERSION: Joi.string().default('1'),
+
+  TRUST_PROXY: Joi.boolean().default(false),
 
   // ========================================
   // 数据库配置
@@ -118,6 +120,8 @@ export const configValidationSchema = Joi.object({
 
   LOG_DIR: Joi.string().default('./logs'),
 
+  LOG_CONSOLE: Joi.boolean().default(true),
+
   // ========================================
   // Swagger 配置
   // ========================================
@@ -129,9 +133,9 @@ export const configValidationSchema = Joi.object({
     otherwise: Joi.boolean().default(true),
   }),
 
-  SWAGGER_TITLE: Joi.string().default('home API'),
+  SWAGGER_TITLE: Joi.string().default('Home Admin API'),
 
-  SWAGGER_DESCRIPTION: Joi.string().default('home Backend Management System API Documentation'),
+  SWAGGER_DESCRIPTION: Joi.string().default('Home Admin API Documentation'),
 
   SWAGGER_VERSION: Joi.string().default('1.0.0'),
 

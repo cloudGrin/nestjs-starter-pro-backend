@@ -77,8 +77,8 @@ describe('Role Module (E2E)', () => {
       try {
         const roleRepo = dataSource.getRepository(RoleEntity);
         await roleRepo.remove(testRole);
-      } catch (error) {
-        console.warn('清理testRole失败(可能已被删除):', (error as Error).message);
+      } catch {
+        // ignore cleanup errors
       }
     }
     await app.close();
@@ -101,14 +101,6 @@ describe('Role Module (E2E)', () => {
           sort: 10,
           isActive: true,
         });
-
-      // 打印响应以便调试
-      if (![HttpStatus.CREATED, HttpStatus.OK].includes(response.status)) {
-        console.error('创建角色失败:', {
-          status: response.status,
-          body: response.body,
-        });
-      }
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
 
@@ -241,7 +233,7 @@ describe('Role Module (E2E)', () => {
   describe('GET /roles/:id - 获取角色详情', () => {
     it('管理员应该能够获取角色详情', async () => {
       if (!testRole) {
-        console.warn('跳过测试: testRole未创建');
+        expect(testRole).toBeDefined();
         return;
       }
 
@@ -264,7 +256,10 @@ describe('Role Module (E2E)', () => {
     });
 
     it('普通用户应该被拒绝', async () => {
-      if (!testRole) return;
+      if (!testRole) {
+        expect(testRole).toBeDefined();
+        return;
+      }
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
         `/roles/${testRole.id}`,
@@ -278,7 +273,7 @@ describe('Role Module (E2E)', () => {
   describe('PUT /roles/:id - 更新角色', () => {
     it('管理员应该能够更新角色', async () => {
       if (!testRole) {
-        console.warn('跳过测试: testRole未创建');
+        expect(testRole).toBeDefined();
         return;
       }
 
@@ -342,7 +337,7 @@ describe('Role Module (E2E)', () => {
 
     it('管理员应该能够删除角色', async () => {
       if (!roleToDelete) {
-        console.warn('跳过测试: roleToDelete未创建');
+        expect(roleToDelete).toBeDefined();
         return;
       }
 
@@ -362,7 +357,10 @@ describe('Role Module (E2E)', () => {
     });
 
     it('普通用户应该被拒绝', async () => {
-      if (!roleToDelete) return;
+      if (!roleToDelete) {
+        expect(roleToDelete).toBeDefined();
+        return;
+      }
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken).delete(
         `/roles/${roleToDelete.id}`,
@@ -376,7 +374,8 @@ describe('Role Module (E2E)', () => {
   describe('PUT /roles/:id/permissions - 分配权限', () => {
     it('管理员应该能够为角色分配权限', async () => {
       if (!testRole || !testPermissions?.length) {
-        console.warn('跳过测试: 测试数据未准备');
+        expect(testRole).toBeDefined();
+        expect(testPermissions?.length).toBeGreaterThan(0);
         return;
       }
 
@@ -426,10 +425,6 @@ describe('Role Module (E2E)', () => {
           description: '完整流程测试',
         });
 
-      // 如果创建失败,打印错误信息
-      if (![HttpStatus.CREATED, HttpStatus.OK].includes(createResponse.status)) {
-        console.error('创建角色失败:', createResponse.status, createResponse.body);
-      }
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(createResponse.status);
 
       // 响应可能在body或body.data中
@@ -442,10 +437,6 @@ describe('Role Module (E2E)', () => {
           .put(`/roles/${roleId}/permissions`)
           .send({ permissionIds: testPermissions.map((p) => p.id) });
 
-        // 如果失败,打印错误
-        if (![HttpStatus.OK, HttpStatus.CREATED].includes(assignResponse.status)) {
-          console.error('分配权限失败:', assignResponse.status, assignResponse.body);
-        }
         expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(assignResponse.status);
       }
 

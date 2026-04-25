@@ -27,4 +27,23 @@ describe('TransformInterceptor', () => {
 
     expect(result).toBe(streamable);
   });
+
+  it('wraps domain DTOs even when they contain a success property', async () => {
+    const interceptor = new TransformInterceptor();
+    const body = { success: true, message: 'API密钥已撤销' };
+
+    const result = await firstValueFrom(
+      interceptor.intercept(createContext(), {
+        handle: () => of(body),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: body,
+      path: '/api/files/1/download',
+      method: 'GET',
+      requestId: 'request-id',
+    });
+  });
 });

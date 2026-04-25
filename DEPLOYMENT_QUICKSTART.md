@@ -1,115 +1,37 @@
-# home Server 快速部署指南
+# Home Admin Deployment Quickstart
 
-保留两种直接可控的部署方式：Docker Compose 适合本机或小型服务器，Docker/PM2 适合已有运行环境的主机部署。
-
----
-
-## 方式一：Docker Compose
+## Docker
 
 ```bash
-# 1. 克隆代码
-git clone <repository-url>
-cd home-server
-
-# 2. 启动 MySQL 和应用（应用启动前会自动执行 migrations）
-docker compose up -d
-
-# 3. 查看服务状态
-docker compose ps
-
-# 4. 验证服务
-curl http://localhost:3000/healthz
-```
-
-访问地址：
-
-- API: http://localhost:3000
-- Swagger 文档: http://localhost:3000/api-docs
-- 健康检查: http://localhost:3000/healthz
-
----
-
-## 方式二：Docker 或 PM2
-
-### Docker
-
-```bash
-docker build -t home-server .
-docker run -d -p 3000:3000 --name home-server home-server
-```
-
-### PM2
-
-```bash
-pnpm install --frozen-lockfile
+pnpm install
 pnpm build
-pm2 start dist/main.js --name home-server
+pnpm run migration:run
+pnpm start:prod
 ```
 
----
-
-## 环境变量
-
-至少需要配置：
+Or with Docker:
 
 ```bash
-JWT_SECRET=<secure-random-string>
-JWT_REFRESH_SECRET=<another-secure-random-string>
-DB_HOST=<mysql-host>
-DB_PORT=3306
-DB_USERNAME=<mysql-user>
-DB_PASSWORD=<mysql-password>
-DB_DATABASE=<mysql-database>
+docker build -t home-admin .
+docker run -d -p 3000:3000 --name home-admin home-admin
+docker logs -f home-admin
 ```
 
-生成随机密钥：
+## Process Manager
 
 ```bash
-openssl rand -base64 32
+pnpm install
+pnpm build
+pnpm run migration:run
+pm2 start dist/main.js --name home-admin
 ```
 
----
+## Required Production Settings
 
-## 健康检查
+- Set strong `JWT_SECRET` and `JWT_REFRESH_SECRET`.
+- Set `DB_PASSWORD`.
+- Set `CORS_ORIGIN` to explicit trusted origins.
+- Keep `SWAGGER_ENABLE=false` unless you intentionally expose docs.
+- Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
 
-```bash
-curl http://localhost:3000/healthz
-curl http://localhost:3000/readyz
-```
-
-`healthz` 只检查应用进程状态；`readyz` 会检查数据库和进程内缓存。
-
----
-
-## 常见问题
-
-### Docker 容器启动失败
-
-```bash
-docker compose logs app
-docker compose ps
-```
-
-常见原因：
-
-- 端口被占用，调整 `docker-compose.yml` 的端口映射。
-- MySQL 尚未就绪，等待健康检查通过。
-- 环境变量缺失或密码配置不一致。
-
-### 数据库连接超时
-
-```bash
-docker compose ps mysql
-docker compose logs mysql
-```
-
-确认 `DB_HOST`、`DB_PORT`、用户名、密码和数据库名与运行环境一致。
-
----
-
-## 部署后检查
-
-1. 访问 Swagger 文档：http://localhost:3000/api-docs
-2. 调用健康检查：http://localhost:3000/healthz
-3. 查看应用日志，确认数据库连接正常。
-4. 首次空库启动时，应用会创建 `admin` 超级管理员并将随机密码输出到应用日志。
+The application uses migrations only. Do not enable TypeORM automatic schema sync.

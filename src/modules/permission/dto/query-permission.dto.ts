@@ -1,8 +1,7 @@
-import { IsOptional, IsEnum, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { PaginationDto } from '~/common/dto/pagination.dto';
-import { PermissionType } from '../entities/permission.entity';
 
 export class QueryPermissionDto extends PaginationDto {
   @ApiPropertyOptional({ description: '权限编码（模糊搜索）' })
@@ -14,11 +13,6 @@ export class QueryPermissionDto extends PaginationDto {
   @IsOptional()
   @IsString()
   name?: string;
-
-  @ApiPropertyOptional({ description: '权限类型', enum: PermissionType })
-  @IsOptional()
-  @IsEnum(PermissionType)
-  type?: PermissionType;
 
   @ApiPropertyOptional({ description: '所属模块' })
   @IsOptional()

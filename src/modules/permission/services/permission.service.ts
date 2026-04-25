@@ -221,10 +221,6 @@ export class PermissionService {
       qb.andWhere('permission.name LIKE :name', { name: `%${query.name}%` });
     }
 
-    if (query.type) {
-      qb.andWhere('permission.type = :type', { type: query.type });
-    }
-
     if (query.module) {
       qb.andWhere('permission.module = :module', { module: query.module });
     }

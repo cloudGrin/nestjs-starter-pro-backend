@@ -91,6 +91,7 @@ describe('FileService', () => {
 
       expect(result).toEqual(entity);
       expect(repository.create).toHaveBeenCalled();
+      expect(repository.create.mock.calls[0][0]).not.toHaveProperty('status');
       expect(repository.save).toHaveBeenCalledWith(entity);
     });
 

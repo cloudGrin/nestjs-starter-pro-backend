@@ -11,6 +11,7 @@ export class LoggerService implements NestLoggerService {
   constructor(private configService: ConfigService) {
     const logLevel = this.configService.get<string>('logging.level', 'debug');
     const logDir = this.configService.get<string>('logging.dir', './logs');
+    const enableConsole = this.configService.get<boolean>('logging.console', true);
 
     const logFormat = winston.format.combine(
       winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -31,13 +32,15 @@ export class LoggerService implements NestLoggerService {
 
     const transports: winston.transport[] = [];
 
-    // 控制台输出保持常开，确保容器日志里能看到首次初始化密码等关键启动信息。
-    transports.push(
-      new winston.transports.Console({
-        level: logLevel,
-        format: consoleFormat,
-      }),
-    );
+    // 非测试环境默认开启，确保容器日志里能看到首次初始化密码等关键启动信息。
+    if (enableConsole) {
+      transports.push(
+        new winston.transports.Console({
+          level: logLevel,
+          format: consoleFormat,
+        }),
+      );
+    }
 
     // 文件输出 - 所有日志
     transports.push(

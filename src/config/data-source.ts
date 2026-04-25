@@ -7,29 +7,22 @@ import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
 import { join } from 'path';
 import { getDatabaseConfig } from './configuration';
+import { resolveEnvFilePaths } from './env-files';
 
 // 统一的环境变量加载逻辑（与 app.module.ts 保持一致）
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// 根据环境选择要加载的配置文件
-let envFiles: string[] = [];
-
-if (NODE_ENV === 'test') {
-  // 测试环境只加载 .env.test
-  envFiles = ['.env.test'];
-} else {
-  // 其他环境按优先级加载（高到低）：.env.local > .env.{NODE_ENV} > .env
-  envFiles = ['.env.local', `.env.${NODE_ENV}`, '.env'];
-}
-
 // 按优先级反向加载（低优先级先加载，高优先级覆盖）
-envFiles.reverse().forEach((file) => {
-  const envPath = join(__dirname, '..', '..', file);
-  config({
-    path: envPath,
-    override: false, // 不覆盖已存在的环境变量
+resolveEnvFilePaths(NODE_ENV)
+  .slice()
+  .reverse()
+  .forEach((file) => {
+    const envPath = join(__dirname, '..', '..', file);
+    config({
+      path: envPath,
+      override: true,
+    });
   });
-});
 
 // 获取数据库配置
 export const dataSourceOptions = getDatabaseConfig(process.env);

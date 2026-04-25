@@ -28,10 +28,10 @@ export class CacheService {
     return entry.value as T;
   }
 
-  async set<T>(key: string, value: T, ttl?: number): Promise<void> {
+  async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
     this.store.set(key, {
       value,
-      expiresAt: ttl ? Date.now() + this.normalizeTtl(ttl) : undefined,
+      expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined,
     });
   }
 
@@ -52,16 +52,11 @@ export class CacheService {
     }
   }
 
-  async incr(key: string, ttl?: number): Promise<number> {
+  async incr(key: string, ttlSeconds?: number): Promise<number> {
     const current = (await this.get<number>(key)) ?? 0;
     const next = current + 1;
-    await this.set(key, next, ttl);
+    await this.set(key, next, ttlSeconds);
     return next;
-  }
-
-  private normalizeTtl(ttl: number): number {
-    // Most project TTLs are expressed in seconds; login lockouts already pass milliseconds.
-    return ttl <= 86_400 ? ttl * 1000 : ttl;
   }
 
   private patternToRegExp(pattern: string): RegExp {

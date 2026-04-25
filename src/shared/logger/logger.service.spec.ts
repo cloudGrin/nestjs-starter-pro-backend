@@ -39,6 +39,7 @@ describe('LoggerService', () => {
         const config = {
           'logging.level': 'debug',
           'logging.dir': './logs',
+          'logging.console': true,
           isDevelopment: false,
         };
         return config[key] ?? defaultValue;
@@ -58,6 +59,7 @@ describe('LoggerService', () => {
         const config = {
           'logging.level': 'info',
           'logging.dir': './logs',
+          'logging.console': true,
           isDevelopment: false,
         };
         return config[key] ?? defaultValue;
@@ -65,5 +67,20 @@ describe('LoggerService', () => {
     } as unknown as ConfigService);
 
     expect(winston.transports.Console).toHaveBeenCalled();
+  });
+
+  it('can disable console logging for test runs', () => {
+    new LoggerService({
+      get: jest.fn((key: string, defaultValue?: unknown) => {
+        const config = {
+          'logging.level': 'info',
+          'logging.dir': './logs',
+          'logging.console': false,
+        };
+        return config[key] ?? defaultValue;
+      }),
+    } as unknown as ConfigService);
+
+    expect(winston.transports.Console).not.toHaveBeenCalled();
   });
 });

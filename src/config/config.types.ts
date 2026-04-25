@@ -19,6 +19,8 @@ export interface AppConfig {
   apiPrefix: string;
   /** API 版本号 */
   apiVersion: string;
+  /** 是否信任反向代理传入的客户端 IP 头 */
+  trustProxy: boolean;
 }
 
 /**
@@ -37,6 +39,7 @@ export interface JwtConfig {
 export interface LoggingConfig {
   level: 'debug' | 'info' | 'warn' | 'error';
   dir: string;
+  console: boolean;
 }
 
 /**

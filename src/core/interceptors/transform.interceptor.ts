@@ -31,11 +31,6 @@ export class TransformInterceptor<T> implements NestInterceptor<T, Response<T>> 
           return data as Response<T>;
         }
 
-        // 如果响应已经是格式化的，直接返回
-        if (data && typeof data === 'object' && 'success' in data) {
-          return data as Response<T>;
-        }
-
         // 处理分页数据
         if (data && typeof data === 'object' && 'items' in data && 'meta' in data) {
           return {

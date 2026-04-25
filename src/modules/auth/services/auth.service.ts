@@ -6,7 +6,6 @@ import { ConfigService } from '@nestjs/config';
 import { LessThan, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
-import { UserService } from '~/modules/user/services/user.service';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { RefreshTokenEntity } from '../entities/refresh-token.entity';
 import { LoginDto } from '../dto/login.dto';
@@ -46,7 +45,6 @@ export class AuthService {
   private readonly refreshTokenExpiresIn: string;
 
   constructor(
-    private readonly userService: UserService,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(RefreshTokenEntity)
@@ -93,7 +91,7 @@ export class AuthService {
     const isSuperAdmin = user.roles?.some((role) => role.code === 'super_admin');
     const maxAttempts = isSuperAdmin ? 10 : 5;
     const lockMinutes = isSuperAdmin ? 10 : 30;
-    const lockTtl = lockMinutes * 60 * 1000; // 转换为毫秒
+    const lockTtl = lockMinutes * 60;
 
     // 4. 暴力破解防护：检查用户名级别缓存（根据角色动态阈值）
     const userKey = `login:attempts:user:${dto.account}`;
@@ -133,7 +131,7 @@ export class AuthService {
       // 记录失败次数到缓存（暴力破解防护，根据角色设置不同的过期时间）
       if (ipAddress) {
         const ipKey = `login:attempts:ip:${ipAddress}`;
-        await this.cache.incr(ipKey, 1800000); // IP级别：30分钟过期（固定）
+        await this.cache.incr(ipKey, 30 * 60);
       }
       await this.cache.incr(userKey, lockTtl); // 用户级别：根据角色动态设置
 
@@ -277,7 +275,7 @@ export class AuthService {
   /**
    * 登出
    */
-  async logout(userId: number, sessionId?: string, refreshToken?: string): Promise<void> {
+  async logout(userId: number, refreshToken?: string): Promise<void> {
     if (refreshToken) {
       // 撤销指定的刷新令牌
       await this.refreshTokenRepository.update({ token: refreshToken }, { isRevoked: true });
@@ -544,7 +542,7 @@ export class AuthService {
       lastLoginIp: ip,
       lastLoginAt: loginTime,
       loginAttempts: 0,
-      lockedUntil: undefined,
+      lockedUntil: null,
     });
   }
 }

@@ -64,9 +64,11 @@ export class RoleService {
       }
     }
 
+    const { permissionIds: _permissionIds, ...roleData } = dto;
+
     // 创建角色
     const role = this.roleRepository.create({
-      ...dto,
+      ...roleData,
       permissions,
       isSystem: false,
     });
@@ -138,8 +140,10 @@ export class RoleService {
       role.permissions = permissions;
     }
 
+    const { permissionIds: _permissionIds, ...roleData } = dto;
+
     // 更新角色信息
-    Object.assign(role, dto);
+    Object.assign(role, roleData);
     this.logger.debug(`角色信息合并完成，准备保存 roleId=${id}`);
     const updatedRole = await this.roleRepository.save(role);
     this.logger.debug(`角色更新保存成功 roleId=${updatedRole.id}`);

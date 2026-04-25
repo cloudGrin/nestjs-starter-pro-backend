@@ -141,6 +141,34 @@ describe('UserService', () => {
         } as any),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('创建用户时不把 roleIds 写入用户实体', async () => {
+      const createDto = {
+        username: 'roleuser',
+        email: 'role@example.com',
+        password: 'Password123!',
+        roleIds: [1],
+      };
+      const role = RoleMockFactory.create({ id: 1, isActive: true });
+      const mockUser = UserMockFactory.create({ id: 1, username: createDto.username });
+      const qb = createUserQueryBuilderMock();
+
+      userRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(0);
+      roleRepository.find.mockResolvedValue([role]);
+      userRepository.create.mockReturnValue(mockUser);
+      userRepository.save.mockResolvedValue(mockUser);
+
+      await service.createUser(createDto as any);
+
+      expect(userRepository.create).toHaveBeenCalledWith({
+        username: createDto.username,
+        email: createDto.email,
+        password: createDto.password,
+        roles: [role],
+      });
+      expect(userRepository.create.mock.calls[0][0]).not.toHaveProperty('roleIds');
+    });
   });
 
   describe('updateUser', () => {
@@ -170,6 +198,21 @@ describe('UserService', () => {
       await expect(service.updateUser(1, { email: 'new@example.com' } as any)).rejects.toThrow(
         ConflictException,
       );
+    });
+
+    it('更新用户时不把 roleIds 写入用户实体', async () => {
+      const existingUser = UserMockFactory.create({ id: 1, email: 'old@example.com' });
+      const role = RoleMockFactory.create({ id: 2, isActive: true });
+
+      userRepository.findOne.mockResolvedValue(existingUser);
+      roleRepository.find.mockResolvedValue([role]);
+      userRepository.save.mockImplementation(async (entity) => entity);
+
+      await service.updateUser(1, { nickname: '新昵称', roleIds: [2] } as any);
+
+      const savedUser = userRepository.save.mock.calls[0][0];
+      expect(savedUser).toMatchObject({ nickname: '新昵称', roles: [role] });
+      expect(savedUser).not.toHaveProperty('roleIds');
     });
   });
 
@@ -264,6 +307,7 @@ describe('UserService', () => {
 
       await service.resetPassword(1, { password: 'Password123!' });
 
+      expect(user.lockedUntil).toBeNull();
       expect(userRepository.save).toHaveBeenCalledWith(user);
       expect(refreshTokenRepository.update).toHaveBeenCalledWith(
         { userId: 1, isRevoked: false },
@@ -281,6 +325,7 @@ describe('UserService', () => {
       const result = await service.enableUser(1);
 
       expect(result.status).toBe(UserStatus.ACTIVE);
+      expect(userRepository.save.mock.calls[0][0].lockedUntil).toBeNull();
     });
 
     it('应该禁用用户并撤销refresh token表中的有效令牌', async () => {
@@ -308,12 +353,36 @@ describe('UserService', () => {
       await service.deleteUser(1);
 
       expect(userRepository.softDelete).toHaveBeenCalledWith(1);
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 1, isRevoked: false },
+        { isRevoked: true },
+      );
     });
 
     it('批量删除时用户不全应抛出异常', async () => {
       userRepository.find.mockResolvedValue([UserMockFactory.create({ id: 1 })]);
 
       await expect(service.deleteUsers([1, 2])).rejects.toThrow(BadRequestException);
+    });
+
+    it('批量删除用户时撤销每个用户的refresh token', async () => {
+      userRepository.find.mockResolvedValue([
+        UserMockFactory.create({ id: 1 }),
+        UserMockFactory.create({ id: 2 }),
+      ]);
+      userRepository.softDelete.mockResolvedValue({ affected: 1 });
+      refreshTokenRepository.update.mockResolvedValue(undefined);
+
+      await service.deleteUsers([1, 2]);
+
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 1, isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 2, isRevoked: false },
+        { isRevoked: true },
+      );
     });
   });
 

@@ -130,52 +130,7 @@ export class UserEntity extends SoftDeleteBaseEntity {
     nullable: true,
     comment: '锁定截止时间',
   })
-  lockedUntil?: Date;
-
-  @Column({
-    type: 'boolean',
-    default: false,
-    comment: '是否验证邮箱',
-  })
-  isEmailVerified: boolean;
-
-  @Column({
-    type: 'boolean',
-    default: false,
-    comment: '是否验证手机',
-  })
-  isPhoneVerified: boolean;
-
-  @Column({
-    type: 'boolean',
-    default: false,
-    comment: '是否启用双因素认证',
-  })
-  isTwoFactorEnabled: boolean;
-
-  @Column({
-    type: 'varchar',
-    length: 100,
-    nullable: true,
-    select: false,
-    comment: '双因素认证密钥',
-  })
-  @Exclude()
-  twoFactorSecret?: string;
-
-  @Column({
-    type: 'json',
-    nullable: true,
-    comment: '用户设置',
-  })
-  settings?: Record<string, any>;
-
-  @Column({
-    type: 'json',
-    nullable: true,
-    comment: '扩展信息',
-  })
-  extra?: Record<string, any>;
+  lockedUntil?: Date | null;
 
   @ManyToMany(() => RoleEntity, (role) => role.users, { cascade: true })
   @JoinTable({
@@ -222,6 +177,6 @@ export class UserEntity extends SoftDeleteBaseEntity {
 
   resetLoginAttempts(): void {
     this.loginAttempts = 0;
-    this.lockedUntil = undefined;
+    this.lockedUntil = null;
   }
 }

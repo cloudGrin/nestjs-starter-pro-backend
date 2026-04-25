@@ -4,6 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { configuration } from './config/configuration';
 import { configValidationSchema } from './config/config.validation';
+import { resolveEnvFilePaths } from './config/env-files';
 import { DatabaseModule } from './shared/database/database.module';
 import { SharedModule } from './shared/shared.module';
 import { AllExceptionsFilter } from './core/filters/all-exceptions.filter';
@@ -32,8 +33,7 @@ import { MenuModule } from './modules/menu/menu.module';
       isGlobal: true,
       cache: true,
       expandVariables: true,
-      // 简化的配置加载逻辑（适合小团队）
-      envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
+      envFilePath: resolveEnvFilePaths(process.env.NODE_ENV),
       load: [configuration],
       validationSchema: configValidationSchema, // 添加 Joi 验证
       validationOptions: {

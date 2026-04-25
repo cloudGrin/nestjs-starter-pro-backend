@@ -82,9 +82,11 @@ export class UserService {
       }
     }
 
+    const { roleIds: _roleIds, ...userData } = dto;
+
     // 创建用户
     const user = this.userRepository.create({
-      ...dto,
+      ...userData,
       roles,
     });
 
@@ -148,8 +150,10 @@ export class UserService {
       rolesChanged = true;
     }
 
+    const { roleIds: _roleIds, ...userData } = dto;
+
     // 更新用户信息
-    Object.assign(user, dto);
+    Object.assign(user, userData);
     this.logger.debug(`用户信息合并完成，准备保存 id=${id}`);
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`用户更新保存成功 id=${updatedUser.id}`);
@@ -279,7 +283,7 @@ export class UserService {
     // 更新密码
     user.password = dto.password;
     user.loginAttempts = 0;
-    user.lockedUntil = undefined;
+    user.lockedUntil = null;
     await this.userRepository.save(user);
     this.logger.debug(`用户密码重置保存成功 userId=${userId}`);
 
@@ -300,7 +304,7 @@ export class UserService {
 
     user.status = UserStatus.ACTIVE;
     user.loginAttempts = 0;
-    user.lockedUntil = undefined;
+    user.lockedUntil = null;
 
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`用户启用保存成功 id=${id}`);
@@ -341,6 +345,7 @@ export class UserService {
     const user = await this.findByIdOrFail(id);
 
     await this.userRepository.softDelete(id);
+    await this.revokeRefreshTokens(id);
     this.logger.debug(`用户软删除完成 id=${id}`);
 
     this.logger.log(`Deleted user: ${user.username} (ID: ${id})`);
@@ -363,6 +368,7 @@ export class UserService {
 
     for (const user of users) {
       await this.userRepository.softDelete(user.id);
+      await this.revokeRefreshTokens(user.id);
       this.logger.debug(`用户软删除完成 id=${user.id}`);
     }
 

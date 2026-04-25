@@ -88,14 +88,22 @@ describe('architecture slimming', () => {
   it('keeps permission records to the fields currently enforced by guards', () => {
     const permissionEntity = readSource('modules/permission/entities/permission.entity.ts');
     const createPermissionDto = readSource('modules/permission/dto/create-permission.dto.ts');
+    const queryPermissionDto = readSource('modules/permission/dto/query-permission.dto.ts');
     const migration = readSource('migrations/1730000000000-InitSchema.ts');
 
+    expect(permissionEntity).not.toContain('PermissionType');
+    expect(permissionEntity).not.toContain('type: PermissionType');
+    expect(createPermissionDto).not.toContain('PermissionType');
+    expect(createPermissionDto).not.toContain('type:');
+    expect(queryPermissionDto).not.toContain('PermissionType');
     expect(permissionEntity).not.toContain('httpMeta');
     expect(permissionEntity).not.toContain('deprecated');
     expect(permissionEntity).not.toContain('replaceBy');
     expect(permissionEntity).not.toContain('extra?:');
     expect(createPermissionDto).not.toContain('httpMeta');
     expect(createPermissionDto).not.toContain('extra?:');
+    expect(queryPermissionDto).not.toContain('type?:');
+    expect(migration).not.toContain("type enum('api', 'feature')");
     expect(migration).not.toContain('httpMeta json');
     expect(migration).not.toContain("extra json NULL COMMENT '扩展配置'");
   });
@@ -227,10 +235,20 @@ describe('architecture slimming', () => {
   it('keeps notification delivery to direct bark/feishu adapters without manager and token indirection', () => {
     const notificationModule = readSource('modules/notification/notification.module.ts');
     const notificationService = readSource('modules/notification/services/notification.service.ts');
+    const notificationEntity = readSource('modules/notification/entities/notification.entity.ts');
+    const notificationDto = readSource('modules/notification/dto/create-notification.dto.ts');
 
     expect(notificationModule).not.toContain('NotificationChannelManager');
     expect(notificationModule).not.toContain('NOTIFICATION_CHANNEL_ADAPTERS');
+    expect(notificationModule).toContain('HttpModule.register');
+    expect(notificationModule).toContain('timeout: 5000');
     expect(notificationService).not.toContain('NotificationChannelManager');
+    expect(notificationService).toContain('sendExternal');
+    expect(notificationService).not.toContain('sendExternalWhenOffline');
+    expect(notificationEntity).toContain('sendExternal');
+    expect(notificationEntity).not.toContain('sendExternalWhenOffline');
+    expect(notificationDto).toContain('sendExternal');
+    expect(notificationDto).not.toContain('sendExternalWhenOffline');
     expect(existsInSource('modules/notification/channels/notification-channel.manager.ts')).toBe(
       false,
     );
@@ -257,6 +275,76 @@ describe('architecture slimming', () => {
     expect(menuController).toContain('@CurrentUser() user');
     expect(menuController).not.toContain('@Req() req');
     expect(existsInSource('modules/api-auth/types/request.types.ts')).toBe(false);
+  });
+
+  it('removes unused audit and future-account fields from base/user schema', () => {
+    const baseEntity = readSource('core/base/base.entity.ts');
+    const userEntity = readSource('modules/user/entities/user.entity.ts');
+    const userEnum = readSource('common/enums/user.enum.ts');
+    const migration = readSource('migrations/1730000000000-InitSchema.ts');
+
+    for (const token of ['createdBy', 'updatedBy', 'deletedBy']) {
+      expect(baseEntity).not.toContain(token);
+      expect(migration).not.toContain(token);
+    }
+
+    for (const token of [
+      'isEmailVerified',
+      'isPhoneVerified',
+      'isTwoFactorEnabled',
+      'twoFactorSecret',
+      'settings',
+      'extra?:',
+    ]) {
+      expect(userEntity).not.toContain(token);
+      expect(migration).not.toContain(token);
+    }
+
+    expect(userEnum).not.toContain('UserType');
+    expect(userEnum).not.toContain('LoginType');
+  });
+
+  it('keeps file storage and tree utilities to the methods used by current services', () => {
+    const fileEntity = readSource('modules/file/entities/file.entity.ts');
+    const queryFileDto = readSource('modules/file/dto/query-file.dto.ts');
+    const fileService = readSource('modules/file/services/file.service.ts');
+    const storageInterface = readSource('modules/file/storage/file-storage.interface.ts');
+    const localStorage = readSource('modules/file/storage/local-storage.strategy.ts');
+    const ossStorage = readSource('modules/file/storage/oss-storage.strategy.ts');
+    const treeUtil = readSource('common/utils/tree.util.ts');
+    const migration = readSource('migrations/1730000000000-InitSchema.ts');
+
+    expect(fileEntity).not.toContain('FileStatus');
+    expect(fileEntity).not.toContain('status:');
+    expect(queryFileDto).not.toContain('status?:');
+    expect(fileService).not.toContain('FileStatus');
+    expect(fileService).not.toContain('file.status');
+    expect(migration).not.toContain(
+      "status enum('uploading', 'available', 'processing', 'failed')",
+    );
+
+    for (const method of ['saveFromPath', 'exists(', 'toAbsolutePath?']) {
+      expect(storageInterface).not.toContain(method);
+    }
+    expect(localStorage).not.toContain('async saveFromPath');
+    expect(localStorage).not.toContain('async exists');
+    expect(ossStorage).not.toContain('async saveFromPath');
+    expect(ossStorage).not.toContain('async exists');
+
+    for (const method of [
+      'treeToArray',
+      'findNode',
+      'findPath',
+      'filterTree',
+      'traverse',
+      'mapTree',
+      'getMaxDepth',
+      'getLeafNodes',
+      'sortTree',
+      'addLevelInfo',
+    ]) {
+      expect(treeUtil).not.toContain(`static ${method}`);
+    }
   });
 
   it('uses real DTOs for role controller query and mutation payloads instead of runtime-only inline types', () => {
@@ -452,7 +540,11 @@ describe('architecture slimming', () => {
 
   it('reads bootstrap settings from structured config paths instead of raw env keys', () => {
     const main = readSource('main.ts');
+    const appModule = readSource('app.module.ts');
+    const dataSource = readSource('config/data-source.ts');
 
+    expect(main).toContain("configService.get<boolean>('app.trustProxy'");
+    expect(main).toContain("app.set('trust proxy', true)");
     expect(main).toContain("configService.get<string | string[]>('cors.origin'");
     expect(main).toContain("configService.get<boolean>('cors.credentials'");
     expect(main).toContain("configService.get<string>('app.apiPrefix'");
@@ -473,6 +565,9 @@ describe('architecture slimming', () => {
     expect(main).not.toContain("configService.get<string>('SWAGGER_VERSION'");
     expect(main).not.toContain("configService.get<string>('SWAGGER_PATH'");
     expect(main).not.toContain("configService.get<number>('PORT'");
+    expect(appModule).toContain('resolveEnvFilePaths');
+    expect(dataSource).toContain('resolveEnvFilePaths');
+    expect(dataSource).toContain('override: true');
   });
 
   it('keeps shared infrastructure imported only at app root and avoids unnecessary global/export module patterns', () => {
@@ -522,6 +617,7 @@ describe('architecture slimming', () => {
     expect(roleModule).not.toContain('RoleRepository');
     expect(roleService).not.toContain('RoleRepository');
     expect(permissionModule).not.toContain('PermissionRepository');
+    expect(permissionModule).not.toContain('RoleEntity');
     expect(permissionService).not.toContain('PermissionRepository');
     expect(existsInSource('modules/api-auth/repositories/api-app.repository.ts')).toBe(false);
     expect(existsInSource('modules/api-auth/repositories/api-key.repository.ts')).toBe(false);
@@ -563,6 +659,24 @@ describe('architecture slimming', () => {
       expect(content).not.toMatch(/DB_SYNCHRONIZE|DB_ACQUIRE_TIMEOUT|DB_QUERY_TIMEOUT/);
       expect(content).not.toMatch(/FILE_CHUNK|FILE_IMAGE/);
       expect(content).not.toMatch(/\.xls|\.xlsx/);
+    }
+  });
+
+  it('keeps public docs aligned with the current lightweight personal-admin scope', () => {
+    const readme = readProject('README.md');
+    const claude = readProject('CLAUDE.md');
+    const apiAuthQuickstart = readProject('API_AUTH_QUICKSTART.md');
+    const deploymentQuickstart = readProject('DEPLOYMENT_QUICKSTART.md');
+    const changelog = readProject('CHANGELOG.md');
+
+    for (const content of [readme, claude, apiAuthQuickstart, deploymentQuickstart, changelog]) {
+      expect(content).not.toMatch(/chunked upload|分片上传|image compression|图片压缩/i);
+      expect(content).not.toMatch(/Data Dictionary|数据字典|task logs|任务日志/i);
+      expect(content).not.toMatch(/BullMQ|Bull|Queue|RabbitMQ|Kafka/);
+      expect(content).not.toMatch(/OAuth|GraphQL|billing|计费|Slack/);
+      expect(content).not.toMatch(/home Server|home-server/);
+      expect(content).not.toContain('uploadBatch');
+      expect(content).not.toContain('Controller → Service → Repository');
     }
   });
 

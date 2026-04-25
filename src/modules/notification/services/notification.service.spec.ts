@@ -92,6 +92,35 @@ describe('NotificationService', () => {
       expect(notificationRepository.save).toHaveBeenCalledWith(notifications);
     });
 
+    it('uses explicit sendExternal flag instead of offline-only naming', async () => {
+      const dto = {
+        title: '外部通知',
+        content: '推送内容',
+        recipientIds: [1],
+        channels: [NotificationChannel.FEISHU],
+        sendExternal: true,
+      };
+      const notifications = [
+        { id: 1, recipientId: 1, channels: dto.channels },
+      ] as NotificationEntity[];
+
+      userRepository.find.mockResolvedValue([{ id: 1, username: 'test' }] as UserEntity[]);
+      notificationRepository.create.mockReturnValue(notifications);
+      notificationRepository.save.mockResolvedValue(notifications);
+      feishuAdapter.send.mockResolvedValue({
+        channel: NotificationChannel.FEISHU,
+        success: true,
+        sentAt: new Date().toISOString(),
+      });
+
+      await service.createNotification(dto, 2);
+
+      expect(notificationRepository.create).toHaveBeenCalledWith([
+        expect.objectContaining({ sendExternal: true }),
+      ]);
+      expect(feishuAdapter.send).toHaveBeenCalled();
+    });
+
     it('广播通知时应该查询所有活跃用户', async () => {
       userRepository.find
         .mockResolvedValueOnce([{ id: 1 }, { id: 2 }] as UserEntity[])
@@ -148,6 +177,9 @@ describe('NotificationService', () => {
 
       expect(result.meta.currentPage).toBe(1);
       expect(notificationRepository.createQueryBuilder).toHaveBeenCalledWith('notification');
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(notification.expireAt IS NULL OR notification.expireAt > CURRENT_TIMESTAMP)',
+      );
     });
 
     it('ignores unsupported sort fields and keeps createdAt ordering', async () => {
@@ -177,18 +209,35 @@ describe('NotificationService', () => {
 
   describe('markAsRead', () => {
     it('应该标记单条通知为已读', async () => {
-      notificationRepository.update.mockResolvedValue({ affected: 1 } as any);
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      notificationRepository.createQueryBuilder.mockReturnValue(qb as any);
 
       await service.markAsRead(1, 2);
 
-      expect(notificationRepository.update).toHaveBeenCalledWith(
-        { id: 1, recipientId: 2, status: NotificationStatus.UNREAD },
-        { status: NotificationStatus.READ, readAt: expect.any(Function) },
+      expect(qb.where).toHaveBeenCalledWith(
+        'id = :id AND recipientId = :userId AND status = :status',
+        { id: 1, userId: 2, status: NotificationStatus.UNREAD },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(expireAt IS NULL OR expireAt > CURRENT_TIMESTAMP)',
       );
     });
 
     it('通知不存在时应该抛出异常', async () => {
-      notificationRepository.update.mockResolvedValue({ affected: 0 } as any);
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      notificationRepository.createQueryBuilder.mockReturnValue(qb as any);
 
       await expect(service.markAsRead(1, 2)).rejects.toThrow(BusinessException);
     });
@@ -196,14 +245,46 @@ describe('NotificationService', () => {
 
   describe('markAllAsRead', () => {
     it('应该批量标记已读', async () => {
-      notificationRepository.update.mockResolvedValue({ affected: 3 } as any);
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 3 }),
+      };
+      notificationRepository.createQueryBuilder.mockReturnValue(qb as any);
 
       const result = await service.markAllAsRead(1);
 
       expect(result).toBe(3);
-      expect(notificationRepository.update).toHaveBeenCalledWith(
-        { recipientId: 1, status: NotificationStatus.UNREAD },
-        { status: NotificationStatus.READ, readAt: expect.any(Function) },
+      expect(qb.where).toHaveBeenCalledWith('recipientId = :userId AND status = :status', {
+        userId: 1,
+        status: NotificationStatus.UNREAD,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(expireAt IS NULL OR expireAt > CURRENT_TIMESTAMP)',
+      );
+    });
+  });
+
+  describe('findUnread', () => {
+    it('only returns unexpired unread notifications', async () => {
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      notificationRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+      await expect(service.findUnread(1)).resolves.toEqual([]);
+
+      expect(qb.where).toHaveBeenCalledWith(
+        'notification.recipientId = :userId AND notification.status = :status',
+        { userId: 1, status: NotificationStatus.UNREAD },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(notification.expireAt IS NULL OR notification.expireAt > CURRENT_TIMESTAMP)',
       );
     });
   });

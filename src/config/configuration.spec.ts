@@ -42,6 +42,28 @@ describe('configuration', () => {
     expect(config.swagger.enable).toBe(false);
   });
 
+  it('keeps proxy trust disabled and OSS HTTPS enabled by default', () => {
+    const config = configuration();
+
+    expect(config.app.trustProxy).toBe(false);
+    expect(config.file.external.oss.secure).toBe(true);
+  });
+
+  it('allows explicit OSS insecure mode and proxy trust through validated env', () => {
+    process.env = {
+      NODE_ENV: 'test',
+      FILE_OSS_SECURE: 'false',
+      TRUST_PROXY: 'true',
+    } as NodeJS.ProcessEnv;
+
+    const config = configuration();
+    const validation = configValidationSchema.validate(process.env, { allowUnknown: false });
+
+    expect(validation.error).toBeUndefined();
+    expect(config.app.trustProxy).toBe(true);
+    expect(config.file.external.oss.secure).toBe(false);
+  });
+
   it('rejects removed or misspelled environment variables', () => {
     const result = configValidationSchema.validate(
       {

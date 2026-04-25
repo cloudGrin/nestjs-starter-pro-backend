@@ -85,13 +85,13 @@ export class CreateNotificationDto {
   channels?: NotificationChannel[];
 
   @ApiPropertyOptional({
-    description: '用户离线时是否触发外部渠道推送',
+    description: '是否触发外部渠道推送',
     default: false,
   })
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
-  sendExternalWhenOffline?: boolean = false;
+  sendExternal?: boolean = false;
 
   @ApiPropertyOptional({
     description: '额外的元数据（如跳转链接、参数等）',

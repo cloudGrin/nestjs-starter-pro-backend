@@ -46,6 +46,7 @@ export class ApiAuthService {
         limit,
       },
       {
+        where: { isActive: true },
         order: { createdAt: 'DESC' },
       },
     );
@@ -198,8 +199,10 @@ export class ApiAuthService {
       this.keyRepository.update(key.id, { lastUsedAt: new Date() }),
     ]);
 
-    // 缓存密钥验证结果
-    await this.cacheService.set(cacheKey, validatedApp, API_AUTH_CONSTANTS.KEY_CACHE_TTL);
+    const cacheTtl = this.getApiKeyCacheTtl(key.expiresAt);
+    if (cacheTtl > 0) {
+      await this.cacheService.set(cacheKey, validatedApp, cacheTtl);
+    }
 
     return validatedApp;
   }
@@ -211,18 +214,30 @@ export class ApiAuthService {
     const key = await this.keyRepository.findOne({
       where: { id: keyId },
     });
+    if (!key) {
+      throw new NotFoundException('API密钥不存在');
+    }
+
     await this.keyRepository.update(keyId, { isActive: false });
 
-    if (key) {
-      await this.cacheService.del(`api_key:${key.keyHash}`);
-    }
+    await this.cacheService.del(`api_key:${key.keyHash}`);
   }
 
   /**
    * 获取应用的所有密钥
    */
   async getAppKeys(appId: number): Promise<ApiKeyEntity[]> {
+    await this.getApp(appId);
     return this.findAppKeys(appId);
+  }
+
+  private getApiKeyCacheTtl(expiresAt?: Date): number {
+    if (!expiresAt) {
+      return API_AUTH_CONSTANTS.KEY_CACHE_TTL;
+    }
+
+    const secondsUntilExpiry = Math.ceil((expiresAt.getTime() - Date.now()) / 1000);
+    return Math.min(API_AUTH_CONSTANTS.KEY_CACHE_TTL, Math.max(0, secondsUntilExpiry));
   }
 
   private async findAppKeys(appId: number): Promise<ApiKeyEntity[]> {

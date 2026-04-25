@@ -309,7 +309,7 @@ describe('用户模块 (e2e)', () => {
 
     it('超级管理员应该能够更新用户', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
@@ -344,7 +344,7 @@ describe('用户模块 (e2e)', () => {
 
     it('普通用户应该被拒绝更新其他用户', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
@@ -447,7 +447,7 @@ describe('用户模块 (e2e)', () => {
 
     it('超级管理员应该能够启用用户', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
@@ -464,7 +464,7 @@ describe('用户模块 (e2e)', () => {
 
     it('普通用户应该被拒绝启用用户', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
@@ -498,7 +498,7 @@ describe('用户模块 (e2e)', () => {
 
     it('超级管理员应该能够禁用用户', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
@@ -515,7 +515,7 @@ describe('用户模块 (e2e)', () => {
 
     it('普通用户应该被拒绝禁用用户', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
@@ -549,7 +549,7 @@ describe('用户模块 (e2e)', () => {
 
     it('超级管理员应该能够重置用户密码', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
@@ -568,7 +568,7 @@ describe('用户模块 (e2e)', () => {
 
     it('普通用户应该被拒绝重置其他用户密码', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
@@ -604,7 +604,7 @@ describe('用户模块 (e2e)', () => {
 
     it('超级管理员应该能够分配角色', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
@@ -612,7 +612,7 @@ describe('用户模块 (e2e)', () => {
       // 由于不确定数据库中的角色，我们只测试API是否可调用
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
         .put(`/users/${userId}/roles`)
-        .send([1]); // 假设角色ID为1存在
+        .send({ roleIds: [1] }); // 假设角色ID为1存在
 
       // 可能因为角色不存在而失败，也可能成功
       expect([HttpStatus.OK, HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND]).toContain(
@@ -622,13 +622,13 @@ describe('用户模块 (e2e)', () => {
 
     it('普通用户应该被拒绝分配角色', async () => {
       if (!userId) {
-        console.warn('跳过测试：缺少用户数据');
+        expect(userId).toBeDefined();
         return;
       }
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
         .put(`/users/${userId}/roles`)
-        .send([1]);
+        .send({ roleIds: [1] });
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
     });
@@ -677,7 +677,7 @@ describe('用户模块 (e2e)', () => {
         !createResponse.body.data ||
         !createResponse.body.data.id
       ) {
-        console.warn('跳过测试：用户创建失败');
+        expect(createResponse.body.data?.id).toBeDefined();
         return;
       }
 
@@ -736,7 +736,7 @@ describe('用户模块 (e2e)', () => {
         !createResponse.body.data ||
         !createResponse.body.data.id
       ) {
-        console.warn('跳过测试：用户创建失败');
+        expect(createResponse.body.data?.id).toBeDefined();
         return;
       }
 

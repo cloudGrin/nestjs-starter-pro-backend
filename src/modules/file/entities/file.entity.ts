@@ -6,13 +6,6 @@ export enum FileStorageType {
   OSS = 'oss',
 }
 
-export enum FileStatus {
-  UPLOADING = 'uploading',
-  AVAILABLE = 'available',
-  PROCESSING = 'processing',
-  FAILED = 'failed',
-}
-
 @Entity('files')
 @Index(['hash'])
 @Index(['storage'])
@@ -90,14 +83,6 @@ export class FileEntity extends SoftDeleteBaseEntity {
     comment: '文件元数据',
   })
   metadata?: Record<string, unknown>;
-
-  @Column({
-    type: 'enum',
-    enum: FileStatus,
-    default: FileStatus.AVAILABLE,
-    comment: '文件状态',
-  })
-  status: FileStatus;
 
   @Column({
     type: 'varchar',

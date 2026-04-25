@@ -11,7 +11,7 @@ import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileUtil } from '~/common/utils';
 import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
 import { DEFAULT_FILE_MAX_SIZE } from '~/config/constants';
-import { FileEntity, FileStatus, FileStorageType } from '../entities/file.entity';
+import { FileEntity, FileStorageType } from '../entities/file.entity';
 import { UploadFileDto } from '../dto/upload-file.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
 import { FileStorageFactory } from '../storage/storage.factory';
@@ -25,7 +25,6 @@ interface UserWithRoles {
 interface FileQueryOptions {
   keyword?: string;
   storage?: FileStorageType;
-  status?: FileStatus;
   category?: string;
   module?: string;
   isPublic?: boolean;
@@ -126,7 +125,6 @@ export class FileService {
         tags: options.tags,
         isPublic: options.isPublic ?? false,
         remark: options.remark,
-        status: FileStatus.AVAILABLE,
         metadata: stored.metadata,
         uploaderId,
       }),
@@ -142,7 +140,6 @@ export class FileService {
     const filters: FileQueryOptions = {
       keyword: query.keyword,
       storage: query.storage,
-      status: query.status,
       category: query.category,
       module: query.module,
       isPublic: query.isPublic,
@@ -376,10 +373,6 @@ export class FileService {
 
     if (query.storage) {
       qb.andWhere('file.storage = :storage', { storage: query.storage });
-    }
-
-    if (query.status) {
-      qb.andWhere('file.status = :status', { status: query.status });
     }
 
     if (query.category) {

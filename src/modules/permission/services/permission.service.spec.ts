@@ -4,7 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { PermissionService } from './permission.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
-import { PermissionEntity, PermissionType } from '../entities/permission.entity';
+import { PermissionEntity } from '../entities/permission.entity';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
 import { faker } from '@faker-js/faker';
 
@@ -33,7 +33,6 @@ describe('PermissionService', () => {
     permission.id = faker.number.int({ min: 1, max: 1000 });
     permission.code = faker.string.alphanumeric(10);
     permission.name = faker.lorem.words(2);
-    permission.type = PermissionType.API;
     permission.module = 'system';
     permission.description = faker.lorem.sentence();
     permission.isActive = true;
@@ -88,7 +87,6 @@ describe('PermissionService', () => {
     const mockCreateDto: CreatePermissionDto = {
       code: 'user:read',
       name: '查看用户',
-      type: PermissionType.API,
       module: 'user',
       description: '查看用户权限',
     };

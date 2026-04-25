@@ -129,6 +129,10 @@ describe('MenuService', () => {
       await service.delete(1);
 
       expect(menuRepository.softDelete).toHaveBeenCalledWith(1);
+      expect(menuRepository.find).toHaveBeenCalledWith({
+        where: { parentId: 1 },
+        order: { sort: 'ASC' },
+      });
       expect(logger.log).toHaveBeenCalledWith(`删除菜单: ${mockMenu.name} (ID: 1)`);
     });
 
@@ -223,6 +227,57 @@ describe('MenuService', () => {
 
       expect(roleRepository.createQueryBuilder).toHaveBeenCalledWith('role');
       expect(result[0]).toHaveProperty('path', '/user');
+    });
+
+    it('无角色时直接返回空菜单，避免生成空 IN 查询', async () => {
+      const result = await service.getUserMenusByRoles(1, []);
+
+      expect(result).toEqual([]);
+      expect(roleRepository.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('按菜单ID去重，避免多个角色共享菜单时重复返回', async () => {
+      const duplicatedA = createMockMenu({ id: 1, parentId: null, path: '/dashboard' });
+      const duplicatedB = createMockMenu({ id: 1, parentId: null, path: '/dashboard' });
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([
+          { code: 'editor', menus: [duplicatedA] },
+          { code: 'viewer', menus: [duplicatedB] },
+        ]),
+      };
+      roleRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+      const result = await service.getUserMenusByRoles(1, ['editor', 'viewer']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toHaveProperty('path', '/dashboard');
+    });
+
+    it('补齐已授权子菜单的可见父级，避免树构建时丢失子菜单', async () => {
+      const parent = createMockMenu({ id: 1, parentId: null, path: '/system', name: '系统' });
+      const child = createMockMenu({ id: 2, parentId: 1, path: '/system/users', name: '用户' });
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([{ code: 'editor', menus: [child] }]),
+      };
+      roleRepository.createQueryBuilder.mockReturnValue(qb as any);
+      menuRepository.findOne.mockResolvedValue(parent);
+
+      const result = await service.getUserMenusByRoles(1, ['editor']);
+
+      expect(menuRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 1, isActive: true, isVisible: true },
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        path: '/system',
+        children: [expect.objectContaining({ path: '/system/users' })],
+      });
     });
   });
 

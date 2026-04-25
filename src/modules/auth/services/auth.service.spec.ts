@@ -4,7 +4,6 @@ import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { AuthService } from './auth.service';
-import { UserService } from '~/modules/user/services/user.service';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { UserEntity } from '~/modules/user/entities/user.entity';
@@ -41,7 +40,7 @@ describe('AuthService', () => {
     user.password = bcrypt.hashSync('Password123!', 10);
     user.realName = faker.person.fullName();
     user.status = UserStatus.ACTIVE;
-    user.lockedUntil = undefined;
+    user.lockedUntil = null;
     user.loginAttempts = 0;
     user.roles = [];
     user.createdAt = new Date();
@@ -69,11 +68,6 @@ describe('AuthService', () => {
   };
 
   beforeEach(async () => {
-    const mockUserService = {
-      createUser: jest.fn(),
-      getUserPermissions: jest.fn(),
-    };
-
     const mockUserRepository = {
       createQueryBuilder: jest.fn(),
       save: jest.fn(),
@@ -124,7 +118,6 @@ describe('AuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: UserService, useValue: mockUserService },
         { provide: getRepositoryToken(UserEntity), useValue: mockUserRepository },
         { provide: getRepositoryToken(RefreshTokenEntity), useValue: mockRefreshTokenRepository },
         { provide: JwtService, useValue: mockJwtService },
@@ -204,6 +197,25 @@ describe('AuthService', () => {
       expect(mockUser.incrementLoginAttempts).toHaveBeenCalled();
       expect(userRepository.save).toHaveBeenCalledWith(mockUser);
       expect(cacheService.incr).toHaveBeenCalled();
+    });
+
+    it('uses seconds for login lockout cache TTLs', async () => {
+      const mockUser = createMockUser({ roles: [{ code: 'user' }] as any });
+      (mockUser.validatePassword as jest.Mock).mockResolvedValue(false);
+      const qb = createUserLoginQueryBuilder();
+      qb.getOne.mockResolvedValue(mockUser);
+      userRepository.createQueryBuilder.mockReturnValue(qb);
+      userRepository.save.mockResolvedValue(mockUser);
+
+      await expect(service.login(mockLoginDto, mockIp, mockUserAgent)).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      expect(cacheService.incr).toHaveBeenCalledWith(`login:attempts:ip:${mockIp}`, 30 * 60);
+      expect(cacheService.incr).toHaveBeenCalledWith(
+        `login:attempts:user:${mockLoginDto.account}`,
+        30 * 60,
+      );
     });
 
     it('当账户被禁用时应该抛出UnauthorizedException', async () => {
@@ -297,7 +309,7 @@ describe('AuthService', () => {
     it('应该成功登出单个会话', async () => {
       refreshTokenRepository.update.mockResolvedValue(undefined);
 
-      await service.logout(1, 'session-id', 'refresh-token');
+      await service.logout(1, 'refresh-token');
 
       expect(refreshTokenRepository.update).toHaveBeenCalledWith(
         { token: 'refresh-token' },
@@ -321,9 +333,7 @@ describe('AuthService', () => {
     it('撤销刷新令牌失败时应该向调用方抛出异常', async () => {
       refreshTokenRepository.update.mockRejectedValue(new Error('database unavailable'));
 
-      await expect(service.logout(1, undefined, 'refresh-token')).rejects.toThrow(
-        'database unavailable',
-      );
+      await expect(service.logout(1, 'refresh-token')).rejects.toThrow('database unavailable');
     });
   });
 });

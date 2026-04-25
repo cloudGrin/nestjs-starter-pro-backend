@@ -9,7 +9,10 @@ import { BarkChannelAdapter } from './channels/bark.channel';
 import { FeishuChannelAdapter } from './channels/feishu.channel';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([NotificationEntity, UserEntity]), HttpModule],
+  imports: [
+    TypeOrmModule.forFeature([NotificationEntity, UserEntity]),
+    HttpModule.register({ timeout: 5000 }),
+  ],
   controllers: [NotificationController],
   providers: [NotificationService, BarkChannelAdapter, FeishuChannelAdapter],
   exports: [NotificationService],

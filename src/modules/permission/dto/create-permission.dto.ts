@@ -1,7 +1,6 @@
-import { IsString, IsEnum, IsOptional, IsInt, Length } from 'class-validator';
+import { IsString, IsOptional, IsInt, Length } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { PermissionType } from '../entities/permission.entity';
 
 export class CreatePermissionDto {
   @ApiProperty({ description: '权限编码（唯一）', example: 'user:create' })
@@ -13,10 +12,6 @@ export class CreatePermissionDto {
   @IsString()
   @Length(1, 100)
   name: string;
-
-  @ApiProperty({ description: '权限类型', enum: PermissionType, example: PermissionType.API })
-  @IsEnum(PermissionType)
-  type: PermissionType;
 
   @ApiProperty({ description: '所属模块', example: 'user' })
   @IsString()

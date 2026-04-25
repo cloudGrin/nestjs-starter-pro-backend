@@ -13,15 +13,11 @@ type ApiKeyResponseSource = Pick<
 
 export class ApiAppDeleteResponseDto {
   @ApiProperty()
-  success: boolean;
-
-  @ApiProperty()
   message: string;
 
   static success(): ApiAppDeleteResponseDto {
     return {
-      success: true,
-      message: 'API应用已删除',
+      message: 'API应用已停用',
     };
   }
 }
@@ -114,14 +110,10 @@ export class ApiKeyListItemDto {
 
 export class ApiKeyRevokeResponseDto {
   @ApiProperty()
-  success: boolean;
-
-  @ApiProperty()
   message: string;
 
   static success(): ApiKeyRevokeResponseDto {
     return {
-      success: true,
       message: 'API密钥已撤销',
     };
   }

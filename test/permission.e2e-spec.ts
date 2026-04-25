@@ -9,7 +9,7 @@ import {
   authenticatedRequest,
 } from './test-helper';
 import { DataSource } from 'typeorm';
-import { PermissionEntity, PermissionType } from '~/modules/permission/entities/permission.entity';
+import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 import { CacheService } from '~/shared/cache/cache.service';
 
 const userPermissionsCacheKey = (userId: number) => `user:permissions:${userId}`;
@@ -50,8 +50,8 @@ describe('Permission Module (E2E)', () => {
       try {
         const permissionRepo = dataSource.getRepository(PermissionEntity);
         await permissionRepo.remove(testPermission);
-      } catch (error) {
-        console.warn('清理testPermission失败:', (error as Error).message);
+      } catch {
+        // ignore cleanup errors
       }
     }
     await app.close();
@@ -69,7 +69,6 @@ describe('Permission Module (E2E)', () => {
         .send({
           code: 'perm_test_' + randomStr,
           name: 'E2E测试权限',
-          type: PermissionType.API,
           module: 'test',
           description: '这是E2E测试创建的权限',
         });
@@ -94,7 +93,6 @@ describe('Permission Module (E2E)', () => {
       await authenticatedRequest(app, adminCredentials.accessToken).post('/permissions').send({
         code: duplicateCode,
         name: '第一个权限',
-        type: PermissionType.API,
         module: 'test',
       });
 
@@ -104,7 +102,6 @@ describe('Permission Module (E2E)', () => {
         .send({
           code: duplicateCode,
           name: '第二个权限',
-          type: PermissionType.API,
           module: 'test',
         });
 
@@ -117,7 +114,6 @@ describe('Permission Module (E2E)', () => {
         .send({
           code: 'normal_user_perm',
           name: '普通用户创建的权限',
-          type: PermissionType.API,
           module: 'test',
         });
 
@@ -192,7 +188,7 @@ describe('Permission Module (E2E)', () => {
   describe('GET /permissions/:id - 获取权限详情', () => {
     it('管理员应该能够获取权限详情', async () => {
       if (!testPermission) {
-        console.warn('跳过测试: testPermission未创建');
+        expect(testPermission).toBeDefined();
         return;
       }
 
@@ -215,7 +211,10 @@ describe('Permission Module (E2E)', () => {
     });
 
     it('普通用户应该被拒绝', async () => {
-      if (!testPermission) return;
+      if (!testPermission) {
+        expect(testPermission).toBeDefined();
+        return;
+      }
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken).get(
         `/permissions/${testPermission.id}`,
@@ -229,7 +228,7 @@ describe('Permission Module (E2E)', () => {
   describe('PUT /permissions/:id - 更新权限', () => {
     it('管理员应该能够更新权限', async () => {
       if (!testPermission) {
-        console.warn('跳过测试: testPermission未创建');
+        expect(testPermission).toBeDefined();
         return;
       }
 
@@ -284,7 +283,6 @@ describe('Permission Module (E2E)', () => {
         .send({
           code: 'to_delete_' + randomStr,
           name: '待删除权限',
-          type: PermissionType.API,
           module: 'test',
         });
 
@@ -295,7 +293,7 @@ describe('Permission Module (E2E)', () => {
 
     it('管理员应该能够删除权限', async () => {
       if (!permToDelete) {
-        console.warn('跳过测试: permToDelete未创建');
+        expect(permToDelete).toBeDefined();
         return;
       }
 
@@ -344,7 +342,6 @@ describe('Permission Module (E2E)', () => {
         .send({
           code: 'flow_test_' + randomStr,
           name: '流程测试权限',
-          type: PermissionType.API,
           module: 'test',
           description: '完整流程测试',
         });
@@ -417,14 +414,6 @@ describe('Permission Module (E2E)', () => {
           description: '仅有查看权限的测试角色',
         });
 
-      if (roleResponse.status !== HttpStatus.CREATED && roleResponse.status !== HttpStatus.OK) {
-        console.error('[E2E Error] 创建角色失败:', {
-          status: roleResponse.status,
-          body: roleResponse.body,
-          code: roleCode,
-        });
-      }
-
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(roleResponse.status);
       testRole = roleResponse.body.data || roleResponse.body;
 
@@ -436,7 +425,6 @@ describe('Permission Module (E2E)', () => {
           permissionRepo.create({
             code: 'user:read',
             name: '用户读取',
-            type: PermissionType.API,
             module: 'user',
             isActive: true,
           }),
@@ -492,8 +480,8 @@ describe('Permission Module (E2E)', () => {
           await authenticatedRequest(app, adminCredentials.accessToken).delete(
             `/roles/${testRole.id}`,
           );
-        } catch (error) {
-          console.warn('清理testRole失败:', (error as Error).message);
+        } catch {
+          // ignore cleanup errors
         }
       }
     });

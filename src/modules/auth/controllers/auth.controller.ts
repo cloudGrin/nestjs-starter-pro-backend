@@ -1,4 +1,5 @@
 import { Controller, Post, Body, Req, HttpCode, HttpStatus } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiTags,
   ApiOperation,
@@ -22,7 +23,10 @@ import { MessageResponseDto } from '~/common/dto/message-response.dto';
 @ApiTags('认证')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('login')
   @Public()
@@ -32,7 +36,10 @@ export class AuthController {
   @ApiBadRequestResponse({ description: '参数验证失败' })
   @ApiUnauthorizedResponse({ description: '用户名或密码错误' })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
-    const ipAddress = IpUtil.getRealIp(req);
+    const ipAddress = IpUtil.getRealIp(
+      req,
+      this.configService.get<boolean>('app.trustProxy', false),
+    );
     const userAgent = req.headers['user-agent'];
 
     return this.authService.login(dto, ipAddress, userAgent);
@@ -61,7 +68,7 @@ export class AuthController {
     @CurrentUser() user: AuthenticatedUser,
     @Body('refreshToken') refreshToken?: string,
   ) {
-    await this.authService.logout(user.id, user.sessionId || undefined, refreshToken);
+    await this.authService.logout(user.id, refreshToken);
     return MessageResponseDto.of('登出成功');
   }
 }

@@ -1,12 +1,12 @@
 services:
   # ==========================================
-  # home Server 应用服务
+  # Home Admin 应用服务
   # ==========================================
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: home-server
+    container_name: home-admin
     command: sh -c "pnpm run migration:run && node dist/main"
     ports:
       - "3000:3000"
@@ -35,6 +35,7 @@ services:
       # API配置
       API_PREFIX: api
       API_VERSION: 1
+      TRUST_PROXY: ${TRUST_PROXY:-false}
 
       # CORS配置（生产环境需要指定具体域名）
       CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required for production}

@@ -5,21 +5,25 @@ import { Request } from 'express';
  */
 export class IpUtil {
   /**
-   * 从请求中获取真实IP地址
-   * 考虑了代理、负载均衡等情况
+   * 从请求中获取真实IP地址。
+   * 默认不信任客户端可伪造的代理头，只有显式启用 trustProxy 时才读取。
    */
-  static getRealIp(req: Request): string {
-    // 优先从 x-forwarded-for 获取
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-      const ips = typeof forwarded === 'string' ? forwarded.split(',') : forwarded;
-      return ips[0].trim();
+  static getRealIp(req: Request, trustProxy = false): string {
+    if (trustProxy) {
+      const forwarded = req.headers['x-forwarded-for'];
+      if (forwarded) {
+        const ips = typeof forwarded === 'string' ? forwarded.split(',') : forwarded;
+        return this.normalizeIp(ips[0].trim());
+      }
+
+      const realIp = req.headers['x-real-ip'];
+      if (realIp) {
+        return this.normalizeIp(typeof realIp === 'string' ? realIp : realIp[0]);
+      }
     }
 
-    // 从 x-real-ip 获取
-    const realIp = req.headers['x-real-ip'];
-    if (realIp) {
-      return typeof realIp === 'string' ? realIp : realIp[0];
+    if (req.ip) {
+      return this.normalizeIp(req.ip);
     }
 
     // 从 connection.remoteAddress 获取

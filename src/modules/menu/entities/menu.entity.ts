@@ -129,7 +129,7 @@ export class MenuEntity extends SoftDeleteBaseEntity {
   })
   remark?: string;
 
-  // 🆕 拥有此菜单的角色（role_menus 中间表）
+  // 拥有此菜单的角色（role_menus 中间表）
   @ManyToMany(() => RoleEntity, (role) => role.menus)
   roles?: RoleEntity[];
 }

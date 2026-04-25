@@ -56,9 +56,6 @@ importers:
       class-validator:
         specifier: ^0.14.2
         version: 0.14.2
-      cron:
-        specifier: ^2.4.3
-        version: 2.4.4
       dayjs:
         specifier: ^1.11.13
         version: 1.11.18
@@ -989,9 +986,6 @@ packages:
   '@types/jsonwebtoken@9.0.10':
     resolution: {integrity: sha512-asx5hIG9Qmf/1oStypjanR7iKTv0gXQ1Ov/jfrX6kS/EO0OFni8orbmGCn0672NHR3kXHwpAwR+B368ZGN/2rA==}
 
-  '@types/luxon@3.3.8':
-    resolution: {integrity: sha512-jYvz8UMLDgy3a5SkGJne8H7VA7zPV2Lwohjx0V8V31+SqAjNmurWMkk9cQhfvlcnXWudBpK9xPM1n4rljOcHYQ==}
-
   '@types/luxon@3.7.1':
     resolution: {integrity: sha512-H3iskjFIAn5SlJU7OuxUmTEpebK6TKB8rxZShDslBMZJ5u9S//KM1sbdAisiSrqwLQncVjnpi2OK2J51h+4lsg==}
 
@@ -1601,9 +1595,6 @@ packages:
 
   create-require@1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
-
-  cron@2.4.4:
-    resolution: {integrity: sha512-MHlPImXJj3K7x7lyUHjtKEOl69CSlTOWxS89jiFgNkzXfvhVjhMz/nc7/EIfN9vgooZp8XTtXJ1FREdmbyXOiQ==}
 
   cron@4.3.3:
     resolution: {integrity: sha512-B/CJj5yL3sjtlun6RtYHvoSB26EmQ2NUmhq9ZiJSyKIM4K/fqfh9aelDFlIayD2YMeFZqWLi9hHV+c+pq2Djkw==}
@@ -2588,10 +2579,6 @@ packages:
   lru.min@1.1.2:
     resolution: {integrity: sha512-Nv9KddBcQSlQopmBHXSsZVY5xsdlZkdH/Iey0BlcBYggMd4two7cZnKOK9vmy3nY0O5RGH99z1PCeTpPqszUYg==}
     engines: {bun: '>=1.0.0', deno: '>=1.30.0', node: '>=8.0.0'}
-
-  luxon@3.3.0:
-    resolution: {integrity: sha512-An0UCfG/rSiqtAIiBPO0Y9/zAnHUZxAMiCpTd5h2smgsj7GGmcenvrvww2cqNA8/4A5ZrD1gJpHN2mIHZQF+Mg==}
-    engines: {node: '>=12'}
 
   luxon@3.7.2:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
@@ -4721,8 +4708,6 @@ snapshots:
       '@types/ms': 2.1.0
       '@types/node': 22.18.11
 
-  '@types/luxon@3.3.8': {}
-
   '@types/luxon@3.7.1': {}
 
   '@types/methods@1.1.4': {}
@@ -5431,11 +5416,6 @@ snapshots:
       - ts-node
 
   create-require@1.1.1: {}
-
-  cron@2.4.4:
-    dependencies:
-      '@types/luxon': 3.3.8
-      luxon: 3.3.0
 
   cron@4.3.3:
     dependencies:
@@ -6622,8 +6602,6 @@ snapshots:
   lru-cache@7.18.3: {}
 
   lru.min@1.1.2: {}
-
-  luxon@3.3.0: {}
 
   luxon@3.7.2: {}
 

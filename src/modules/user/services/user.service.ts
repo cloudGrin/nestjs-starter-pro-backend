@@ -8,7 +8,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
-import { CACHE_KEYS, CACHE_TTL } from '~/common/constants/cache.constants';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { RefreshTokenEntity } from '~/modules/auth/entities/refresh-token.entity';
 import { UserEntity } from '../entities/user.entity';
@@ -20,6 +19,8 @@ import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto'
 import { UserStatus } from '~/common/enums/user.enum';
 
 const USER_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'username', 'email', 'lastLoginAt']);
+const USER_PERMISSION_CACHE_TTL_SECONDS = 1800;
+const userPermissionsCacheKey = (userId: number) => `user:permissions:${userId}`;
 
 @Injectable()
 export class UserService {
@@ -90,10 +91,6 @@ export class UserService {
     const savedUser = await this.userRepository.save(user);
     this.logger.debug(`用户保存成功 id=${savedUser.id}, username=${savedUser.username}`);
 
-    // 清除缓存
-    await this.clearUserCache();
-    this.logger.debug(`创建用户后清理缓存完成 userId=${savedUser.id}`);
-
     this.logger.log(`Created user: ${savedUser.username} (ID: ${savedUser.id})`);
 
     // 排除敏感字段password
@@ -157,13 +154,10 @@ export class UserService {
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`用户更新保存成功 id=${updatedUser.id}`);
 
-    // 清除缓存
-    await this.clearUserCache(id);
     // 如果角色发生变更，清除权限缓存，确保权限立即生效
     if (rolesChanged) {
       await this.clearUserPermissionCache(id);
     }
-    this.logger.debug(`更新用户后清理缓存完成 userId=${updatedUser.id}`);
 
     this.logger.log(`Updated user: ${updatedUser.username} (ID: ${updatedUser.id})`);
 
@@ -271,10 +265,6 @@ export class UserService {
     await this.revokeRefreshTokens(userId);
     this.logger.debug(`清除用户刷新Token userId=${userId}`);
 
-    // 清除缓存
-    await this.clearUserCache(userId);
-    this.logger.debug(`修改密码后清理缓存完成 userId=${userId}`);
-
     this.logger.log(`User ${userId} changed password`);
   }
 
@@ -297,10 +287,6 @@ export class UserService {
     await this.revokeRefreshTokens(userId);
     this.logger.debug(`重置密码后清除刷新Token userId=${userId}`);
 
-    // 清除缓存
-    await this.clearUserCache(userId);
-    this.logger.debug(`重置密码后清理缓存完成 userId=${userId}`);
-
     this.logger.log(`Reset password for user ${userId}`);
   }
 
@@ -318,10 +304,6 @@ export class UserService {
 
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`用户启用保存成功 id=${id}`);
-
-    // 清除缓存
-    await this.clearUserCache(id);
-    this.logger.debug(`启用用户后清理缓存完成 userId=${id}`);
 
     this.logger.log(`Enabled user: ${updatedUser.username} (ID: ${id})`);
 
@@ -345,10 +327,6 @@ export class UserService {
     await this.revokeRefreshTokens(id);
     this.logger.debug(`禁用用户后清除刷新Token userId=${id}`);
 
-    // 清除缓存
-    await this.clearUserCache(id);
-    this.logger.debug(`禁用用户后清理缓存完成 userId=${id}`);
-
     this.logger.log(`Disabled user: ${updatedUser.username} (ID: ${id})`);
 
     return updatedUser;
@@ -364,10 +342,6 @@ export class UserService {
 
     await this.userRepository.softDelete(id);
     this.logger.debug(`用户软删除完成 id=${id}`);
-
-    // 清除缓存
-    await this.clearUserCache(id);
-    this.logger.debug(`删除用户后清理缓存完成 userId=${id}`);
 
     this.logger.log(`Deleted user: ${user.username} (ID: ${id})`);
   }
@@ -391,10 +365,6 @@ export class UserService {
       await this.userRepository.softDelete(user.id);
       this.logger.debug(`用户软删除完成 id=${user.id}`);
     }
-
-    // 清除缓存
-    await this.clearUserCache();
-    this.logger.debug('批量删除用户后清理缓存完成');
 
     this.logger.log(`Batch deleted ${users.length} users`);
   }
@@ -432,11 +402,8 @@ export class UserService {
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`分配角色保存成功 userId=${userId}`);
 
-    // 清除缓存
-    await this.clearUserCache(userId);
     // 清除权限缓存，确保角色变更后权限立即生效
     await this.clearUserPermissionCache(userId);
-    this.logger.debug(`分配角色后清理缓存完成 userId=${userId}`);
 
     this.logger.log(`Assigned ${roles.length} roles to user ${userId}`);
 
@@ -448,7 +415,7 @@ export class UserService {
    */
   async getUserPermissions(userId: number): Promise<string[]> {
     this.logger.debug(`获取用户权限 userId=${userId}`);
-    const cacheKey = CACHE_KEYS.USER_PERMISSIONS(userId);
+    const cacheKey = userPermissionsCacheKey(userId);
 
     // 尝试从缓存获取
     const cached = await this.cache.get<string[]>(cacheKey);
@@ -485,46 +452,12 @@ export class UserService {
     const permissionList = Array.from(permissions);
     this.logger.debug(`计算用户权限完成 userId=${userId}, 权限数量=${permissionList.length}`);
 
-    await this.cache.set(cacheKey, permissionList, CACHE_TTL.MEDIUM);
-    this.logger.debug(`用户权限写入缓存 userId=${userId}, ttl=${CACHE_TTL.MEDIUM}`);
+    await this.cache.set(cacheKey, permissionList, USER_PERMISSION_CACHE_TTL_SECONDS);
+    this.logger.debug(
+      `用户权限写入缓存 userId=${userId}, ttl=${USER_PERMISSION_CACHE_TTL_SECONDS}`,
+    );
 
     return permissionList;
-  }
-
-  /**
-   * 验证用户权限
-   */
-  async hasPermission(userId: number, permissionCode: string): Promise<boolean> {
-    const permissions = await this.getUserPermissions(userId);
-    const result = permissions.includes(permissionCode);
-    this.logger.debug(
-      `权限校验(single) userId=${userId}, permission=${permissionCode}, result=${result}`,
-    );
-    return result;
-  }
-
-  /**
-   * 验证用户多个权限（全部满足）
-   */
-  async hasAllPermissions(userId: number, permissionCodes: string[]): Promise<boolean> {
-    const permissions = await this.getUserPermissions(userId);
-    const result = permissionCodes.every((code) => permissions.includes(code));
-    this.logger.debug(
-      `权限校验(all) userId=${userId}, permissions=${JSON.stringify(permissionCodes)}, result=${result}`,
-    );
-    return result;
-  }
-
-  /**
-   * 验证用户多个权限（满足其一）
-   */
-  async hasAnyPermission(userId: number, permissionCodes: string[]): Promise<boolean> {
-    const permissions = await this.getUserPermissions(userId);
-    const result = permissionCodes.some((code) => permissions.includes(code));
-    this.logger.debug(
-      `权限校验(any) userId=${userId}, permissions=${JSON.stringify(permissionCodes)}, result=${result}`,
-    );
-    return result;
   }
 
   /**
@@ -532,18 +465,9 @@ export class UserService {
    * 注意：这会清除PermissionsGuard中缓存的用户权限，确保角色变更后立即生效
    */
   private async clearUserPermissionCache(userId: number): Promise<void> {
-    const cacheKey = CACHE_KEYS.USER_PERMISSIONS(userId);
+    const cacheKey = userPermissionsCacheKey(userId);
     await this.cache.del(cacheKey);
     this.logger.debug(`已清除用户权限缓存 userId=${userId}`);
-  }
-
-  private async clearUserCache(userId?: number): Promise<void> {
-    if (userId !== undefined) {
-      await this.cache.del(`User:findOne:${userId}`);
-      return;
-    }
-
-    await this.cache.delByPattern('User:*');
   }
 
   private async isUsernameExist(username: string, excludeId?: number): Promise<boolean> {

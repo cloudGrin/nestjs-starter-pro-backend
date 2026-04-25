@@ -286,8 +286,8 @@ export class AuthService {
       await this.refreshTokenRepository.update({ userId, isRevoked: false }, { isRevoked: true });
     }
 
-    // 清除缓存
-    await this.clearUserCache(userId);
+    // 清除权限缓存
+    await this.clearUserPermissionCache(userId);
 
     this.logger.log(`User ${userId} logged out`);
   }
@@ -494,10 +494,7 @@ export class AuthService {
     }
   }
 
-  /**
-   * 清除用户缓存
-   */
-  private async clearUserCache(userId: number): Promise<void> {
+  private async clearUserPermissionCache(userId: number): Promise<void> {
     const cacheKey = `user:permissions:${userId}`;
     await this.cache.del(cacheKey);
   }

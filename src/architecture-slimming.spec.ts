@@ -374,6 +374,11 @@ describe('architecture slimming', () => {
     );
   });
 
+  it('does not keep unused broad app/cache constants after slimming cache paths', () => {
+    expect(existsInSource('common/constants/app.constant.ts')).toBe(false);
+    expect(existsInSource('common/constants/cache.constants.ts')).toBe(false);
+  });
+
   it('injects direct TypeORM repositories into menu, file, and notification services', () => {
     const menuModule = readSource('modules/menu/menu.module.ts');
     const menuService = readSource('modules/menu/services/menu.service.ts');

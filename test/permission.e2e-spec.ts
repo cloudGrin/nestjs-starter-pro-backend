@@ -11,7 +11,8 @@ import {
 import { DataSource } from 'typeorm';
 import { PermissionEntity, PermissionType } from '~/modules/permission/entities/permission.entity';
 import { CacheService } from '~/shared/cache/cache.service';
-import { CACHE_KEYS } from '~/common/constants/cache.constants';
+
+const userPermissionsCacheKey = (userId: number) => `user:permissions:${userId}`;
 
 describe('Permission Module (E2E)', () => {
   let app: INestApplication;
@@ -469,7 +470,7 @@ describe('Permission Module (E2E)', () => {
 
       // 6. 清除用户权限缓存
       const cacheService = app.get(CacheService);
-      await cacheService.del(CACHE_KEYS.USER_PERMISSIONS(limitedUserCredentials.user.id));
+      await cacheService.del(userPermissionsCacheKey(limitedUserCredentials.user.id));
 
       // 7. 重新登录以获取包含角色信息的新token
       const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({

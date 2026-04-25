@@ -116,8 +116,6 @@ export class MenuController {
     return MessageResponseDto.of('删除成功');
   }
 
-  // ==================== 🆕 新增接口 ====================
-
   @Patch('batch-status')
   @RequirePermissions('menu:update')
   @ApiOperation({ summary: '批量启用/禁用菜单' })

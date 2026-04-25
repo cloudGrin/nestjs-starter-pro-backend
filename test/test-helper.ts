@@ -11,8 +11,9 @@ import { RoleEntity, RoleCategory } from '../src/modules/role/entities/role.enti
 import { PermissionEntity } from '../src/modules/permission/entities/permission.entity';
 import { UserStatus } from '../src/common/enums/user.enum';
 import { CacheService } from '../src/shared/cache/cache.service';
-import { CACHE_KEYS } from '../src/common/constants/cache.constants';
 import request from 'supertest';
+
+const userPermissionsCacheKey = (userId: number) => `user:permissions:${userId}`;
 
 /**
  * 创建测试应用实例
@@ -272,7 +273,7 @@ export async function createSuperAdminCredentials(
   }
 
   // 清除与用户权限相关的缓存，避免 RBAC 2.0 缓存命中导致权限缺失
-  await app.get(CacheService).del(CACHE_KEYS.USER_PERMISSIONS(userId));
+  await app.get(CacheService).del(userPermissionsCacheKey(userId));
 
   // 重新登录以获取包含新权限的JWT token
   const loginResponse = await request(app.getHttpServer())

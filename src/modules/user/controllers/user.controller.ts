@@ -39,7 +39,6 @@ import { UserPermissionsResponseDto } from '../dto/user-permissions-response.dto
 @ApiTags('用户管理')
 @ApiBearerAuth()
 @Controller('users')
-// @UseGuards(JwtAuthGuard) // 将在认证模块创建后添加
 export class UserController {
   constructor(private readonly userService: UserService) {}
 

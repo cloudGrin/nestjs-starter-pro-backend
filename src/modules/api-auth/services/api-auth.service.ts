@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ApiAppEntity } from '../entities/api-app.entity';
@@ -37,10 +37,10 @@ export class ApiAuthService {
   /**
    * 获取API应用列表
    */
-  async getApps(query: QueryApiAppsDto = {}) {
+  async getApps(query: QueryApiAppsDto = {}): Promise<PaginationResult<ApiAppEntity>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const result = await this.paginateApps(
+    return this.paginateApps(
       {
         page,
         limit,
@@ -49,13 +49,6 @@ export class ApiAuthService {
         order: { createdAt: 'DESC' },
       },
     );
-
-    return {
-      items: result.items,
-      total: result.meta.totalItems,
-      page: result.meta.currentPage,
-      limit: result.meta.itemsPerPage,
-    };
   }
 
   /**
@@ -67,7 +60,7 @@ export class ApiAuthService {
     });
 
     if (!app) {
-      throw new BadRequestException('应用不存在');
+      throw new NotFoundException('应用不存在');
     }
 
     return app;

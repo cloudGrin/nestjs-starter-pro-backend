@@ -51,16 +51,6 @@ export class PermissionEntity extends BaseEntity {
   module: string;
 
   @Column({
-    type: 'json',
-    nullable: true,
-    comment: 'HTTP元数据（方法、路径）',
-  })
-  httpMeta?: {
-    method: string; // GET, POST, PUT, DELETE, PATCH
-    path: string; // /api/users/:id
-  }[];
-
-  @Column({
     type: 'int',
     default: 0,
     comment: '排序值',
@@ -87,18 +77,6 @@ export class PermissionEntity extends BaseEntity {
     comment: '权限描述',
   })
   description?: string;
-
-  @Column({
-    type: 'json',
-    nullable: true,
-    comment: '扩展配置',
-  })
-  extra?: {
-    tags?: string[]; // 标签
-    deprecated?: boolean; // 是否废弃
-    replaceBy?: string; // 被哪个权限替代
-    [key: string]: any;
-  };
 
   // 拥有此权限的角色
   @ManyToMany(() => RoleEntity, (role) => role.permissions)

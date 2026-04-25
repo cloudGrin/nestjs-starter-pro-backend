@@ -1,6 +1,6 @@
-# NestJS Starter Pro
+# Home Admin
 
-> A lightweight, production-ready admin backend built with NestJS.
+> A lightweight personal admin backend built with NestJS.
 > Enterprise-grade code quality with **only the essential features** you actually need.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -12,14 +12,14 @@
 
 ---
 
-## 🎯 Why NestJS Starter Pro?
+## 🎯 Why Home Admin?
 
 Most backend frameworks fall into two extremes:
 
 - **Enterprise frameworks** (like RuoYi, NestJS Admin): Feature-complete but **overcomplicated**. High learning curve, hard to customize.
-- **Demo projects**: Too basic, just CRUD examples. **Not production-ready**.
+- **Demo projects**: Too basic, just CRUD examples. **Not ready for real use**.
 
-**NestJS Starter Pro fills the gap**:
+**Home Admin fills the gap**:
 
 - ✅ Lean code quality (layered architecture, TypeORM migrations, focused tests)
 - ✅ Simplified RBAC (no permission groups, no complex AND/OR logic)
@@ -286,16 +286,16 @@ pnpm run migration:revert
 
 ```bash
 # Unit tests
-npm run test
+pnpm run test
 
 # Watch mode
-npm run test:watch
+pnpm run test:watch
 
 # E2E tests
-npm run test:e2e
+pnpm run test:e2e
 
 # Test coverage
-npm run test:cov
+pnpm run test:cov
 ```
 
 ---
@@ -312,7 +312,7 @@ docker run -d -p 3000:3000 --name home-admin home-admin
 ### PM2
 
 ```bash
-npm run build
+pnpm run build
 pm2 start dist/main.js --name nestjs-app
 ```
 
@@ -406,14 +406,14 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🎯 为什么选择 NestJS Starter Pro？
+## 🎯 为什么选择 Home Admin？
 
 大多数后台框架都走向了两个极端：
 
 - **企业级框架**（如若依、NestJS Admin）：功能齐全但**过度复杂**。学习成本高，难以定制。
 - **Demo 级项目**：过于简陋，只有基础 CRUD。**无法直接用于生产**。
 
-**NestJS Starter Pro 填补了这个空白**：
+**Home Admin 填补了这个空白**：
 
 - ✅ 企业级代码质量（分层架构、TypeORM Migration、完整测试）
 - ✅ 简化的 RBAC（去掉权限组、复杂的 AND/OR 逻辑）

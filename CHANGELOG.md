@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🎉 Major Release - Lightweight Edition
 
-This is a complete redesign from an enterprise-grade RBAC system to a lightweight, production-ready admin backend framework.
+This is a complete redesign from an enterprise-grade RBAC system to a lightweight personal admin backend.
 
 **Philosophy**: "80% of projects only need 20% of enterprise features. We built that 20%."
 
@@ -58,7 +58,7 @@ For a detailed comparison with other frameworks (RuoYi, Nest Admin, NestJS Boile
 ### 🎯 Target Audience
 
 - **Freelancers**: Building admin dashboards for clients quickly
-- **Startups**: Creating MVP products with production-ready code quality
+- **Personal projects**: Managing private modules while keeping a clear external API surface
 - **Learners**: Studying NestJS best practices with clean code examples
 - **Side Projects**: Personal projects that need professional backend structure
 
@@ -130,4 +130,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## License
 
-[MIT](LICENSE) © 2025 NestJS Starter Pro Team
+[MIT](LICENSE) © 2025 Grin

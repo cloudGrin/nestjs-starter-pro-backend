@@ -82,6 +82,22 @@ describe('architecture slimming', () => {
     expect(roleController).not.toContain('check-exclusive');
     expect(roleService).not.toContain('getEffectivePermissions');
     expect(roleService).not.toContain('checkExclusiveConflict');
+    expect(existsInSource('modules/permission/dto/set-permissions.dto.ts')).toBe(false);
+  });
+
+  it('keeps permission records to the fields currently enforced by guards', () => {
+    const permissionEntity = readSource('modules/permission/entities/permission.entity.ts');
+    const createPermissionDto = readSource('modules/permission/dto/create-permission.dto.ts');
+    const migration = readSource('migrations/1730000000000-InitSchema.ts');
+
+    expect(permissionEntity).not.toContain('httpMeta');
+    expect(permissionEntity).not.toContain('deprecated');
+    expect(permissionEntity).not.toContain('replaceBy');
+    expect(permissionEntity).not.toContain('extra?:');
+    expect(createPermissionDto).not.toContain('httpMeta');
+    expect(createPermissionDto).not.toContain('extra?:');
+    expect(migration).not.toContain('httpMeta json');
+    expect(migration).not.toContain("extra json NULL COMMENT '扩展配置'");
   });
 
   it('does not provide CacheClearService as a parallel cache invalidation abstraction', () => {
@@ -319,6 +335,7 @@ describe('architecture slimming', () => {
 
   it('keeps api app pagination calculation in the service instead of controller', () => {
     const apiAppController = readSource('modules/api-auth/controllers/api-app.controller.ts');
+    const apiAuthService = readSource('modules/api-auth/services/api-auth.service.ts');
 
     expect(apiAppController).toContain('this.apiAuthService.getApps(query)');
     expect(apiAppController).not.toContain('const skip =');
@@ -326,6 +343,9 @@ describe('architecture slimming', () => {
     expect(apiAppController).toContain('this.apiAuthService.createApp(dto, user.id)');
     expect(apiAppController).not.toContain('const dtoWithOwner');
     expect(apiAppController).not.toContain('ownerId: user.id');
+    expect(apiAuthService).not.toContain('total: result.meta.totalItems');
+    expect(apiAuthService).not.toContain('page: result.meta.currentPage');
+    expect(apiAuthService).not.toContain('limit: result.meta.itemsPerPage');
   });
 
   it('uses DTOs for user controller array request bodies instead of bare arrays', () => {
@@ -361,6 +381,14 @@ describe('architecture slimming', () => {
 
   it('removes BaseRepository inheritance from repositories and keeps only shared pagination types', () => {
     expect(existsInSource('core/base/base.repository.ts')).toBe(false);
+    expect(existsInSource('modules/api-auth/repositories')).toBe(false);
+    expect(existsInSource('modules/auth/repositories')).toBe(false);
+    expect(existsInSource('modules/user/repositories')).toBe(false);
+    expect(existsInSource('modules/role/repositories')).toBe(false);
+    expect(existsInSource('modules/permission/repositories')).toBe(false);
+    expect(existsInSource('modules/menu/repositories')).toBe(false);
+    expect(existsInSource('modules/file/repositories')).toBe(false);
+    expect(existsInSource('modules/notification/repositories')).toBe(false);
     expect(existsInSource('modules/api-auth/repositories/api-app.repository.ts')).toBe(false);
     expect(existsInSource('modules/api-auth/repositories/api-key.repository.ts')).toBe(false);
     expect(existsInSource('modules/auth/repositories/refresh-token.repository.ts')).toBe(false);
@@ -377,6 +405,30 @@ describe('architecture slimming', () => {
   it('does not keep unused broad app/cache constants after slimming cache paths', () => {
     expect(existsInSource('common/constants/app.constant.ts')).toBe(false);
     expect(existsInSource('common/constants/cache.constants.ts')).toBe(false);
+    expect(existsInSource('common/constants')).toBe(false);
+    expect(readSource('config/constants.ts')).not.toContain('ENVIRONMENTS');
+  });
+
+  it('removes unused scaffold directories and template utility files', () => {
+    for (const path of [
+      'common/helpers',
+      'core/interfaces',
+      'core/pipes',
+      'modules/api-auth/types',
+      'scripts',
+      'shared/config',
+      'shared/queue',
+      'common/utils/array.util.ts',
+      'common/utils/date.util.ts',
+      'common/utils/object.util.ts',
+    ]) {
+      expect(existsInSource(path)).toBe(false);
+    }
+
+    const utilIndex = readSource('common/utils/index.ts');
+    expect(utilIndex).not.toContain('array.util');
+    expect(utilIndex).not.toContain('date.util');
+    expect(utilIndex).not.toContain('object.util');
   });
 
   it('injects direct TypeORM repositories into menu, file, and notification services', () => {
@@ -490,6 +542,17 @@ describe('architecture slimming', () => {
     expect(compose).toContain('node dist/main');
   });
 
+  it('uses configured file upload size at the multer layer', () => {
+    const fileModule = readSource('modules/file/file.module.ts');
+    const fileController = readSource('modules/file/controllers/file.controller.ts');
+
+    expect(fileModule).toContain('MulterModule.registerAsync');
+    expect(fileModule).toContain("configService.get<number>('file.maxSize'");
+    expect(fileController).toContain("FileInterceptor('file')");
+    expect(fileController).not.toContain('DEFAULT_FILE_MAX_SIZE');
+    expect(fileController).not.toContain('limits:');
+  });
+
   it('removes stale redis captcha excel and removed file-processing env examples', () => {
     const env = readProject('.env');
     const envTest = readProject('.env.test');
@@ -501,6 +564,20 @@ describe('architecture slimming', () => {
       expect(content).not.toMatch(/FILE_CHUNK|FILE_IMAGE/);
       expect(content).not.toMatch(/\.xls|\.xlsx/);
     }
+  });
+
+  it('keeps package and docs aligned with the personal admin project instead of starter metadata', () => {
+    const packageJson = readProject('package.json');
+    const readme = readProject('README.md');
+    const claude = readProject('CLAUDE.md');
+
+    expect(packageJson).not.toMatch(/starter|boilerplate|production-ready/);
+    expect(readme).not.toContain('NestJS Starter Pro');
+    expect(readme).not.toContain('production-ready');
+    expect(readme).not.toMatch(/(^|\s)npm run test/);
+    expect(readme).not.toMatch(/(^|\s)npm run build/);
+    expect(claude).not.toMatch(/(^|\s)npm run test/);
+    expect(claude).not.toMatch(/(^|\s)npm run build/);
   });
 
   it('keeps process memory cache API minimal for the current single-server design', () => {

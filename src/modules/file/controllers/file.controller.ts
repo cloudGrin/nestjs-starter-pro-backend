@@ -28,7 +28,6 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import { memoryStorage } from 'multer';
 import { StreamableFile } from '@nestjs/common';
 import { FileService } from '../services/file.service';
 import { UploadFileDto } from '../dto/upload-file.dto';
@@ -38,7 +37,6 @@ import { FileEntity } from '../entities/file.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
-import { DEFAULT_FILE_MAX_SIZE } from '~/config/constants';
 
 @ApiTags('文件管理')
 @ApiBearerAuth()
@@ -91,14 +89,7 @@ export class FileController {
   @ApiBadRequestResponse({ description: '参数验证失败' })
   @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
   @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(),
-      limits: {
-        fileSize: DEFAULT_FILE_MAX_SIZE,
-      },
-    }),
-  )
+  @UseInterceptors(FileInterceptor('file'))
   async upload(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadFileDto,

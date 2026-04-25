@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsArray, IsInt, Length } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsInt, Length } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { PermissionType } from '../entities/permission.entity';
@@ -23,14 +23,6 @@ export class CreatePermissionDto {
   @Length(1, 50)
   module: string;
 
-  @ApiPropertyOptional({ description: 'HTTP元数据', type: [Object] })
-  @IsOptional()
-  @IsArray()
-  httpMeta?: {
-    method: string;
-    path: string;
-  }[];
-
   @ApiPropertyOptional({ description: '排序值', default: 0 })
   @IsOptional()
   @IsInt()
@@ -51,8 +43,4 @@ export class CreatePermissionDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @ApiPropertyOptional({ description: '扩展配置' })
-  @IsOptional()
-  extra?: Record<string, any>;
 }

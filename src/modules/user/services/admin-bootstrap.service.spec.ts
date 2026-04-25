@@ -140,6 +140,22 @@ describe('AdminBootstrapService', () => {
           name: '菜单管理',
           parentId: 10,
         }),
+        expect.objectContaining({
+          name: '权限管理',
+          parentId: 10,
+        }),
+        expect.objectContaining({
+          name: 'API应用',
+          parentId: 10,
+        }),
+        expect.objectContaining({
+          name: '文件管理',
+          parentId: 10,
+        }),
+        expect.objectContaining({
+          name: '通知中心',
+          parentId: 10,
+        }),
       ]),
     );
   });

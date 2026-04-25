@@ -15,10 +15,8 @@
     "api-key",
     "mysql",
     "typeorm",
-    "starter",
-    "boilerplate",
-    "lightweight",
-    "production-ready"
+    "personal",
+    "lightweight"
   ],
   "scripts": {
     "dev": "nest start --watch",

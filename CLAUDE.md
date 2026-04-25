@@ -12,7 +12,7 @@
 
 ### 基本信息
 
-- **项目名称**: NestJS Starter Pro
+- **项目名称**: Home Admin
 - **当前版本**: v2.0
 - **主要分支**: `main`
 - **技术架构**:
@@ -24,7 +24,7 @@
 
 ### 项目定位
 
-NestJS Starter Pro 是一个轻量级、生产就绪的后台管理框架，基于 NestJS 构建。它在企业级框架和 Demo 级项目之间找到了平衡点：保留了企业级的代码质量（分层架构、TypeORM Migration、完整测试），但去掉了 80% 的项目用不上的复杂功能（审计日志、复杂组织流程、复杂权限逻辑等）。提供完整的 RBAC 权限管理、文件管理、任务调度等核心功能，并支持双认证体系（JWT + API Key），适合快速启动各类中小型项目。
+Home Admin 是一个面向个人使用的轻量级管理后台，基于 NestJS 构建。项目保留单服务、MySQL migration、JWT 登录、API Key 开放接口、文件、通知和 cron 扩展点，避免微服务、Redis、工作流平台等个人项目不需要的复杂度。
 
 ### 核心特性
 
@@ -1023,16 +1023,16 @@ describe('UserController (e2e)', () => {
 
 ```bash
 # 单元测试
-npm run test
+pnpm run test
 
 # 单元测试（监听模式）
-npm run test:watch
+pnpm run test:watch
 
 # E2E 测试
-npm run test:e2e
+pnpm run test:e2e
 
 # 测试覆盖率
-npm run test:cov
+pnpm run test:cov
 ```
 
 ---
@@ -1094,7 +1094,7 @@ docker stop home-server
 npm install -g pm2
 
 # 2. 构建项目
-npm run build
+pnpm run build
 
 # 3. 启动应用
 pm2 start dist/main.js --name home-server
@@ -1468,15 +1468,15 @@ pnpm run migration:run
 node -p "require('./dist/config/configuration').default()"
 
 # 4. 检查编译错误
-npm run build
+pnpm run build
 
 # 5. 运行测试
-npm run test
-npm run test:e2e
+pnpm run test
+pnpm run test:e2e
 ```
 
 ---
 
 **最后更新**: 2025-11-04
-**维护者**: NestJS Starter Pro Team
+**维护者**: Grin
 **版本**: v2.0

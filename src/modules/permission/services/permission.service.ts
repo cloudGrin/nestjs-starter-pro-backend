@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
+import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { PermissionEntity } from '../entities/permission.entity';
 import { CreatePermissionDto, UpdatePermissionDto, QueryPermissionDto } from '../dto';
@@ -17,6 +18,7 @@ export class PermissionService {
     @InjectRepository(PermissionEntity)
     private readonly permissionRepo: Repository<PermissionEntity>,
     private readonly logger: LoggerService,
+    private readonly cache: CacheService,
   ) {
     this.logger.setContext(PermissionService.name);
   }
@@ -66,6 +68,8 @@ export class PermissionService {
     const updated = await this.permissionRepo.save(entity);
     this.logger.debug(`权限更新保存成功 id=${updated.id}`);
 
+    await this.clearUserPermissionCache();
+
     this.logger.log(`更新权限: ${updated.name} (ID: ${id})`);
 
     return updated;
@@ -102,6 +106,8 @@ export class PermissionService {
 
     await this.permissionRepo.delete(id);
     this.logger.debug(`权限删除完成 id=${id}`);
+
+    await this.clearUserPermissionCache();
 
     this.logger.log(`删除权限: ${entity.name} (ID: ${id})`);
   }
@@ -197,6 +203,11 @@ export class PermissionService {
     }
 
     return (await qb.getCount()) > 0;
+  }
+
+  private async clearUserPermissionCache(): Promise<void> {
+    await this.cache.delByPattern('user:permissions:*');
+    this.logger.debug('已清除所有用户权限缓存');
   }
 
   private async findWithQuery(query: QueryPermissionDto): Promise<[PermissionEntity[], number]> {

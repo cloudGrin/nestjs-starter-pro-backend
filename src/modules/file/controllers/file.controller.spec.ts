@@ -26,11 +26,12 @@ describe('FileController', () => {
     expect(source).not.toContain("BusinessException.notFound('文件', id)");
   });
 
-  it('limits uploaded files at the multer layer before buffering them in memory', () => {
+  it('delegates multer upload limits to FileModule configuration', () => {
     const source = readFileSync(join(__dirname, 'file.controller.ts'), 'utf8');
 
-    expect(source).toContain('limits:');
-    expect(source).toContain('fileSize: DEFAULT_FILE_MAX_SIZE');
+    expect(source).toContain("FileInterceptor('file')");
+    expect(source).not.toContain('DEFAULT_FILE_MAX_SIZE');
+    expect(source).not.toContain('limits:');
     expect(source).not.toContain('最大100MB');
   });
 });

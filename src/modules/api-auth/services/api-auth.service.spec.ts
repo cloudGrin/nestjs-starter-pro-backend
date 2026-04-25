@@ -97,9 +97,13 @@ describe('ApiAuthService', () => {
 
       await expect(service.getApps({ page: 2, limit: 5 })).resolves.toEqual({
         items: apps,
-        total: 12,
-        page: 2,
-        limit: 5,
+        meta: {
+          totalItems: 12,
+          itemCount: 2,
+          itemsPerPage: 5,
+          totalPages: 3,
+          currentPage: 2,
+        },
       });
       expect(appRepository.findAndCount).toHaveBeenCalledWith({
         skip: 5,

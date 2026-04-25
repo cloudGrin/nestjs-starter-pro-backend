@@ -1,6 +1,7 @@
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import request from 'supertest';
 import {
+  apiPath,
   createTestApp,
   createSuperAdminCredentials,
   createTestUserCredentials,
@@ -65,7 +66,7 @@ describe('Permission Module (E2E)', () => {
         .substring(2, 8)
         .replace(/[^a-z]/g, 'x');
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/permissions')
+        .post(apiPath('/permissions'))
         .send({
           code: 'perm_test_' + randomStr,
           name: 'E2E测试权限',
@@ -90,7 +91,7 @@ describe('Permission Module (E2E)', () => {
       const duplicateCode = 'dup_perm_' + randomStr;
 
       // 先创建一个权限
-      await authenticatedRequest(app, adminCredentials.accessToken).post('/permissions').send({
+      await authenticatedRequest(app, adminCredentials.accessToken).post(apiPath('/permissions')).send({
         code: duplicateCode,
         name: '第一个权限',
         module: 'test',
@@ -98,7 +99,7 @@ describe('Permission Module (E2E)', () => {
 
       // 尝试创建相同编码的权限
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/permissions')
+        .post(apiPath('/permissions'))
         .send({
           code: duplicateCode,
           name: '第二个权限',
@@ -110,7 +111,7 @@ describe('Permission Module (E2E)', () => {
 
     it('普通用户应该被拒绝创建权限', async () => {
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .post('/permissions')
+        .post(apiPath('/permissions'))
         .send({
           code: 'normal_user_perm',
           name: '普通用户创建的权限',
@@ -233,7 +234,7 @@ describe('Permission Module (E2E)', () => {
       }
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/permissions/${testPermission.id}`)
+        .put(apiPath(`/permissions/${testPermission.id}`))
         .send({
           name: '更新后的权限名称',
           description: '更新后的描述',
@@ -247,7 +248,7 @@ describe('Permission Module (E2E)', () => {
 
     it('更新不存在的权限应该返回404', async () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put('/permissions/999999')
+        .put(apiPath('/permissions/999999'))
         .send({
           name: '不存在的权限',
         });
@@ -259,7 +260,7 @@ describe('Permission Module (E2E)', () => {
       if (!testPermission) return;
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .put(`/permissions/${testPermission.id}`)
+        .put(apiPath(`/permissions/${testPermission.id}`))
         .send({
           name: '普通用户尝试更新',
         });
@@ -279,7 +280,7 @@ describe('Permission Module (E2E)', () => {
         .substring(2, 8)
         .replace(/[^a-z]/g, 'x');
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/permissions')
+        .post(apiPath('/permissions'))
         .send({
           code: 'to_delete_' + randomStr,
           name: '待删除权限',
@@ -338,7 +339,7 @@ describe('Permission Module (E2E)', () => {
         .substring(2, 10)
         .replace(/[^a-z]/g, 'x');
       const createResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/permissions')
+        .post(apiPath('/permissions'))
         .send({
           code: 'flow_test_' + randomStr,
           name: '流程测试权限',
@@ -361,7 +362,7 @@ describe('Permission Module (E2E)', () => {
 
       // 3. 更新权限
       const updateResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/permissions/${permId}`)
+        .put(apiPath(`/permissions/${permId}`))
         .send({
           name: '更新后的流程测试权限',
         });
@@ -407,7 +408,7 @@ describe('Permission Module (E2E)', () => {
       const roleCode = 'limited_role_' + randomStr;
 
       const roleResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/roles')
+        .post(apiPath('/roles'))
         .send({
           code: roleCode,
           name: '受限角色',
@@ -432,7 +433,7 @@ describe('Permission Module (E2E)', () => {
       }
 
       const assignPermResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/roles/${testRole.id}/permissions`)
+        .put(apiPath(`/roles/${testRole.id}/permissions`))
         .send({ permissionIds: [readPermission.id] });
 
       expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(assignPermResponse.status);
@@ -461,7 +462,7 @@ describe('Permission Module (E2E)', () => {
       await cacheService.del(userPermissionsCacheKey(limitedUserCredentials.user.id));
 
       // 7. 重新登录以获取包含角色信息的新token
-      const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+      const loginResponse = await request(app.getHttpServer()).post(apiPath('/auth/login')).send({
         account: username,
         password: 'Limited@123456',
       });
@@ -523,7 +524,7 @@ describe('Permission Module (E2E)', () => {
 
     it('有 user:read 权限但缺少 user:create 权限的用户应该被拒绝创建操作', async () => {
       const response = await authenticatedRequest(app, limitedUserCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send({
           username: generateTestUsername(),
           email: generateTestEmail(),
@@ -537,7 +538,7 @@ describe('Permission Module (E2E)', () => {
 
     it('有 user:read 权限但缺少 user:update 权限的用户应该被拒绝更新操作', async () => {
       const response = await authenticatedRequest(app, limitedUserCredentials.accessToken)
-        .put(`/users/${limitedUserCredentials.user.id}`)
+        .put(apiPath(`/users/${limitedUserCredentials.user.id}`))
         .send({
           realName: '尝试更新姓名',
         });

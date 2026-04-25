@@ -4,8 +4,10 @@ export interface CorsOptions {
 }
 
 export function buildCorsOptions(origin: string | string[], credentials: boolean): CorsOptions {
+  const hasWildcard = origin === '*' || (Array.isArray(origin) && origin.includes('*'));
+
   return {
     origin,
-    credentials: origin === '*' ? false : credentials,
+    credentials: hasWildcard ? false : credentials,
   };
 }

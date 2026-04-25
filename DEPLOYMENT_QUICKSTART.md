@@ -17,6 +17,8 @@ docker run -d -p 3000:3000 --name home-admin home-admin
 docker logs -f home-admin
 ```
 
+The container runs database migrations before starting the application.
+
 ## Process Manager
 
 ```bash

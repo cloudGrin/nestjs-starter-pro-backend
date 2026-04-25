@@ -149,7 +149,12 @@ export const configValidationSchema = Joi.object({
     then: Joi.string()
       .required()
       .custom((value, helpers) => {
-        if (value === '*') {
+        const origins = value
+          .split(',')
+          .map((item: string) => item.trim())
+          .filter(Boolean);
+
+        if (origins.includes('*')) {
           return helpers.error('cors.wildcard');
         }
         return value;

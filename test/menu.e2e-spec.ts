@@ -5,6 +5,7 @@
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import request from 'supertest';
 import {
+  apiPath,
   createTestApp,
   createSuperAdminCredentials,
   authenticatedRequest,
@@ -35,7 +36,7 @@ describe('菜单模块 (e2e)', () => {
     // 清理创建的测试菜单
     for (const id of createdMenuIds) {
       try {
-        await authenticatedRequest(app, credentials.accessToken).delete(`/menus/${id}`).send();
+        await authenticatedRequest(app, credentials.accessToken).delete(apiPath(`/menus/${id}`)).send();
       } catch {
         // 忽略删除错误
       }
@@ -57,7 +58,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(menuData)
         .expect(HttpStatus.CREATED);
 
@@ -82,7 +83,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const parentResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(parentMenuData)
         .expect(HttpStatus.CREATED);
 
@@ -99,7 +100,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const childResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(childMenuData)
         .expect(HttpStatus.CREATED);
 
@@ -117,7 +118,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(menuData)
         .expect(HttpStatus.NOT_FOUND);
     });
@@ -125,7 +126,7 @@ describe('菜单模块 (e2e)', () => {
 
   describe('GET /menus', () => {
     it('应该返回菜单列表', async () => {
-      const response = await authenticatedRequest(app, credentials.accessToken).get('/menus');
+      const response = await authenticatedRequest(app, credentials.accessToken).get(apiPath('/menus'));
 
       expect(response.status).toBe(HttpStatus.OK);
       expect(response.body.success).toBe(true);
@@ -136,7 +137,7 @@ describe('菜单模块 (e2e)', () => {
   describe('GET /menus/tree', () => {
     it('应该返回菜单树', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .get('/menus/tree')
+        .get(apiPath('/menus/tree'))
         .expect(HttpStatus.OK);
 
       expect(response.body.success).toBe(true);
@@ -147,7 +148,7 @@ describe('菜单模块 (e2e)', () => {
   describe('GET /menus/user-menus', () => {
     it('应该返回当前用户的菜单', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .get('/menus/user-menus')
+        .get(apiPath('/menus/user-menus'))
         .expect(HttpStatus.OK);
 
       expect(response.body.success).toBe(true);
@@ -155,7 +156,7 @@ describe('菜单模块 (e2e)', () => {
     });
 
     it('应该拒绝未认证的请求', async () => {
-      await request(app.getHttpServer()).get('/menus/user-menus').expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer()).get(apiPath('/menus/user-menus')).expect(HttpStatus.UNAUTHORIZED);
     });
   });
 
@@ -171,7 +172,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(menuData)
         .expect(HttpStatus.CREATED);
 
@@ -181,7 +182,7 @@ describe('菜单模块 (e2e)', () => {
 
     it('应该返回菜单详情', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .get(`/menus/${menuId}`)
+        .get(apiPath(`/menus/${menuId}`))
         .expect(HttpStatus.OK);
 
       expect(response.body.success).toBe(true);
@@ -192,7 +193,7 @@ describe('菜单模块 (e2e)', () => {
 
     it('应该返回404如果菜单不存在', async () => {
       await authenticatedRequest(app, credentials.accessToken)
-        .get('/menus/999999')
+        .get(apiPath('/menus/999999'))
         .expect(HttpStatus.NOT_FOUND);
     });
   });
@@ -209,7 +210,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(menuData)
         .expect(HttpStatus.CREATED);
 
@@ -224,7 +225,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .put(`/menus/${menuId}`)
+        .put(apiPath(`/menus/${menuId}`))
         .send(updateData)
         .expect(HttpStatus.OK);
 
@@ -238,7 +239,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       await authenticatedRequest(app, credentials.accessToken)
-        .put(`/menus/${menuId}`)
+        .put(apiPath(`/menus/${menuId}`))
         .send(updateData)
         .expect(HttpStatus.BAD_REQUEST);
     });
@@ -258,7 +259,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const parentResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(parentData)
         .expect(HttpStatus.CREATED);
 
@@ -274,7 +275,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const menuResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(menuData)
         .expect(HttpStatus.CREATED);
 
@@ -284,7 +285,7 @@ describe('菜单模块 (e2e)', () => {
 
     it('应该成功移动菜单', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .patch(`/menus/${menuId}/move`)
+        .patch(apiPath(`/menus/${menuId}/move`))
         .send({ targetParentId })
         .expect(HttpStatus.OK);
       expect(response.body.data.parentId).toBe(targetParentId);
@@ -293,7 +294,7 @@ describe('菜单模块 (e2e)', () => {
     it('应该拒绝形成循环依赖的移动', async () => {
       // 尝试将父菜单移动到子菜单下（会形成循环）
       await authenticatedRequest(app, credentials.accessToken)
-        .patch(`/menus/${targetParentId}/move`)
+        .patch(apiPath(`/menus/${targetParentId}/move`))
         .send({ targetParentId: menuId })
         .expect(HttpStatus.BAD_REQUEST);
     });
@@ -314,7 +315,7 @@ describe('菜单模块 (e2e)', () => {
         };
 
         const response = await authenticatedRequest(app, credentials.accessToken)
-          .post('/menus')
+          .post(apiPath('/menus'))
           .send(menuData)
           .expect(HttpStatus.CREATED);
 
@@ -325,7 +326,7 @@ describe('菜单模块 (e2e)', () => {
 
     it('应该成功批量禁用菜单', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .patch('/menus/batch-status')
+        .patch(apiPath('/menus/batch-status'))
         .send({
           menuIds,
           isActive: false,
@@ -337,7 +338,7 @@ describe('菜单模块 (e2e)', () => {
 
     it('应该成功批量启用菜单', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .patch('/menus/batch-status')
+        .patch(apiPath('/menus/batch-status'))
         .send({
           menuIds,
           isActive: true,
@@ -361,7 +362,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(menuData)
         .expect(HttpStatus.CREATED);
 
@@ -371,7 +372,7 @@ describe('菜单模块 (e2e)', () => {
 
     it('应该验证路径不存在', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .get('/menus/validate-path')
+        .get(apiPath('/menus/validate-path'))
         .query({ path: '/new-unique-path' })
         .expect(HttpStatus.OK);
 
@@ -380,7 +381,7 @@ describe('菜单模块 (e2e)', () => {
 
     it('应该验证路径已存在', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .get('/menus/validate-path')
+        .get(apiPath('/menus/validate-path'))
         .query({ path: existingPath })
         .expect(HttpStatus.OK);
 
@@ -389,7 +390,7 @@ describe('菜单模块 (e2e)', () => {
 
     it('应该排除当前菜单ID进行验证', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .get('/menus/validate-path')
+        .get(apiPath('/menus/validate-path'))
         .query({ path: existingPath, excludeId: existingMenuId })
         .expect(HttpStatus.OK);
 
@@ -408,7 +409,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const createResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(menuData)
         .expect(HttpStatus.CREATED);
 
@@ -416,12 +417,12 @@ describe('菜单模块 (e2e)', () => {
 
       // 删除菜单
       await authenticatedRequest(app, credentials.accessToken)
-        .delete(`/menus/${menuId}`)
+        .delete(apiPath(`/menus/${menuId}`))
         .expect(HttpStatus.OK);
 
       // 验证已删除
       await authenticatedRequest(app, credentials.accessToken)
-        .get(`/menus/${menuId}`)
+        .get(apiPath(`/menus/${menuId}`))
         .expect(HttpStatus.NOT_FOUND);
     });
 
@@ -435,7 +436,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const parentResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(parentData)
         .expect(HttpStatus.CREATED);
 
@@ -452,7 +453,7 @@ describe('菜单模块 (e2e)', () => {
       };
 
       const childResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(childData)
         .expect(HttpStatus.CREATED);
 
@@ -460,7 +461,7 @@ describe('菜单模块 (e2e)', () => {
 
       // 尝试删除父菜单应该失败
       await authenticatedRequest(app, credentials.accessToken)
-        .delete(`/menus/${parentId}`)
+        .delete(apiPath(`/menus/${parentId}`))
         .expect(HttpStatus.BAD_REQUEST);
     });
   });

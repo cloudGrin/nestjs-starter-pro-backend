@@ -4,6 +4,7 @@
 
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import {
+  apiPath,
   createTestApp,
   createSuperAdminCredentials,
   authenticatedRequest,
@@ -41,7 +42,7 @@ describe('角色-菜单关联 (e2e)', () => {
     };
 
     const roleResponse = await authenticatedRequest(app, credentials.accessToken)
-      .post('/roles')
+      .post(apiPath('/roles'))
       .send(roleData);
 
     expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(roleResponse.status);
@@ -56,7 +57,7 @@ describe('角色-菜单关联 (e2e)', () => {
 
     for (const menuData of menuDataList) {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(menuData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
@@ -68,7 +69,7 @@ describe('角色-菜单关联 (e2e)', () => {
     // 清理测试数据
     for (const menuId of menuIds) {
       try {
-        await authenticatedRequest(app, credentials.accessToken).delete(`/menus/${menuId}`).send();
+        await authenticatedRequest(app, credentials.accessToken).delete(apiPath(`/menus/${menuId}`)).send();
       } catch {
         // 忽略删除错误
       }
@@ -76,7 +77,7 @@ describe('角色-菜单关联 (e2e)', () => {
 
     if (roleId) {
       try {
-        await authenticatedRequest(app, credentials.accessToken).delete(`/roles/${roleId}`).send();
+        await authenticatedRequest(app, credentials.accessToken).delete(apiPath(`/roles/${roleId}`)).send();
       } catch {
         // 忽略删除错误
       }
@@ -88,7 +89,7 @@ describe('角色-菜单关联 (e2e)', () => {
   describe('POST /roles/:id/menus', () => {
     it('应该成功为角色分配菜单', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post(`/roles/${roleId}/menus`)
+        .post(apiPath(`/roles/${roleId}/menus`))
         .send({ menuIds });
 
       expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(response.status);
@@ -97,7 +98,7 @@ describe('角色-菜单关联 (e2e)', () => {
 
     it('应该拒绝不存在的菜单ID', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post(`/roles/${roleId}/menus`)
+        .post(apiPath(`/roles/${roleId}/menus`))
         .send({ menuIds: [999999] });
 
       expect([HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND]).toContain(response.status);
@@ -105,7 +106,7 @@ describe('角色-菜单关联 (e2e)', () => {
 
     it('应该拒绝空的菜单ID列表', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post(`/roles/${roleId}/menus`)
+        .post(apiPath(`/roles/${roleId}/menus`))
         .send({ menuIds: [] });
 
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
@@ -113,7 +114,7 @@ describe('角色-菜单关联 (e2e)', () => {
 
     it('应该拒绝不存在的角色ID', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/roles/999999/menus')
+        .post(apiPath('/roles/999999/menus'))
         .send({ menuIds });
 
       expect(response.status).toBe(HttpStatus.NOT_FOUND);
@@ -124,7 +125,7 @@ describe('角色-菜单关联 (e2e)', () => {
     beforeAll(async () => {
       // 先为角色分配菜单
       await authenticatedRequest(app, credentials.accessToken)
-        .post(`/roles/${roleId}/menus`)
+        .post(apiPath(`/roles/${roleId}/menus`))
         .send({ menuIds });
     });
 
@@ -152,13 +153,13 @@ describe('角色-菜单关联 (e2e)', () => {
     beforeAll(async () => {
       // 先为角色分配菜单
       await authenticatedRequest(app, credentials.accessToken)
-        .post(`/roles/${roleId}/menus`)
+        .post(apiPath(`/roles/${roleId}/menus`))
         .send({ menuIds });
     });
 
     it('应该成功移除角色的菜单', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .delete(`/roles/${roleId}/menus`)
+        .delete(apiPath(`/roles/${roleId}/menus`))
         .send({ menuIds: [menuIds[0]] });
 
       expect(response.status).toBe(HttpStatus.OK);
@@ -167,7 +168,7 @@ describe('角色-菜单关联 (e2e)', () => {
 
     it('应该拒绝空的菜单ID列表', async () => {
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .delete(`/roles/${roleId}/menus`)
+        .delete(apiPath(`/roles/${roleId}/menus`))
         .send({ menuIds: [] });
 
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
@@ -185,7 +186,7 @@ describe('角色-菜单关联 (e2e)', () => {
       };
 
       const createMenuResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/menus')
+        .post(apiPath('/menus'))
         .send(menuData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(createMenuResponse.status);
@@ -193,7 +194,7 @@ describe('角色-菜单关联 (e2e)', () => {
 
       // 2. 分配菜单给角色
       const assignResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post(`/roles/${roleId}/menus`)
+        .post(apiPath(`/roles/${roleId}/menus`))
         .send({ menuIds: [newMenuId] });
 
       expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(assignResponse.status);
@@ -211,7 +212,7 @@ describe('角色-菜单关联 (e2e)', () => {
 
       // 4. 移除菜单
       const revokeResponse = await authenticatedRequest(app, credentials.accessToken)
-        .delete(`/roles/${roleId}/menus`)
+        .delete(apiPath(`/roles/${roleId}/menus`))
         .send({ menuIds: [newMenuId] });
 
       expect(revokeResponse.status).toBe(HttpStatus.OK);

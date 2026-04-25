@@ -3,6 +3,24 @@ import { join } from 'path';
 import type { Configuration } from './config.types';
 import { DEFAULT_FILE_MAX_SIZE } from './constants';
 
+function parseCorsOrigin(origin?: string): string | string[] {
+  const raw = origin?.trim();
+  if (!raw) {
+    return '*';
+  }
+
+  const origins = raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (origins.length === 0) {
+    return '*';
+  }
+
+  return origins.length === 1 ? origins[0] : origins;
+}
+
 /**
  * 获取数据库配置
  * @description 统一的数据库配置，供 NestJS 和 TypeORM CLI 使用
@@ -137,7 +155,7 @@ export const configuration = (): Configuration => ({
    */
   cors: {
     /** 允许的来源（* 表示所有，生产环境应指定具体域名） */
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: parseCorsOrigin(process.env.CORS_ORIGIN),
     /** 是否发送 Cookie（默认 false） */
     credentials: process.env.CORS_CREDENTIALS === 'true',
   },

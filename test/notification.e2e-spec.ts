@@ -1,5 +1,6 @@
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import {
+  apiPath,
   authenticatedRequest,
   createTestApp,
   createSuperAdminCredentials,
@@ -49,7 +50,7 @@ describe('Notification Module (E2E)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send(notificationData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
@@ -71,7 +72,7 @@ describe('Notification Module (E2E)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send(notificationData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
@@ -89,7 +90,7 @@ describe('Notification Module (E2E)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send(notificationData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
@@ -106,7 +107,7 @@ describe('Notification Module (E2E)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send(notificationData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
@@ -123,7 +124,7 @@ describe('Notification Module (E2E)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send(notificationData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
@@ -141,7 +142,7 @@ describe('Notification Module (E2E)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send(notificationData);
 
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
@@ -155,7 +156,7 @@ describe('Notification Module (E2E)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send(notificationData);
 
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
@@ -169,7 +170,7 @@ describe('Notification Module (E2E)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send(notificationData);
 
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
@@ -183,7 +184,7 @@ describe('Notification Module (E2E)', () => {
       };
 
       const response = await authenticatedRequest(app, 'invalid_token')
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send(notificationData);
 
       expect(response.status).toBe(HttpStatus.UNAUTHORIZED);
@@ -216,7 +217,7 @@ describe('Notification Module (E2E)', () => {
 
       for (const notification of notifications) {
         await authenticatedRequest(app, adminCredentials.accessToken)
-          .post('/notifications')
+          .post(apiPath('/notifications'))
           .send(notification);
       }
     });
@@ -236,7 +237,7 @@ describe('Notification Module (E2E)', () => {
 
     it('应该支持分页', async () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/notifications')
+        .get(apiPath('/notifications'))
         .query({ page: 1, limit: 2 });
 
       expect([HttpStatus.OK]).toContain(response.status);
@@ -246,7 +247,7 @@ describe('Notification Module (E2E)', () => {
 
     it('应该支持按状态过滤', async () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/notifications')
+        .get(apiPath('/notifications'))
         .query({ status: NotificationStatus.UNREAD });
 
       expect([HttpStatus.OK]).toContain(response.status);
@@ -259,7 +260,7 @@ describe('Notification Module (E2E)', () => {
 
     it('应该支持按类型过滤', async () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/notifications')
+        .get(apiPath('/notifications'))
         .query({ type: NotificationType.MESSAGE });
 
       expect([HttpStatus.OK]).toContain(response.status);
@@ -275,7 +276,7 @@ describe('Notification Module (E2E)', () => {
       const endDate = new Date().toISOString();
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/notifications')
+        .get(apiPath('/notifications'))
         .query({ startDate, endDate });
 
       expect([HttpStatus.OK]).toContain(response.status);
@@ -284,7 +285,7 @@ describe('Notification Module (E2E)', () => {
     it('应该只返回当前用户的通知', async () => {
       // 创建只给其他用户的通知
       await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send({
           title: '其他用户专属通知',
           content: '内容',
@@ -305,7 +306,7 @@ describe('Notification Module (E2E)', () => {
     });
 
     it('未认证用户应该无法获取通知列表', async () => {
-      const response = await authenticatedRequest(app, 'invalid_token').get('/notifications');
+      const response = await authenticatedRequest(app, 'invalid_token').get(apiPath('/notifications'));
 
       expect(response.status).toBe(HttpStatus.UNAUTHORIZED);
     });
@@ -315,7 +316,7 @@ describe('Notification Module (E2E)', () => {
     beforeAll(async () => {
       // 创建一些未读通知
       await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send({
           title: '未读通知测试',
           content: '这是一条未读通知',
@@ -364,7 +365,7 @@ describe('Notification Module (E2E)', () => {
     beforeAll(async () => {
       // 创建一条测试通知
       const createResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send({
           title: '待标记已读的通知',
           content: '测试标记已读功能',
@@ -391,7 +392,7 @@ describe('Notification Module (E2E)', () => {
     it('应该拒绝标记不属于自己的通知', async () => {
       // 创建一条属于其他用户的通知
       const createResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send({
           title: '其他用户的通知',
           content: '测试权限',
@@ -439,7 +440,7 @@ describe('Notification Module (E2E)', () => {
 
       for (const notification of notifications) {
         await authenticatedRequest(app, adminCredentials.accessToken)
-          .post('/notifications')
+          .post(apiPath('/notifications'))
           .send(notification);
       }
     });
@@ -463,7 +464,7 @@ describe('Notification Module (E2E)', () => {
       const beforeCount = beforeResponse.body.data?.length || 0;
 
       // 标记全部已读
-      await authenticatedRequest(app, adminCredentials.accessToken).put('/notifications/read-all');
+      await authenticatedRequest(app, adminCredentials.accessToken).put(apiPath('/notifications/read-all'));
 
       // 再次获取未读数量
       const afterResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
@@ -488,7 +489,7 @@ describe('Notification Module (E2E)', () => {
     it('创建->查询未读->标记已读->验证状态', async () => {
       // 1. 创建通知
       const createResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/notifications')
+        .post(apiPath('/notifications'))
         .send({
           title: '流程测试通知',
           content: '完整流程测试',
@@ -521,7 +522,7 @@ describe('Notification Module (E2E)', () => {
 
       // 4. 再次查询通知列表，验证状态已改变
       const listResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/notifications')
+        .get(apiPath('/notifications'))
         .query({ page: 1, limit: 100 });
 
       expect([HttpStatus.OK]).toContain(listResponse.status);
@@ -538,7 +539,7 @@ describe('Notification Module (E2E)', () => {
     it('并发创建通知应该全部成功', async () => {
       const promises = Array.from({ length: 5 }, (_, i) =>
         authenticatedRequest(app, adminCredentials.accessToken)
-          .post('/notifications')
+          .post(apiPath('/notifications'))
           .send({
             title: `并发测试通知${i}`,
             content: `并发内容${i}`,
@@ -559,7 +560,7 @@ describe('Notification Module (E2E)', () => {
       // 先创建多条通知
       const createPromises = Array.from({ length: 3 }, (_, i) =>
         authenticatedRequest(app, adminCredentials.accessToken)
-          .post('/notifications')
+          .post(apiPath('/notifications'))
           .send({
             title: `并发已读测试${i}`,
             content: `内容${i}`,
@@ -577,7 +578,7 @@ describe('Notification Module (E2E)', () => {
 
       // 并发标记为已读
       const markReadPromises = notificationIds.map((id) =>
-        authenticatedRequest(app, adminCredentials.accessToken).put(`/notifications/${id}/read`),
+        authenticatedRequest(app, adminCredentials.accessToken).put(apiPath(`/notifications/${id}/read`)),
       );
 
       const markReadResponses = await Promise.all(markReadPromises);
@@ -597,7 +598,7 @@ describe('Notification Module (E2E)', () => {
 
       for (let i = 0; i < count; i++) {
         await authenticatedRequest(app, adminCredentials.accessToken)
-          .post('/notifications')
+          .post(apiPath('/notifications'))
           .send({
             title: `性能测试通知${i}`,
             content: `测试内容${i}`,
@@ -617,7 +618,7 @@ describe('Notification Module (E2E)', () => {
       const startTime = Date.now();
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/notifications')
+        .get(apiPath('/notifications'))
         .query({ page: 1, limit: 50 });
 
       const endTime = Date.now();

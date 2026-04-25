@@ -1,6 +1,28 @@
-import { IsString, IsOptional, IsInt, Length } from 'class-validator';
+import { IsBoolean, IsString, IsOptional, IsInt, Length } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+
+function toBoolean(value: unknown): unknown {
+  if (value === '') {
+    return undefined;
+  }
+
+  if (typeof value === 'boolean' || value === undefined || value === null) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+
+  return value;
+}
 
 export class CreatePermissionDto {
   @ApiProperty({ description: '权限编码（唯一）', example: 'user:create' })
@@ -26,12 +48,14 @@ export class CreatePermissionDto {
 
   @ApiPropertyOptional({ description: '是否启用', default: true })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(({ value }) => toBoolean(value))
+  @IsBoolean()
   isActive?: boolean;
 
   @ApiPropertyOptional({ description: '是否为系统内置（不可删除）', default: false })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(({ value }) => toBoolean(value))
+  @IsBoolean()
   isSystem?: boolean;
 
   @ApiPropertyOptional({ description: '权限描述' })

@@ -440,6 +440,13 @@ export class UserService {
       return [];
     }
 
+    if (user.roles?.some((role) => role.isActive && role.code === 'super_admin')) {
+      const permissions = ['*'];
+      await this.cache.set(cacheKey, permissions, USER_PERMISSION_CACHE_TTL_SECONDS);
+      this.logger.debug(`超级管理员权限计算完成 userId=${userId}, 权限=*`);
+      return permissions;
+    }
+
     // 收集所有权限编码
     const permissions = new Set<string>();
     for (const role of user.roles) {

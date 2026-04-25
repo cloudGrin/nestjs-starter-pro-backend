@@ -31,6 +31,8 @@ describe('OpenApiUserService', () => {
           id: 1,
           username: 'admin',
           email: 'admin@local.home',
+          realName: 'Admin',
+          status: 'active',
           password: 'secret',
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
         } as any,
@@ -52,6 +54,9 @@ describe('OpenApiUserService', () => {
     expect(result).toBeInstanceOf(OpenUserListResponseDto);
     expect(userService.findUsers).toHaveBeenCalledWith({ page: 1, limit: 10 });
     expect(result.data[0]).not.toHaveProperty('password');
+    expect(result.data[0]).not.toHaveProperty('email');
+    expect(result.data[0]).not.toHaveProperty('realName');
+    expect(result.data[0]).not.toHaveProperty('status');
     expect(result.app).toEqual({ id: 1, name: 'Mini Program' });
   });
 });

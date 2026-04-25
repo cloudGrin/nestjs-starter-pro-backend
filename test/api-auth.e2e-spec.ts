@@ -5,6 +5,7 @@
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import request from 'supertest';
 import {
+  apiPath,
   createTestApp,
   createSuperAdminCredentials,
   generateTestUsername,
@@ -41,7 +42,7 @@ describe('API认证模块 (e2e)', () => {
       };
 
       const response = await request(app.getHttpServer())
-        .post('/api-apps')
+        .post(apiPath('/api-apps'))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .send(appData)
         .expect(HttpStatus.CREATED);
@@ -62,7 +63,7 @@ describe('API认证模块 (e2e)', () => {
       };
 
       await request(app.getHttpServer())
-        .post('/api-apps')
+        .post(apiPath('/api-apps'))
         .send(appData)
         .expect(HttpStatus.UNAUTHORIZED);
     });
@@ -72,14 +73,14 @@ describe('API认证模块 (e2e)', () => {
 
       // 第一次创建应该成功
       await request(app.getHttpServer())
-        .post('/api-apps')
+        .post(apiPath('/api-apps'))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .send({ name: appName })
         .expect(HttpStatus.CREATED);
 
       // 第二次创建应该失败
       await request(app.getHttpServer())
-        .post('/api-apps')
+        .post(apiPath('/api-apps'))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .send({ name: appName })
         .expect(HttpStatus.BAD_REQUEST);
@@ -95,7 +96,7 @@ describe('API认证模块 (e2e)', () => {
       };
 
       const response = await request(app.getHttpServer())
-        .post(`/api-apps/${testAppId}/keys`)
+        .post(apiPath(`/api-apps/${testAppId}/keys`))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .send(keyData);
 
@@ -120,7 +121,7 @@ describe('API认证模块 (e2e)', () => {
       };
 
       await request(app.getHttpServer())
-        .post('/api-apps/999999/keys')
+        .post(apiPath('/api-apps/999999/keys'))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .send(keyData)
         .expect(HttpStatus.BAD_REQUEST);
@@ -130,7 +131,7 @@ describe('API认证模块 (e2e)', () => {
       // 创建5个密钥（已经有1个了，再创建4个）
       for (let i = 0; i < 4; i++) {
         await request(app.getHttpServer())
-          .post(`/api-apps/${testAppId}/keys`)
+          .post(apiPath(`/api-apps/${testAppId}/keys`))
           .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
           .send({
             name: `Key ${i}`,
@@ -141,7 +142,7 @@ describe('API认证模块 (e2e)', () => {
 
       // 第6个应该失败
       await request(app.getHttpServer())
-        .post(`/api-apps/${testAppId}/keys`)
+        .post(apiPath(`/api-apps/${testAppId}/keys`))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .send({
           name: 'Key 6',
@@ -154,7 +155,7 @@ describe('API认证模块 (e2e)', () => {
   describe('GET /api-apps/:id/keys - 获取应用密钥列表', () => {
     it('应该返回应用的所有密钥（不包含原始密钥）', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/api-apps/${testAppId}/keys`)
+        .get(apiPath(`/api-apps/${testAppId}/keys`))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .expect(HttpStatus.OK);
 
@@ -171,7 +172,7 @@ describe('API认证模块 (e2e)', () => {
   describe('使用API密钥访问开放API', () => {
     it('应该允许使用有效的API密钥访问', async () => {
       const response = await request(app.getHttpServer())
-        .get('/open/users?page=1&pageSize=10')
+        .get(apiPath('/open/users?page=1&pageSize=10'))
         .set('X-API-Key', testApiKey)
         .expect(HttpStatus.OK);
 
@@ -180,12 +181,12 @@ describe('API认证模块 (e2e)', () => {
     });
 
     it('应该拒绝缺少API密钥的请求', async () => {
-      await request(app.getHttpServer()).get('/open/users').expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer()).get(apiPath('/open/users')).expect(HttpStatus.UNAUTHORIZED);
     });
 
     it('应该拒绝无效的API密钥', async () => {
       await request(app.getHttpServer())
-        .get('/open/users')
+        .get(apiPath('/open/users'))
         .set('X-API-Key', 'sk_live_invalid_key_123')
         .expect(HttpStatus.UNAUTHORIZED);
     });
@@ -197,7 +198,7 @@ describe('API认证模块 (e2e)', () => {
     beforeAll(async () => {
       // 获取现有密钥列表，使用其中一个进行撤销测试（避免超过密钥数量限制）
       const response = await request(app.getHttpServer())
-        .get(`/api-apps/${testAppId}/keys`)
+        .get(apiPath(`/api-apps/${testAppId}/keys`))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .expect(HttpStatus.OK);
 
@@ -208,7 +209,7 @@ describe('API认证模块 (e2e)', () => {
 
     it('应该成功撤销密钥', async () => {
       const response = await request(app.getHttpServer())
-        .delete(`/api-apps/keys/${keyIdToRevoke}`)
+        .delete(apiPath(`/api-apps/keys/${keyIdToRevoke}`))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .expect(HttpStatus.OK);
 
@@ -217,7 +218,7 @@ describe('API认证模块 (e2e)', () => {
 
     it('撤销后密钥应该无法使用', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/api-apps/${testAppId}/keys`)
+        .get(apiPath(`/api-apps/${testAppId}/keys`))
         .set('Authorization', `Bearer ${adminCredentials.accessToken}`)
         .expect(HttpStatus.OK);
 

@@ -49,6 +49,8 @@ describe('OpenApiController', () => {
               id: 1,
               username: 'admin',
               email: 'admin@local.home',
+              realName: 'Admin',
+              status: 'active',
               password: 'secret',
               createdAt: new Date('2026-01-01T00:00:00.000Z'),
             } as any,
@@ -76,7 +78,6 @@ describe('OpenApiController', () => {
       {
         id: 1,
         username: 'admin',
-        email: 'admin@local.home',
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
       },
     ]);

@@ -6,7 +6,7 @@ export const PERMISSIONS_KEY = 'permissions';
  * 权限检查装饰器（简化版）
  * 要求用户拥有指定的权限才能访问接口
  *
- * 逻辑：OR（用户拥有任一权限即可通过）
+ * 多个权限使用 OR 逻辑。需要更严格控制时，优先定义单一业务权限码。
  *
  * @param permissions 权限代码（可变参数）
  *

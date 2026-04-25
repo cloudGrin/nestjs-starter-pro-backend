@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { promises as fsPromises, createReadStream } from 'fs';
-import { join, resolve, normalize, relative } from 'path';
+import { basename, isAbsolute, normalize, relative, resolve } from 'path';
 import {
   FileStorageStrategy,
   FileStorageSaveOptions,
@@ -26,10 +26,14 @@ export class LocalStorageStrategy implements FileStorageStrategy {
     const targetDirectory = this.getTargetDirectory(options.relativePath);
     await fsPromises.mkdir(targetDirectory, { recursive: true });
 
-    const absolutePath = join(targetDirectory, options.filename);
+    const filename = this.sanitizeFilename(options.filename);
+    const absolutePath = this.ensureInsideRoot(resolve(targetDirectory, filename));
     await fsPromises.writeFile(absolutePath, buffer);
 
-    return this.buildMetadata(absolutePath, buffer.length, options);
+    return this.buildMetadata(absolutePath, buffer.length, {
+      ...options,
+      filename,
+    });
   }
 
   /**
@@ -60,7 +64,7 @@ export class LocalStorageStrategy implements FileStorageStrategy {
    */
   private toAbsolutePath(path: string): string {
     const safePath = this.sanitizeRelativePath(path);
-    return resolve(this.rootDir, safePath);
+    return this.resolveInsideRoot(safePath);
   }
 
   /**
@@ -102,16 +106,45 @@ export class LocalStorageStrategy implements FileStorageStrategy {
       return this.rootDir;
     }
     const sanitized = this.sanitizeRelativePath(relativePath);
-    return resolve(this.rootDir, sanitized);
+    return this.resolveInsideRoot(sanitized);
   }
 
   /**
    * 相对路径规范化
    */
   private sanitizeRelativePath(relativePath: string): string {
-    // 防止目录穿越
-    const normalized = normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
-    return normalized.split('\\').join('/');
+    const normalized = normalize(relativePath).split('\\').join('/');
+    if (!normalized || normalized === '.') {
+      return '';
+    }
+
+    if (isAbsolute(normalized) || normalized.split('/').includes('..')) {
+      throw new BadRequestException('非法文件路径');
+    }
+
+    return normalized.replace(/^\/+/, '');
+  }
+
+  private sanitizeFilename(filename: string): string {
+    const sanitized = basename(filename);
+    if (!sanitized || sanitized === '.' || sanitized === '..') {
+      throw new BadRequestException('非法文件名');
+    }
+
+    return sanitized;
+  }
+
+  private resolveInsideRoot(relativePath: string): string {
+    return this.ensureInsideRoot(resolve(this.rootDir, relativePath));
+  }
+
+  private ensureInsideRoot(absolutePath: string): string {
+    const relativePath = relative(this.rootDir, absolutePath);
+    if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
+      throw new BadRequestException('非法文件路径');
+    }
+
+    return absolutePath;
   }
 
   /**

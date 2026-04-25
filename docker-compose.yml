@@ -7,7 +7,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: home-admin
-    command: sh -c "pnpm run migration:run && node dist/main"
     ports:
       - "3000:3000"
     environment:

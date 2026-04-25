@@ -1,5 +1,6 @@
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import {
+  apiPath,
   createTestApp,
   createSuperAdminCredentials,
   authenticatedRequest,
@@ -44,7 +45,7 @@ describe('文件管理模块 (e2e)', () => {
     // 清理上传的测试文件
     for (const fileId of uploadedFileIds) {
       try {
-        await authenticatedRequest(app, credentials.accessToken).delete(`/files/${fileId}`);
+        await authenticatedRequest(app, credentials.accessToken).delete(apiPath(`/files/${fileId}`));
       } catch {
         // 忽略清理错误
       }
@@ -62,7 +63,7 @@ describe('文件管理模块 (e2e)', () => {
       const testBuffer = Buffer.from(testContent);
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, 'test.txt')
         .field('module', 'test')
         .field('isPublic', 'true');
@@ -85,7 +86,7 @@ describe('文件管理模块 (e2e)', () => {
       const testBuffer = Buffer.from('malicious content');
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, 'malicious.exe');
 
       expect(response.status).not.toBe(HttpStatus.FORBIDDEN);
@@ -110,7 +111,7 @@ describe('文件管理模块 (e2e)', () => {
       const testBuffer = Buffer.from('fake image data');
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, 'test-image.jpg')
         .field('module', 'avatar');
 
@@ -127,7 +128,7 @@ describe('文件管理模块 (e2e)', () => {
       const testBuffer = Buffer.from('test');
 
       const response = await authenticatedRequest(app, 'invalid-token')
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, 'test.txt');
 
       expect(response.status).toBe(HttpStatus.UNAUTHORIZED);
@@ -136,7 +137,7 @@ describe('文件管理模块 (e2e)', () => {
 
   describe('GET /files', () => {
     it('应该返回文件列表', async () => {
-      const response = await authenticatedRequest(app, credentials.accessToken).get('/files');
+      const response = await authenticatedRequest(app, credentials.accessToken).get(apiPath('/files'));
 
       expect(response.status).not.toBe(HttpStatus.FORBIDDEN);
       expect(response.status).not.toBe(HttpStatus.UNAUTHORIZED);
@@ -199,7 +200,7 @@ describe('文件管理模块 (e2e)', () => {
     });
 
     it('拒绝未认证的列表查询', async () => {
-      const response = await authenticatedRequest(app, 'invalid-token').get('/files');
+      const response = await authenticatedRequest(app, 'invalid-token').get(apiPath('/files'));
 
       expect(response.status).toBe(HttpStatus.UNAUTHORIZED);
     });
@@ -212,7 +213,7 @@ describe('文件管理模块 (e2e)', () => {
       // 先上传一个测试文件
       const testBuffer = Buffer.from('test file for detail query');
       const uploadResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, 'detail-test.txt')
         .field('module', 'test');
 
@@ -267,7 +268,7 @@ describe('文件管理模块 (e2e)', () => {
       // 先上传一个文件用于删除
       const testBuffer = Buffer.from('file to be deleted');
       const uploadResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, 'to-delete.txt')
         .field('module', 'test');
 
@@ -312,7 +313,7 @@ describe('文件管理模块 (e2e)', () => {
     });
 
     it('拒绝未认证的删除请求', async () => {
-      const response = await authenticatedRequest(app, 'invalid-token').delete('/files/1');
+      const response = await authenticatedRequest(app, 'invalid-token').delete(apiPath('/files/1'));
 
       expect(response.status).toBe(HttpStatus.UNAUTHORIZED);
     });
@@ -324,7 +325,7 @@ describe('文件管理模块 (e2e)', () => {
       const testBuffer = Buffer.from('test');
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, longFilename);
 
       expect(response.status).not.toBe(HttpStatus.FORBIDDEN);
@@ -345,7 +346,7 @@ describe('文件管理模块 (e2e)', () => {
       const testBuffer = Buffer.from('test');
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, specialFilename);
 
       expect(response.status).not.toBe(HttpStatus.FORBIDDEN);
@@ -363,7 +364,7 @@ describe('文件管理模块 (e2e)', () => {
       const testBuffer = Buffer.from('测试内容');
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, chineseFilename);
 
       expect(response.status).not.toBe(HttpStatus.FORBIDDEN);
@@ -381,7 +382,7 @@ describe('文件管理模块 (e2e)', () => {
       // 1. 上传文件
       const testBuffer = Buffer.from('complete flow test');
       const uploadResponse = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, 'flow-test.txt')
         .field('module', 'flow-test')
         .field('isPublic', 'true')
@@ -445,7 +446,7 @@ describe('文件管理模块 (e2e)', () => {
       const startTime = Date.now();
 
       const response = await authenticatedRequest(app, credentials.accessToken)
-        .post('/files/upload')
+        .post(apiPath('/files/upload'))
         .attach('file', testBuffer, 'perf-test.txt');
 
       const endTime = Date.now();
@@ -464,7 +465,7 @@ describe('文件管理模块 (e2e)', () => {
     it('文件列表查询应该在合理时间内完成', async () => {
       const startTime = Date.now();
 
-      const response = await authenticatedRequest(app, credentials.accessToken).get('/files');
+      const response = await authenticatedRequest(app, credentials.accessToken).get(apiPath('/files'));
 
       const endTime = Date.now();
       const duration = endTime - startTime;

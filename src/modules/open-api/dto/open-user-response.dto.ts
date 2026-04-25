@@ -8,19 +8,10 @@ export class OpenUserItemDto {
   username: string;
 
   @ApiProperty({ required: false, nullable: true })
-  email?: string | null;
-
-  @ApiProperty({ required: false, nullable: true })
-  realName?: string | null;
-
-  @ApiProperty({ required: false, nullable: true })
   nickname?: string | null;
 
   @ApiProperty({ required: false, nullable: true })
   avatar?: string | null;
-
-  @ApiProperty({ required: false, nullable: true })
-  status?: string | null;
 
   @ApiProperty()
   createdAt: Date;
@@ -29,11 +20,8 @@ export class OpenUserItemDto {
     return Object.assign(new OpenUserItemDto(), {
       id: user.id,
       username: user.username,
-      email: user.email,
-      realName: user.realName,
       nickname: user.nickname,
       avatar: user.avatar,
-      status: user.status,
       createdAt: user.createdAt,
     });
   }

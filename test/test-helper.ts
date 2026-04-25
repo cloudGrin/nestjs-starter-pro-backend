@@ -3,8 +3,11 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/bootstrap/configure-app';
 import { DataSource } from 'typeorm';
 import { UserEntity } from '../src/modules/user/entities/user.entity';
 import { RoleEntity, RoleCategory } from '../src/modules/role/entities/role.entity';
@@ -15,6 +18,20 @@ import request from 'supertest';
 
 const userPermissionsCacheKey = (userId: number) => `user:permissions:${userId}`;
 
+export function apiPath(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const prefix = (process.env.API_PREFIX || 'api').replace(/^\/+|\/+$/g, '');
+  const rawVersion = (process.env.API_VERSION || '1').replace(/^\/+|\/+$/g, '');
+  const version = rawVersion ? (rawVersion.startsWith('v') ? rawVersion : `v${rawVersion}`) : '';
+  const basePath = `/${[prefix, version].filter(Boolean).join('/')}`;
+
+  if (normalizedPath === basePath || normalizedPath.startsWith(`${basePath}/`)) {
+    return normalizedPath;
+  }
+
+  return `${basePath}${normalizedPath}`;
+}
+
 /**
  * 创建测试应用实例
  */
@@ -23,19 +40,11 @@ export async function createTestApp(): Promise<INestApplication> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleFixture.createNestApplication();
-
-  // 配置全局管道（与main.ts保持一致）
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
+  const app = moduleFixture.createNestApplication<NestExpressApplication>();
+  configureApp(app, app.get(ConfigService), {
+    enableShutdownHooks: false,
+    enableSwagger: false,
+  });
 
   await app.init();
   return app;
@@ -102,7 +111,7 @@ export async function loginTestUser(
   }
 
   const response = await request(app.getHttpServer())
-    .post('/auth/login')
+    .post(apiPath('/auth/login'))
     .send({
       account,
       password: credentials.password,
@@ -144,11 +153,12 @@ export function authenticatedRequest(app: INestApplication, token: string) {
   const authHeader = `Bearer ${token}`;
 
   return {
-    get: (url: string) => request(server).get(url).set('Authorization', authHeader),
-    post: (url: string) => request(server).post(url).set('Authorization', authHeader),
-    put: (url: string) => request(server).put(url).set('Authorization', authHeader),
-    patch: (url: string) => request(server).patch(url).set('Authorization', authHeader),
-    delete: (url: string) => request(server).delete(url).set('Authorization', authHeader),
+    get: (url: string) => request(server).get(apiPath(url)).set('Authorization', authHeader),
+    post: (url: string) => request(server).post(apiPath(url)).set('Authorization', authHeader),
+    put: (url: string) => request(server).put(apiPath(url)).set('Authorization', authHeader),
+    patch: (url: string) => request(server).patch(apiPath(url)).set('Authorization', authHeader),
+    delete: (url: string) =>
+      request(server).delete(apiPath(url)).set('Authorization', authHeader),
   };
 }
 
@@ -273,7 +283,7 @@ export async function createSuperAdminCredentials(
 
   // 重新登录以获取包含新权限的JWT token
   const loginResponse = await request(app.getHttpServer())
-    .post('/auth/login')
+    .post(apiPath('/auth/login'))
     .send({
       account: userData.username,
       password: userData.password,

@@ -5,6 +5,7 @@
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import request from 'supertest';
 import {
+  apiPath,
   createTestApp,
   createSuperAdminCredentials,
   createTestUserCredentials,
@@ -42,7 +43,7 @@ describe('用户模块 (e2e)', () => {
     // 清理创建的测试用户
     for (const id of createdUserIds) {
       try {
-        await authenticatedRequest(app, adminCredentials.accessToken).delete(`/users/${id}`).send();
+        await authenticatedRequest(app, adminCredentials.accessToken).delete(apiPath(`/users/${id}`)).send();
       } catch {
         // 忽略删除错误
       }
@@ -61,7 +62,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(response.status);
@@ -88,7 +89,7 @@ describe('用户模块 (e2e)', () => {
 
       // 第一次创建应该成功
       const firstResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(firstResponse.status);
@@ -99,7 +100,7 @@ describe('用户模块 (e2e)', () => {
 
       // 第二次创建应该失败
       const secondResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send({
           ...userData,
           email: generateTestEmail(), // 使用不同的邮箱
@@ -118,7 +119,7 @@ describe('用户模块 (e2e)', () => {
 
       // 第一次创建应该成功
       const firstResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(firstResponse.status);
@@ -129,7 +130,7 @@ describe('用户模块 (e2e)', () => {
 
       // 第二次创建应该失败
       const secondResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send({
           ...userData,
           username: generateTestUsername(), // 使用不同的用户名
@@ -146,7 +147,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       expect([HttpStatus.BAD_REQUEST]).toContain(response.status);
@@ -160,7 +161,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       expect([HttpStatus.BAD_REQUEST]).toContain(response.status);
@@ -174,7 +175,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
@@ -183,7 +184,7 @@ describe('用户模块 (e2e)', () => {
 
   describe('GET /users', () => {
     it('超级管理员应该能够获取用户列表', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken).get('/users');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(apiPath('/users'));
 
       expect(response.status).toBe(HttpStatus.OK);
 
@@ -200,7 +201,7 @@ describe('用户模块 (e2e)', () => {
 
     it('应该支持按用户名搜索', async () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/users')
+        .get(apiPath('/users'))
         .query({ username: adminCredentials.user.username });
 
       expect(response.status).toBe(HttpStatus.OK);
@@ -212,7 +213,7 @@ describe('用户模块 (e2e)', () => {
 
     it('应该支持分页', async () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .get('/users')
+        .get(apiPath('/users'))
         .query({ page: 1, limit: 10 });
 
       expect(response.status).toBe(HttpStatus.OK);
@@ -250,7 +251,7 @@ describe('用户模块 (e2e)', () => {
     });
 
     it('应该拒绝未认证的请求', async () => {
-      await request(app.getHttpServer()).get('/users/profile').expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer()).get(apiPath('/users/profile')).expect(HttpStatus.UNAUTHORIZED);
     });
   });
 
@@ -298,7 +299,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       if (response.body.success && response.body.data && response.body.data.id) {
@@ -319,7 +320,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/users/${userId}`)
+        .put(apiPath(`/users/${userId}`))
         .send(updateData);
 
       expect(response.status).toBe(HttpStatus.OK);
@@ -336,7 +337,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put('/users/999999')
+        .put(apiPath('/users/999999'))
         .send(updateData);
 
       expect(response.status).toBe(HttpStatus.NOT_FOUND);
@@ -353,7 +354,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .put(`/users/${userId}`)
+        .put(apiPath(`/users/${userId}`))
         .send(updateData);
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
@@ -368,7 +369,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .put('/users/profile')
+        .put(apiPath('/users/profile'))
         .send(updateData);
 
       expect(response.status).toBe(HttpStatus.OK);
@@ -390,7 +391,7 @@ describe('用户模块 (e2e)', () => {
       });
 
       const response = await authenticatedRequest(app, tempUser.accessToken)
-        .put('/users/password')
+        .put(apiPath('/users/password'))
         .send({
           oldPassword: 'TempPassword@123',
           newPassword: 'NewPassword@123456',
@@ -402,7 +403,7 @@ describe('用户模块 (e2e)', () => {
 
     it('应该拒绝错误的旧密码', async () => {
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .put('/users/password')
+        .put(apiPath('/users/password'))
         .send({
           oldPassword: 'WrongPassword@123',
           newPassword: 'NewPassword@123456',
@@ -414,7 +415,7 @@ describe('用户模块 (e2e)', () => {
 
     it('应该拒绝弱的新密码', async () => {
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .put('/users/password')
+        .put(apiPath('/users/password'))
         .send({
           oldPassword: 'User@123456',
           newPassword: 'weak',
@@ -436,7 +437,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       if (response.body.success && response.body.data && response.body.data.id) {
@@ -487,7 +488,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       if (response.body.success && response.body.data && response.body.data.id) {
@@ -538,7 +539,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       if (response.body.success && response.body.data && response.body.data.id) {
@@ -554,7 +555,7 @@ describe('用户模块 (e2e)', () => {
       }
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/users/${userId}/password/reset`)
+        .put(apiPath(`/users/${userId}/password/reset`))
         .send({
           password: 'NewPassword@123456',
         });
@@ -573,7 +574,7 @@ describe('用户模块 (e2e)', () => {
       }
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .put(`/users/${userId}/password/reset`)
+        .put(apiPath(`/users/${userId}/password/reset`))
         .send({
           newPassword: 'NewPassword@123456',
         });
@@ -593,7 +594,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       if (response.body.success && response.body.data && response.body.data.id) {
@@ -611,7 +612,7 @@ describe('用户模块 (e2e)', () => {
       // 注意：这里需要有实际存在的角色ID
       // 由于不确定数据库中的角色，我们只测试API是否可调用
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/users/${userId}/roles`)
+        .put(apiPath(`/users/${userId}/roles`))
         .send({ roleIds: [1] }); // 假设角色ID为1存在
 
       // 可能因为角色不存在而失败，也可能成功
@@ -627,7 +628,7 @@ describe('用户模块 (e2e)', () => {
       }
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .put(`/users/${userId}/roles`)
+        .put(apiPath(`/users/${userId}/roles`))
         .send({ roleIds: [1] });
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
@@ -667,7 +668,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const createResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(createResponse.status);
@@ -726,7 +727,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const createResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/users')
+        .post(apiPath('/users'))
         .send(userData);
 
       expect([HttpStatus.CREATED, HttpStatus.OK]).toContain(createResponse.status);
@@ -759,7 +760,7 @@ describe('用户模块 (e2e)', () => {
       };
 
       const updateResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/users/${userId}`)
+        .put(apiPath(`/users/${userId}`))
         .send(updateData);
 
       if (updateResponse.status === HttpStatus.OK && updateResponse.body.success) {

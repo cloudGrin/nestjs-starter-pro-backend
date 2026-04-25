@@ -1,5 +1,6 @@
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import {
+  apiPath,
   createTestApp,
   createSuperAdminCredentials,
   createTestUserCredentials,
@@ -93,7 +94,7 @@ describe('Role Module (E2E)', () => {
         .substring(2, 8)
         .replace(/[^a-z]/g, 'x');
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/roles')
+        .post(apiPath('/roles'))
         .send({
           code: 'test_role_' + randomStr,
           name: 'E2E测试角色',
@@ -121,14 +122,14 @@ describe('Role Module (E2E)', () => {
       const duplicateCode = 'duplicate_code_' + randomStr;
 
       // 先创建一个角色
-      await authenticatedRequest(app, adminCredentials.accessToken).post('/roles').send({
+      await authenticatedRequest(app, adminCredentials.accessToken).post(apiPath('/roles')).send({
         code: duplicateCode,
         name: '第一个角色',
       });
 
       // 尝试创建相同编码的角色
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/roles')
+        .post(apiPath('/roles'))
         .send({
           code: duplicateCode,
           name: '第二个角色',
@@ -140,7 +141,7 @@ describe('Role Module (E2E)', () => {
 
     it('应该拒绝无效的角色编码格式', async () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/roles')
+        .post(apiPath('/roles'))
         .send({
           code: 'InvalidCode123', // 包含大写和数字
           name: '无效格式测试',
@@ -151,7 +152,7 @@ describe('Role Module (E2E)', () => {
 
     it('普通用户应该被拒绝创建角色', async () => {
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .post('/roles')
+        .post(apiPath('/roles'))
         .send({
           code: 'normal_user_role',
           name: '普通用户创建的角色',
@@ -164,7 +165,7 @@ describe('Role Module (E2E)', () => {
   // ==================== GET /roles ====================
   describe('GET /roles - 获取角色列表', () => {
     it('管理员应该能够获取角色列表', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken).get('/roles');
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(apiPath('/roles'));
 
       expect([HttpStatus.OK]).toContain(response.status);
       expect(response.body).toHaveProperty('data');
@@ -278,7 +279,7 @@ describe('Role Module (E2E)', () => {
       }
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/roles/${testRole.id}`)
+        .put(apiPath(`/roles/${testRole.id}`))
         .send({
           name: '更新后的角色名称',
           description: '更新后的描述',
@@ -292,7 +293,7 @@ describe('Role Module (E2E)', () => {
 
     it('更新不存在的角色应该返回404', async () => {
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put('/roles/999999')
+        .put(apiPath('/roles/999999'))
         .send({
           name: '不存在的角色',
         });
@@ -304,7 +305,7 @@ describe('Role Module (E2E)', () => {
       if (!testRole) return;
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .put(`/roles/${testRole.id}`)
+        .put(apiPath(`/roles/${testRole.id}`))
         .send({
           name: '普通用户尝试更新',
         });
@@ -324,7 +325,7 @@ describe('Role Module (E2E)', () => {
         .substring(2, 8)
         .replace(/[^a-z]/g, 'x');
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/roles')
+        .post(apiPath('/roles'))
         .send({
           code: 'to_delete_' + randomStr,
           name: '待删除角色',
@@ -381,7 +382,7 @@ describe('Role Module (E2E)', () => {
 
       const permissionIds = testPermissions.map((p) => p.id);
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/roles/${testRole.id}/permissions`)
+        .put(apiPath(`/roles/${testRole.id}/permissions`))
         .send({ permissionIds });
 
       expect([HttpStatus.OK]).toContain(response.status);
@@ -391,7 +392,7 @@ describe('Role Module (E2E)', () => {
       if (!testRole) return;
 
       const response = await authenticatedRequest(app, adminCredentials.accessToken)
-        .put(`/roles/${testRole.id}/permissions`)
+        .put(apiPath(`/roles/${testRole.id}/permissions`))
         .send({ permissionIds: [999999] });
 
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
@@ -401,7 +402,7 @@ describe('Role Module (E2E)', () => {
       if (!testRole) return;
 
       const response = await authenticatedRequest(app, normalUserCredentials.accessToken)
-        .put(`/roles/${testRole.id}/permissions`)
+        .put(apiPath(`/roles/${testRole.id}/permissions`))
         .send({ permissionIds: [] });
 
       expect(response.status).toBe(HttpStatus.FORBIDDEN);
@@ -418,7 +419,7 @@ describe('Role Module (E2E)', () => {
         .replace(/[^a-z]/g, 'x');
       const uniqueCode = 'flow_test_' + randomStr;
       const createResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-        .post('/roles')
+        .post(apiPath('/roles'))
         .send({
           code: uniqueCode,
           name: '流程测试角色',
@@ -434,7 +435,7 @@ describe('Role Module (E2E)', () => {
       // 2. 分配权限
       if (testPermissions?.length) {
         const assignResponse = await authenticatedRequest(app, adminCredentials.accessToken)
-          .put(`/roles/${roleId}/permissions`)
+          .put(apiPath(`/roles/${roleId}/permissions`))
           .send({ permissionIds: testPermissions.map((p) => p.id) });
 
         expect([HttpStatus.OK, HttpStatus.CREATED]).toContain(assignResponse.status);

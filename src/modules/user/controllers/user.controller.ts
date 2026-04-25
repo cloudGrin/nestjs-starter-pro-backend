@@ -151,7 +151,7 @@ export class UserController {
   }
 
   @Put(':id/password/reset')
-  @RequirePermissions('user:update', 'admin')
+  @RequirePermissions('user:password:reset')
   @ApiOperation({ summary: '重置用户密码（管理员）' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: MessageResponseDto })
@@ -179,7 +179,7 @@ export class UserController {
   }
 
   @Put(':id/roles')
-  @RequirePermissions('user:update', 'role:assign')
+  @RequirePermissions('role:assign')
   @ApiOperation({ summary: '分配角色' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: UserEntity })
@@ -188,7 +188,7 @@ export class UserController {
   }
 
   @Get(':id/permissions')
-  @RequirePermissions('user:read', 'permission:read')
+  @RequirePermissions('permission:read')
   @ApiOperation({ summary: '获取用户权限' })
   @ApiParam({ name: 'id', description: '用户ID' })
   @ApiOkResponse({ type: UserPermissionsResponseDto })

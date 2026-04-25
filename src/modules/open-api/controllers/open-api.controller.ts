@@ -22,7 +22,7 @@ export class OpenApiController {
 
   @Get('users')
   @RequireApiScopes('read:users')
-  @ApiOperation({ summary: '获取用户列表', description: '需要 read:users 权限' })
+  @ApiOperation({ summary: '获取用户公开资料列表', description: '需要 read:users 权限' })
   async getUsers(
     @Query() query: OpenUserListQueryDto,
     @Req() req: ApiRequest,

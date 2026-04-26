@@ -6,7 +6,46 @@ import { UserStatus } from '~/common/enums/user.enum';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { RoleCategory, RoleEntity } from '~/modules/role/entities/role.entity';
 import { MenuEntity, MenuType } from '~/modules/menu/entities/menu.entity';
+import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 import { UserEntity } from '../entities/user.entity';
+
+const DEFAULT_SYSTEM_PERMISSIONS = [
+  { code: 'user:create', name: '创建用户', module: 'user', sort: 10 },
+  { code: 'user:read', name: '查看用户', module: 'user', sort: 20 },
+  { code: 'user:update', name: '更新用户', module: 'user', sort: 30 },
+  { code: 'user:delete', name: '删除用户', module: 'user', sort: 40 },
+  { code: 'user:password:reset', name: '重置用户密码', module: 'user', sort: 50 },
+  { code: 'role:create', name: '创建角色', module: 'role', sort: 10 },
+  { code: 'role:read', name: '查看角色', module: 'role', sort: 20 },
+  { code: 'role:update', name: '更新角色', module: 'role', sort: 30 },
+  { code: 'role:delete', name: '删除角色', module: 'role', sort: 40 },
+  { code: 'role:assign', name: '分配用户角色', module: 'role', sort: 50 },
+  { code: 'role:permission:assign', name: '分配角色权限', module: 'role', sort: 60 },
+  { code: 'role:menu:assign', name: '分配角色菜单', module: 'role', sort: 70 },
+  { code: 'role:menu:read', name: '查看角色菜单', module: 'role', sort: 80 },
+  { code: 'role:menu:revoke', name: '移除角色菜单', module: 'role', sort: 90 },
+  { code: 'permission:create', name: '创建权限', module: 'permission', sort: 10 },
+  { code: 'permission:read', name: '查看权限', module: 'permission', sort: 20 },
+  { code: 'permission:update', name: '更新权限', module: 'permission', sort: 30 },
+  { code: 'permission:delete', name: '删除权限', module: 'permission', sort: 40 },
+  { code: 'menu:create', name: '创建菜单', module: 'menu', sort: 10 },
+  { code: 'menu:read', name: '查看菜单', module: 'menu', sort: 20 },
+  { code: 'menu:update', name: '更新菜单', module: 'menu', sort: 30 },
+  { code: 'menu:delete', name: '删除菜单', module: 'menu', sort: 40 },
+  { code: 'file:upload', name: '上传文件', module: 'file', sort: 10 },
+  { code: 'file:read', name: '查看文件', module: 'file', sort: 20 },
+  { code: 'file:download', name: '下载文件', module: 'file', sort: 30 },
+  { code: 'file:delete', name: '删除文件', module: 'file', sort: 40 },
+  { code: 'notification:create', name: '创建通知', module: 'notification', sort: 10 },
+  { code: 'notification:read', name: '查看通知', module: 'notification', sort: 20 },
+  { code: 'api-app:create', name: '创建 API 应用', module: 'api-auth', sort: 10 },
+  { code: 'api-app:read', name: '查看 API 应用', module: 'api-auth', sort: 20 },
+  { code: 'api-app:update', name: '更新 API 应用', module: 'api-auth', sort: 30 },
+  { code: 'api-app:delete', name: '删除 API 应用', module: 'api-auth', sort: 40 },
+  { code: 'api-app:key:create', name: '创建 API 密钥', module: 'api-auth', sort: 50 },
+  { code: 'api-app:key:read', name: '查看 API 密钥', module: 'api-auth', sort: 60 },
+  { code: 'api-app:key:delete', name: '删除 API 密钥', module: 'api-auth', sort: 70 },
+] as const;
 
 @Injectable()
 export class AdminBootstrapService implements OnApplicationBootstrap {
@@ -20,6 +59,8 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     private readonly roleRepository: Repository<RoleEntity>,
     @InjectRepository(MenuEntity)
     private readonly menuRepository: Repository<MenuEntity>,
+    @InjectRepository(PermissionEntity)
+    private readonly permissionRepository: Repository<PermissionEntity>,
     private readonly logger: LoggerService,
   ) {}
 
@@ -31,6 +72,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     }
 
     const role = await this.ensureSuperAdminRole();
+    await this.ensureDefaultPermissions();
     await this.ensureDefaultMenus();
     const password = this.generatePassword();
     const admin = this.userRepository.create({
@@ -66,6 +108,32 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     });
 
     return this.roleRepository.save(role);
+  }
+
+  private async ensureDefaultPermissions(): Promise<void> {
+    const existingPermissions = await this.permissionRepository.find({
+      select: ['code'],
+    });
+    const existingCodes = new Set(existingPermissions.map((permission) => permission.code));
+    const permissionsToCreate = DEFAULT_SYSTEM_PERMISSIONS.filter(
+      (permission) => !existingCodes.has(permission.code),
+    );
+
+    if (permissionsToCreate.length === 0) {
+      return;
+    }
+
+    await this.permissionRepository.save(
+      this.permissionRepository.create(
+        permissionsToCreate.map((permission) => ({
+          ...permission,
+          isActive: true,
+          isSystem: true,
+        })),
+      ),
+    );
+
+    this.logger.log(`Initialized ${permissionsToCreate.length} system permissions`);
   }
 
   private async ensureDefaultMenus(): Promise<void> {

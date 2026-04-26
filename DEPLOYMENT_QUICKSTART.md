@@ -19,8 +19,8 @@ docker run -d -p 3000:3000 --name home-admin \
   -e DB_USERNAME=home \
   -e DB_PASSWORD=change-me \
   -e DB_DATABASE=home \
-  -e JWT_SECRET=change-me-access-secret \
-  -e JWT_REFRESH_SECRET=change-me-refresh-secret \
+  -e JWT_SECRET="$(openssl rand -base64 48)" \
+  -e JWT_REFRESH_SECRET="$(openssl rand -base64 48)" \
   -e CORS_ORIGIN=https://your-domain.example \
   home-admin
 docker logs -f home-admin

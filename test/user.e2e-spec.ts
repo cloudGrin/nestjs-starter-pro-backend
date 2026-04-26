@@ -43,7 +43,9 @@ describe('用户模块 (e2e)', () => {
     // 清理创建的测试用户
     for (const id of createdUserIds) {
       try {
-        await authenticatedRequest(app, adminCredentials.accessToken).delete(apiPath(`/users/${id}`)).send();
+        await authenticatedRequest(app, adminCredentials.accessToken)
+          .delete(apiPath(`/users/${id}`))
+          .send();
       } catch {
         // 忽略删除错误
       }
@@ -184,7 +186,9 @@ describe('用户模块 (e2e)', () => {
 
   describe('GET /users', () => {
     it('超级管理员应该能够获取用户列表', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(apiPath('/users'));
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        apiPath('/users'),
+      );
 
       expect(response.status).toBe(HttpStatus.OK);
 
@@ -251,7 +255,9 @@ describe('用户模块 (e2e)', () => {
     });
 
     it('应该拒绝未认证的请求', async () => {
-      await request(app.getHttpServer()).get(apiPath('/users/profile')).expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer())
+        .get(apiPath('/users/profile'))
+        .expect(HttpStatus.UNAUTHORIZED);
     });
   });
 

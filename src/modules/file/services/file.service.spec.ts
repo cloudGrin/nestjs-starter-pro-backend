@@ -13,7 +13,7 @@ describe('FileService', () => {
   let service: FileService;
   let repository: jest.Mocked<Repository<FileEntity>>;
   let storageFactory: jest.Mocked<FileStorageFactory>;
-  let logger: jest.Mocked<LoggerService>;
+  let _logger: jest.Mocked<LoggerService>;
 
   const createMockFile = (overrides?: Partial<Express.Multer.File>): Express.Multer.File => ({
     fieldname: 'file',
@@ -67,7 +67,7 @@ describe('FileService', () => {
     service = module.get(FileService);
     repository = module.get(getRepositoryToken(FileEntity));
     storageFactory = module.get(FileStorageFactory);
-    logger = module.get(LoggerService);
+    _logger = module.get(LoggerService);
   });
 
   afterEach(() => {

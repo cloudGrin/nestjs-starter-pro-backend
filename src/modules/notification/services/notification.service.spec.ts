@@ -22,7 +22,7 @@ describe('NotificationService', () => {
   let userRepository: jest.Mocked<Repository<UserEntity>>;
   let barkAdapter: jest.Mocked<BarkChannelAdapter>;
   let feishuAdapter: jest.Mocked<FeishuChannelAdapter>;
-  let logger: jest.Mocked<LoggerService>;
+  let _logger: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
     const mockNotificationRepository = createMockRepository<NotificationEntity>();
@@ -55,7 +55,7 @@ describe('NotificationService', () => {
     userRepository = module.get(getRepositoryToken(UserEntity));
     barkAdapter = module.get(BarkChannelAdapter);
     feishuAdapter = module.get(FeishuChannelAdapter);
-    logger = module.get(LoggerService);
+    _logger = module.get(LoggerService);
   });
 
   afterEach(() => {

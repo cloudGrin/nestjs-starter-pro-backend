@@ -14,7 +14,7 @@ Content-Type: application/json
 {
   "name": "mini-program",
   "description": "Personal mini-program backend",
-  "scopes": ["users:read"]
+  "scopes": ["read:users"]
 }
 ```
 
@@ -28,7 +28,7 @@ Content-Type: application/json
 {
   "name": "production",
   "environment": "production",
-  "scopes": ["users:read"]
+  "scopes": ["read:users"]
 }
 ```
 

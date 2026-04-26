@@ -61,7 +61,6 @@ export class FileService {
         '.png',
         '.gif',
         '.webp',
-        '.svg',
         '.pdf',
         '.doc',
         '.docx',
@@ -311,7 +310,6 @@ export class FileService {
       'image/png',
       'image/gif',
       'image/webp',
-      'image/svg+xml',
       // 文档
       'application/pdf',
       'application/msword',

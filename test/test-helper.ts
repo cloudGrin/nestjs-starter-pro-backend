@@ -157,8 +157,7 @@ export function authenticatedRequest(app: INestApplication, token: string) {
     post: (url: string) => request(server).post(apiPath(url)).set('Authorization', authHeader),
     put: (url: string) => request(server).put(apiPath(url)).set('Authorization', authHeader),
     patch: (url: string) => request(server).patch(apiPath(url)).set('Authorization', authHeader),
-    delete: (url: string) =>
-      request(server).delete(apiPath(url)).set('Authorization', authHeader),
+    delete: (url: string) => request(server).delete(apiPath(url)).set('Authorization', authHeader),
   };
 }
 

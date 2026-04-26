@@ -91,11 +91,13 @@ describe('Permission Module (E2E)', () => {
       const duplicateCode = 'dup_perm_' + randomStr;
 
       // 先创建一个权限
-      await authenticatedRequest(app, adminCredentials.accessToken).post(apiPath('/permissions')).send({
-        code: duplicateCode,
-        name: '第一个权限',
-        module: 'test',
-      });
+      await authenticatedRequest(app, adminCredentials.accessToken)
+        .post(apiPath('/permissions'))
+        .send({
+          code: duplicateCode,
+          name: '第一个权限',
+          module: 'test',
+        });
 
       // 尝试创建相同编码的权限
       const response = await authenticatedRequest(app, adminCredentials.accessToken)

@@ -187,7 +187,7 @@ export const configValidationSchema = Joi.object({
   FILE_MAX_SIZE: Joi.number().min(1024).default(DEFAULT_FILE_MAX_SIZE), // 50MB
 
   FILE_ALLOWED_TYPES: Joi.string().default(
-    '.jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip',
+    '.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip',
   ),
 
   // OSS 配置（可选）

@@ -54,7 +54,15 @@ test/
 ├── jest-e2e.json            # Jest E2E配置
 ├── setup.ts                 # 全局测试设置
 ├── test-helper.ts           # 测试辅助函数
-└── auth.e2e-spec.ts         # 认证模块E2E测试
+├── api-auth.e2e-spec.ts     # API Key模块E2E测试
+├── auth.e2e-spec.ts         # 认证模块E2E测试
+├── file.e2e-spec.ts         # 文件模块E2E测试
+├── menu.e2e-spec.ts         # 菜单模块E2E测试
+├── notification.e2e-spec.ts # 通知模块E2E测试
+├── permission.e2e-spec.ts   # 权限模块E2E测试
+├── role-menus.e2e-spec.ts   # 角色菜单模块E2E测试
+├── role.e2e-spec.ts         # 角色模块E2E测试
+└── user.e2e-spec.ts         # 用户模块E2E测试
 ```
 
 ## 🔧 配置文件
@@ -161,11 +169,17 @@ pnpm test:env:up
 
 ## 📊 当前测试覆盖
 
-| 模块              | 测试数量 | 状态 |
-| ----------------- | -------- | ---- |
-| 认证 (auth)       | 29个     | ✅   |
-| 用户 (user)       | 待开发   | 📋   |
-| 权限 (permission) | 待开发   | 📋   |
+| 模块                | 测试数量 | 状态 |
+| ------------------- | -------- | ---- |
+| 认证 (auth)         | 已覆盖   | ✅   |
+| 用户 (user)         | 已覆盖   | ✅   |
+| 角色 (role)         | 已覆盖   | ✅   |
+| 角色菜单            | 已覆盖   | ✅   |
+| 权限 (permission)   | 已覆盖   | ✅   |
+| 菜单 (menu)         | 已覆盖   | ✅   |
+| 文件 (file)         | 已覆盖   | ✅   |
+| 通知 (notification) | 已覆盖   | ✅   |
+| API Key (api-auth)  | 已覆盖   | ✅   |
 
 ## 🎯 测试最佳实践
 

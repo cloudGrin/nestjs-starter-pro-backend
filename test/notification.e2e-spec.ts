@@ -306,7 +306,9 @@ describe('Notification Module (E2E)', () => {
     });
 
     it('未认证用户应该无法获取通知列表', async () => {
-      const response = await authenticatedRequest(app, 'invalid_token').get(apiPath('/notifications'));
+      const response = await authenticatedRequest(app, 'invalid_token').get(
+        apiPath('/notifications'),
+      );
 
       expect(response.status).toBe(HttpStatus.UNAUTHORIZED);
     });
@@ -464,7 +466,9 @@ describe('Notification Module (E2E)', () => {
       const beforeCount = beforeResponse.body.data?.length || 0;
 
       // 标记全部已读
-      await authenticatedRequest(app, adminCredentials.accessToken).put(apiPath('/notifications/read-all'));
+      await authenticatedRequest(app, adminCredentials.accessToken).put(
+        apiPath('/notifications/read-all'),
+      );
 
       // 再次获取未读数量
       const afterResponse = await authenticatedRequest(app, adminCredentials.accessToken).get(
@@ -578,7 +582,9 @@ describe('Notification Module (E2E)', () => {
 
       // 并发标记为已读
       const markReadPromises = notificationIds.map((id) =>
-        authenticatedRequest(app, adminCredentials.accessToken).put(apiPath(`/notifications/${id}/read`)),
+        authenticatedRequest(app, adminCredentials.accessToken).put(
+          apiPath(`/notifications/${id}/read`),
+        ),
       );
 
       const markReadResponses = await Promise.all(markReadPromises);

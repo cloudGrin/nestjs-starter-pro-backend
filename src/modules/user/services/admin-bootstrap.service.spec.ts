@@ -6,6 +6,7 @@ import { LoggerService } from '~/shared/logger/logger.service';
 import { createMockLogger, createMockRepository } from '~/test-utils';
 import { RoleCategory, RoleEntity } from '~/modules/role/entities/role.entity';
 import { MenuEntity } from '~/modules/menu/entities/menu.entity';
+import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 import { UserEntity } from '../entities/user.entity';
 import { AdminBootstrapService } from './admin-bootstrap.service';
 
@@ -14,6 +15,7 @@ describe('AdminBootstrapService', () => {
   let userRepository: jest.Mocked<Repository<UserEntity>>;
   let roleRepository: jest.Mocked<Repository<RoleEntity>>;
   let menuRepository: jest.Mocked<Repository<MenuEntity>>;
+  let permissionRepository: jest.Mocked<Repository<PermissionEntity>>;
   let logger: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
@@ -42,6 +44,10 @@ describe('AdminBootstrapService', () => {
           useValue: menuRepositoryMock,
         },
         {
+          provide: getRepositoryToken(PermissionEntity),
+          useValue: createMockRepository<PermissionEntity>(),
+        },
+        {
           provide: LoggerService,
           useValue: createMockLogger(),
         },
@@ -52,6 +58,7 @@ describe('AdminBootstrapService', () => {
     userRepository = module.get(getRepositoryToken(UserEntity));
     roleRepository = module.get(getRepositoryToken(RoleEntity));
     menuRepository = module.get(getRepositoryToken(MenuEntity));
+    permissionRepository = module.get(getRepositoryToken(PermissionEntity));
     logger = module.get(LoggerService);
   });
 
@@ -76,6 +83,9 @@ describe('AdminBootstrapService', () => {
     roleRepository.findOne.mockResolvedValue(null);
     roleRepository.create.mockReturnValue(role);
     roleRepository.save.mockResolvedValue(role);
+    permissionRepository.find.mockResolvedValue([]);
+    permissionRepository.create.mockImplementation((data) => data as PermissionEntity);
+    permissionRepository.save.mockResolvedValue([] as unknown as PermissionEntity);
     menuRepository.count.mockResolvedValue(0);
     menuRepository.create.mockImplementation((data) => data as MenuEntity);
     menuRepository.save
@@ -117,6 +127,18 @@ describe('AdminBootstrapService', () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('username: admin'));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('password: '));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('shown only once'));
+    expect(permissionRepository.save).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'user:create',
+          isSystem: true,
+        }),
+        expect.objectContaining({
+          code: 'api-app:key:create',
+          isSystem: true,
+        }),
+      ]),
+    );
     expect(menuRepository.count).toHaveBeenCalled();
     expect(menuRepository.save).toHaveBeenNthCalledWith(
       1,

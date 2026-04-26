@@ -185,7 +185,7 @@ export const configuration = (): Configuration => ({
     /** 允许的文件类型（扩展名列表） */
     allowedTypes: (
       process.env.FILE_ALLOWED_TYPES ||
-      '.jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip'
+      '.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip'
     )
       .split(',')
       .map((item) => item.trim())

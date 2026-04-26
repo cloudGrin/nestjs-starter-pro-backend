@@ -16,7 +16,6 @@ export class FileUtil {
     '.gif': 'image/gif',
     '.bmp': 'image/bmp',
     '.webp': 'image/webp',
-    '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon',
 
     // 文档
@@ -123,7 +122,7 @@ export class FileUtil {
    * 判断是否为图片文件
    */
   static isImage(filename: string): boolean {
-    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
     return imageExts.includes(this.getExtension(filename));
   }
 

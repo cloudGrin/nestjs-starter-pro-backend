@@ -45,7 +45,9 @@ describe('文件管理模块 (e2e)', () => {
     // 清理上传的测试文件
     for (const fileId of uploadedFileIds) {
       try {
-        await authenticatedRequest(app, credentials.accessToken).delete(apiPath(`/files/${fileId}`));
+        await authenticatedRequest(app, credentials.accessToken).delete(
+          apiPath(`/files/${fileId}`),
+        );
       } catch {
         // 忽略清理错误
       }
@@ -137,7 +139,9 @@ describe('文件管理模块 (e2e)', () => {
 
   describe('GET /files', () => {
     it('应该返回文件列表', async () => {
-      const response = await authenticatedRequest(app, credentials.accessToken).get(apiPath('/files'));
+      const response = await authenticatedRequest(app, credentials.accessToken).get(
+        apiPath('/files'),
+      );
 
       expect(response.status).not.toBe(HttpStatus.FORBIDDEN);
       expect(response.status).not.toBe(HttpStatus.UNAUTHORIZED);
@@ -465,7 +469,9 @@ describe('文件管理模块 (e2e)', () => {
     it('文件列表查询应该在合理时间内完成', async () => {
       const startTime = Date.now();
 
-      const response = await authenticatedRequest(app, credentials.accessToken).get(apiPath('/files'));
+      const response = await authenticatedRequest(app, credentials.accessToken).get(
+        apiPath('/files'),
+      );
 
       const endTime = Date.now();
       const duration = endTime - startTime;

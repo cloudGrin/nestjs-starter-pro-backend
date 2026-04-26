@@ -165,7 +165,9 @@ describe('Role Module (E2E)', () => {
   // ==================== GET /roles ====================
   describe('GET /roles - 获取角色列表', () => {
     it('管理员应该能够获取角色列表', async () => {
-      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(apiPath('/roles'));
+      const response = await authenticatedRequest(app, adminCredentials.accessToken).get(
+        apiPath('/roles'),
+      );
 
       expect([HttpStatus.OK]).toContain(response.status);
       expect(response.body).toHaveProperty('data');

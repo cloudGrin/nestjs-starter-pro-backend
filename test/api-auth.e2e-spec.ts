@@ -181,7 +181,9 @@ describe('API认证模块 (e2e)', () => {
     });
 
     it('应该拒绝缺少API密钥的请求', async () => {
-      await request(app.getHttpServer()).get(apiPath('/open/users')).expect(HttpStatus.UNAUTHORIZED);
+      await request(app.getHttpServer())
+        .get(apiPath('/open/users'))
+        .expect(HttpStatus.UNAUTHORIZED);
     });
 
     it('应该拒绝无效的API密钥', async () => {

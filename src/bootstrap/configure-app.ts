@@ -5,6 +5,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { buildCorsOptions } from './cors-options';
 
+const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'] as const;
+
 export interface AppBootstrapInfo {
   apiPrefix: string;
   swaggerEnabled: boolean;
@@ -70,6 +72,7 @@ export function configureApp(
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
+    alignSwaggerWithResponseEnvelope(document);
     SwaggerModule.setup(swaggerPath, app, document);
   }
 
@@ -81,5 +84,73 @@ export function configureApp(
     apiPrefix,
     swaggerEnabled,
     swaggerPath,
+  };
+}
+
+function alignSwaggerWithResponseEnvelope(document: Record<string, any>): void {
+  for (const pathItem of Object.values(document.paths ?? {})) {
+    for (const method of HTTP_METHODS) {
+      const operation = (pathItem as Record<string, any>)?.[method];
+      const responses = operation?.responses;
+      if (!responses) {
+        continue;
+      }
+
+      for (const [statusCode, response] of Object.entries<Record<string, any>>(responses)) {
+        if (!isSuccessStatus(statusCode)) {
+          continue;
+        }
+
+        const jsonContent = response.content?.['application/json'];
+        const schema = jsonContent?.schema;
+        if (!schema || isResponseEnvelopeSchema(schema)) {
+          continue;
+        }
+
+        jsonContent.schema = buildResponseEnvelopeSchema(schema);
+      }
+    }
+  }
+}
+
+function isSuccessStatus(statusCode: string): boolean {
+  const status = Number(statusCode);
+  return Number.isInteger(status) && status >= 200 && status < 300 && status !== 204;
+}
+
+function isResponseEnvelopeSchema(schema: Record<string, any>): boolean {
+  return (
+    schema.type === 'object' &&
+    schema.properties?.success &&
+    schema.properties?.data &&
+    schema.properties?.timestamp
+  );
+}
+
+function buildResponseEnvelopeSchema(dataSchema: Record<string, any>): Record<string, any> {
+  return {
+    type: 'object',
+    required: ['success', 'data', 'timestamp', 'path', 'method'],
+    properties: {
+      success: {
+        type: 'boolean',
+        example: true,
+      },
+      data: dataSchema,
+      timestamp: {
+        type: 'string',
+        format: 'date-time',
+      },
+      path: {
+        type: 'string',
+      },
+      method: {
+        type: 'string',
+      },
+      requestId: {
+        type: 'string',
+        nullable: true,
+      },
+    },
   };
 }

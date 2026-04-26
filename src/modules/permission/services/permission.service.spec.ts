@@ -175,6 +175,24 @@ describe('PermissionService', () => {
         '权限编码 new:code 已存在',
       );
     });
+
+    it('系统内置权限不能更新', async () => {
+      const systemPermission = createMockPermission({
+        id: permissionId,
+        isSystem: true,
+      });
+
+      permissionRepo.findOne.mockResolvedValue(systemPermission);
+
+      await expect(service.update(permissionId, mockUpdateDto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.update(permissionId, mockUpdateDto)).rejects.toThrow(
+        '系统内置权限不能修改',
+      );
+      expect(permissionRepo.save).not.toHaveBeenCalled();
+      expect(cache.delByPattern).not.toHaveBeenCalled();
+    });
   });
 
   describe('delete', () => {
@@ -314,58 +332,6 @@ describe('PermissionService', () => {
           permissions: [permissions[1]],
         },
       ]);
-    });
-  });
-
-  describe('findByModule', () => {
-    it('应该根据模块返回权限列表', async () => {
-      const moduleName = 'user';
-      const mockPermissions = [
-        createMockPermission({ module: moduleName }),
-        createMockPermission({ module: moduleName }),
-      ];
-
-      permissionRepo.find.mockResolvedValue(mockPermissions);
-
-      const result = await service.findByModule(moduleName);
-
-      expect(result).toEqual(mockPermissions);
-      expect(permissionRepo.find).toHaveBeenCalledWith({
-        where: { module: moduleName },
-        order: { sort: 'ASC', createdAt: 'ASC' },
-      });
-    });
-  });
-
-  describe('findByIds', () => {
-    it('应该批量查询权限', async () => {
-      const ids = [1, 2, 3];
-      const mockPermissions = ids.map((id) => createMockPermission({ id }));
-
-      permissionRepo.find.mockResolvedValue(mockPermissions);
-
-      const result = await service.findByIds(ids);
-
-      expect(result).toEqual(mockPermissions);
-      expect(permissionRepo.find).toHaveBeenCalledWith({
-        where: { id: expect.anything() },
-      });
-    });
-
-    it('当传入空数组时应该返回空数组', async () => {
-      const result = await service.findByIds([]);
-
-      expect(result).toEqual([]);
-      expect(permissionRepo.find).not.toHaveBeenCalled();
-    });
-
-    it('当传入null或undefined时应该返回空数组', async () => {
-      const resultNull = await service.findByIds(null as any);
-      const resultUndefined = await service.findByIds(undefined as any);
-
-      expect(resultNull).toEqual([]);
-      expect(resultUndefined).toEqual([]);
-      expect(permissionRepo.find).not.toHaveBeenCalled();
     });
   });
 });

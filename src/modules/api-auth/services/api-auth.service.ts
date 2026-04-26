@@ -68,7 +68,7 @@ export class ApiAuthService {
       where: { id: appId },
     });
 
-    if (!app) {
+    if (!app || !app.isActive) {
       throw new NotFoundException('应用不存在');
     }
 

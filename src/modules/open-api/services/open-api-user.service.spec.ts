@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { OpenApiUserService } from './open-api-user.service';
 import { UserService } from '~/modules/user/services/user.service';
 import { OpenUserListResponseDto } from '../dto/open-user-response.dto';
+import { UserStatus } from '~/common/enums/user.enum';
 
 describe('OpenApiUserService', () => {
   let service: OpenApiUserService;
@@ -52,7 +53,11 @@ describe('OpenApiUserService', () => {
     );
 
     expect(result).toBeInstanceOf(OpenUserListResponseDto);
-    expect(userService.findUsers).toHaveBeenCalledWith({ page: 1, limit: 10 });
+    expect(userService.findUsers).toHaveBeenCalledWith({
+      page: 1,
+      limit: 10,
+      status: UserStatus.ACTIVE,
+    });
     expect(result.data[0]).not.toHaveProperty('password');
     expect(result.data[0]).not.toHaveProperty('email');
     expect(result.data[0]).not.toHaveProperty('realName');

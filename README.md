@@ -31,6 +31,7 @@ Out of scope by design:
 pnpm install
 pnpm build
 pnpm test
+pnpm test:env:up
 pnpm test:e2e
 pnpm run migration:run
 pnpm start:prod
@@ -45,7 +46,7 @@ Important defaults:
 - `DB_SYNCHRONIZE` is not supported. Schema changes go through migrations.
 - `TRUST_PROXY=false` by default. Enable only when running behind a trusted reverse proxy.
 - `FILE_STORAGE=local` by default. Set `FILE_STORAGE=oss` and OSS variables when needed.
-- `SWAGGER_ENABLE` defaults to off in production.
+- `SWAGGER_ENABLE` must be `false` in production.
 
 ## First Admin User
 

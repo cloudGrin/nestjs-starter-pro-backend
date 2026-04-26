@@ -3,11 +3,15 @@ set -e
 
 # E2E测试环境启动脚本
 
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT_DIR"
+
 echo "🚀 启动E2E测试环境..."
 
 # 检查Docker是否运行
-if ! docker info > /dev/null 2>&1; then
-  echo "❌ Docker未运行，请先启动Docker Desktop"
+if ! docker_info_output=$(docker info 2>&1); then
+  echo "❌ Docker不可用，请确认Docker Desktop已启动，且当前用户有权限访问Docker。"
+  echo "$docker_info_output"
   exit 1
 fi
 
@@ -33,7 +37,6 @@ docker exec home-mysql-test mysql -u root -ptest_root_password -e "DROP DATABASE
 
 # 运行数据库迁移
 echo "🔧 运行数据库迁移..."
-cd "$(dirname "$0")/.." || exit 1
 NODE_ENV=test DB_HOST=localhost DB_PORT=3307 DB_USERNAME=home_test DB_PASSWORD=test_password DB_DATABASE=home_test pnpm run migration:run:ts
 
 echo ""

@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/common/types/pagination.types';
@@ -64,6 +64,11 @@ export class PermissionService {
 
     const entity = await this.findById(id);
     this.logger.debug(`更新权限时加载实体成功 id=${id}, 当前编码=${entity.code}`);
+
+    if (entity.isSystem) {
+      this.logger.debug(`更新权限失败，系统权限禁止修改 id=${id}`);
+      throw new BadRequestException('系统内置权限不能修改');
+    }
 
     // 如果要修改编码，检查新编码是否已存在
     if (dto.code && dto.code !== entity.code) {
@@ -176,36 +181,6 @@ export class PermissionService {
     const tree = await this.buildPermissionTree();
     this.logger.debug(`查询权限树完成，节点数量=${Array.isArray(tree) ? tree.length : 0}`);
     return tree;
-  }
-
-  /**
-   * 根据模块获取权限列表
-   */
-  async findByModule(module: string): Promise<PermissionEntity[]> {
-    this.logger.debug(`根据模块查询权限 module=${module}`);
-    const items = await this.permissionRepo.find({
-      where: { module },
-      order: { sort: 'ASC', createdAt: 'ASC' },
-    });
-    this.logger.debug(`模块权限查询完成 module=${module}, 数量=${items.length}`);
-    return items;
-  }
-
-  /**
-   * 批量查询权限
-   */
-  async findByIds(ids: number[]): Promise<PermissionEntity[]> {
-    if (!ids || ids.length === 0) {
-      this.logger.debug('批量查询权限时未提供ID列表');
-      return [];
-    }
-
-    this.logger.debug(`批量查询权限 ids=${JSON.stringify(ids)}`);
-    const result = await this.permissionRepo.find({
-      where: { id: In(ids) },
-    });
-    this.logger.debug(`批量查询权限完成，请求数量=${ids.length}, 返回数量=${result.length}`);
-    return result;
   }
 
   private async isCodeExist(code: string, excludeId?: number): Promise<boolean> {

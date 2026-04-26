@@ -165,14 +165,14 @@ describe('FileService', () => {
         storage: FileStorageType.LOCAL,
       } as FileEntity;
       repository.findOne.mockResolvedValue(file);
-      repository.delete.mockResolvedValue({ affected: 1 } as any);
+      repository.softDelete.mockResolvedValue({ affected: 1 } as any);
 
       await service.remove(1);
 
       expect(storageFactory.getStrategy(FileStorageType.LOCAL).delete).toHaveBeenCalledWith(
         file.path,
       );
-      expect(repository.delete).toHaveBeenCalledWith(1);
+      expect(repository.softDelete).toHaveBeenCalledWith(1);
     });
   });
 });

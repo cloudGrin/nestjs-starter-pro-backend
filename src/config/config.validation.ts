@@ -128,7 +128,7 @@ export const configValidationSchema = Joi.object({
   SWAGGER_ENABLE: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.boolean().valid(false).messages({
-      'any.only': '⚠️  生产环境建议关闭 Swagger 文档（设置 SWAGGER_ENABLE=false）',
+      'any.only': '⚠️  生产环境必须关闭 Swagger 文档（设置 SWAGGER_ENABLE=false）',
     }),
     otherwise: Joi.boolean().default(true),
   }),

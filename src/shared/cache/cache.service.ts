@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { LoggerService } from '../logger/logger.service';
 
 interface CacheEntry<T = unknown> {
   value: T;
@@ -9,8 +8,6 @@ interface CacheEntry<T = unknown> {
 @Injectable()
 export class CacheService {
   private readonly store = new Map<string, CacheEntry>();
-
-  constructor(private readonly logger: LoggerService) {}
 
   async get<T>(key: string): Promise<T | null> {
     const entry = this.store.get(key);

@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { promises as fsPromises } from 'fs';
-import { resolve } from 'path';
 import { createHash } from 'crypto';
 import { Repository } from 'typeorm';
 import dayjs from 'dayjs';
@@ -35,7 +33,6 @@ const FILE_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'originalName', 'fil
 @Injectable()
 export class FileService {
   private readonly storageType: FileStorageType;
-  private readonly uploadRoot: string;
   private readonly maxFileSize: number;
   private readonly allowedTypes: string[];
   private readonly publicFileBaseUrl: string;
@@ -51,7 +48,6 @@ export class FileService {
       'file.storage',
       FileStorageType.LOCAL,
     );
-    this.uploadRoot = this.resolvePath(this.configService.get<string>('file.uploadDir', 'uploads'));
     this.publicFileBaseUrl = this.configService.get<string>('file.baseUrl', '/api/v1/files');
     this.maxFileSize = this.getNumber('file.maxSize', DEFAULT_FILE_MAX_SIZE);
     this.allowedTypes = this.normalizeAllowedTypes(
@@ -70,10 +66,6 @@ export class FileService {
         '.zip',
       ]),
     );
-
-    this.ensureDirectories().catch((error) => {
-      this.logger?.error('初始化文件目录失败', error.stack);
-    });
   }
 
   /**
@@ -336,13 +328,6 @@ export class FileService {
   }
 
   /**
-   * 确保目录存在
-   */
-  private async ensureDirectories(): Promise<void> {
-    await fsPromises.mkdir(this.uploadRoot, { recursive: true });
-  }
-
-  /**
    * 解析允许的文件类型
    */
   private normalizeAllowedTypes(types: string | string[]): string[] {
@@ -353,13 +338,6 @@ export class FileService {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
-  }
-
-  /**
-   * 解析路径
-   */
-  private resolvePath(target: string): string {
-    return resolve(process.cwd(), target);
   }
 
   /**

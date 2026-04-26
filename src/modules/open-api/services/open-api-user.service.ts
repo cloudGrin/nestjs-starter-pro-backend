@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { UserService } from '~/modules/user/services/user.service';
+import { UserStatus } from '~/common/enums/user.enum';
 import { OpenUserListQueryDto } from '../dto/open-user-list-query.dto';
 import { OpenUserListResponseDto } from '../dto/open-user-response.dto';
 
@@ -21,6 +22,7 @@ export class OpenApiUserService {
     const result = await this.userService.findUsers({
       page,
       limit: pageSize,
+      status: UserStatus.ACTIVE,
     });
 
     return OpenUserListResponseDto.fromResult(result, app);

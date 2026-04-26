@@ -115,6 +115,14 @@ describe('ApiAuthService', () => {
     });
   });
 
+  describe('getApp', () => {
+    it('treats inactive apps as deleted', async () => {
+      appRepository.findOne.mockResolvedValue(createMockApp({ isActive: false }));
+
+      await expect(service.getApp(1)).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('createApp', () => {
     it('creates API app', async () => {
       const dto: CreateApiAppDto = {

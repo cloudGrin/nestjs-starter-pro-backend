@@ -21,7 +21,7 @@ pnpm test:env:up
 
 这将启动：
 
-- MySQL 测试数据库 (端口: 3307)
+- MySQL 测试数据库 (端口: 127.0.0.1:3307)
 
 ### 2. 运行E2E测试
 
@@ -39,7 +39,7 @@ pnpm test:e2e:cov
 ### 3. 停止测试环境
 
 ```bash
-# 停止容器（保留数据）
+# 停止容器（保留Docker数据卷；下次启动会重建home_test数据库）
 pnpm test:env:down
 
 # 完全清理（删除数据）

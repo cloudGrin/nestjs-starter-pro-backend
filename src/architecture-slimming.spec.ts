@@ -732,6 +732,9 @@ describe('architecture slimming', () => {
     for (const method of ['getOrSet', 'mget', 'mset', 'keys', 'increment', 'decrement']) {
       expect(cacheService).not.toContain(`async ${method}(`);
     }
+
+    expect(cacheService).not.toContain('LoggerService');
+    expect(cacheService).not.toContain('constructor(');
   });
 
   it('removes cache invalidation calls that no longer have matching read paths', () => {
@@ -759,5 +762,30 @@ describe('architecture slimming', () => {
     expect(jwtStrategy).not.toContain('permissions:');
     expect(permissionsGuard).toContain('getUserPermissions');
     expect(permissionsGuard).not.toContain('clearUserPermissionsCache');
+  });
+
+  it('removes unused crypto helpers, duplicate multer ambient types, and unused permission service reads', () => {
+    const cryptoUtil = readSource('common/utils/crypto.util.ts');
+    const permissionService = readSource('modules/permission/services/permission.service.ts');
+    const fileService = readSource('modules/file/services/file.service.ts');
+
+    expect(cryptoUtil).toContain('hashPassword');
+    expect(cryptoUtil).toContain('comparePassword');
+    for (const token of [
+      'generateRandomString',
+      'generateRandomNumbers',
+      'static md5',
+      'static sha256',
+      'base64Encode',
+      'base64Decode',
+    ]) {
+      expect(cryptoUtil).not.toContain(token);
+    }
+
+    expect(permissionService).not.toContain('async findByModule');
+    expect(permissionService).not.toContain('async findByIds');
+    expect(fileService).not.toContain('ensureDirectories');
+    expect(fileService).not.toContain('uploadRoot');
+    expect(existsInSource('types/express.d.ts')).toBe(false);
   });
 });

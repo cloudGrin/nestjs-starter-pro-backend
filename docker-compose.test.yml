@@ -9,8 +9,9 @@ services:
       MYSQL_DATABASE: home_test
       MYSQL_USER: home_test
       MYSQL_PASSWORD: test_password
+      TZ: Asia/Shanghai
     ports:
-      - "3307:3306"  # 使用3307端口避免与本地MySQL冲突
+      - "127.0.0.1:3307:3306"  # 使用3307端口避免与本地MySQL冲突，仅绑定本机
     volumes:
       - mysql-test-data:/var/lib/mysql
     healthcheck:

@@ -4,14 +4,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateApiAppDto {
   @ApiProperty({
     description: '应用名称',
-    example: 'My E-commerce Platform',
+    example: 'personal-mini-program',
   })
   @IsString()
   name: string;
 
   @ApiPropertyOptional({
     description: '应用描述',
-    example: '第三方电商平台集成',
+    example: '个人小程序后端接入',
   })
   @IsOptional()
   @IsString()

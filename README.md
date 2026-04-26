@@ -18,6 +18,8 @@ Out of scope by design:
 
 - Multiple backend services.
 - Distributed cache or distributed locks.
+- Generic domain/application layers for simple CRUD.
+- Event bus or event-driven architecture.
 - Generic workflow engines.
 - Organization/department management.
 - Excel import/export platforms.
@@ -57,6 +59,7 @@ The intended flow is simple:
 - Services own business rules.
 - TypeORM repositories are injected directly into services.
 - Guards enforce authentication and permission declarations.
+- Open APIs are thin adapters over existing services with independent DTOs and API-key scopes.
 
 No permission declaration means access is denied unless the route is explicitly public or allows any authenticated user.
 
@@ -69,3 +72,4 @@ X-API-Key: sk_live_xxx
 ```
 
 Scopes are checked by open API controllers through API scope decorators.
+The authenticated API app is available as `req.user` by Passport convention; this project intentionally does not add a second `req.app` context shape.

@@ -54,6 +54,7 @@ describe('architecture slimming', () => {
       'callbackUrl',
       'webhookUrl',
       'ipWhitelist',
+      'rate_limit',
       'rateLimitPerHour',
       'rateLimitPerDay',
     ]) {
@@ -68,6 +69,33 @@ describe('architecture slimming', () => {
     expect(strategy).not.toContain('checkRateLimit');
     expect(module).not.toContain('ApiCallLog');
     expect(packageJson).not.toContain('"ipaddr.js"');
+  });
+
+  it('keeps open APIs as thin adapters without platform architecture layers', () => {
+    const readme = readProject('README.md');
+    const apiAuthQuickstart = readProject('API_AUTH_QUICKSTART.md');
+    const appModule = readSource('app.module.ts');
+    const openApiModule = readSource('modules/open-api/open-api.module.ts');
+    const openApiController = readSource('modules/open-api/controllers/open-api.controller.ts');
+    const openApiRequestTypes = readSource('modules/open-api/types/request.types.ts');
+    const apiAppDto = readSource('modules/api-auth/dto/create-api-app.dto.ts');
+
+    expect(existsInSource('application')).toBe(false);
+    expect(existsInSource('domain')).toBe(false);
+    expect(existsInSource('modules/open-api/adapters')).toBe(false);
+    expect(openApiModule).not.toContain('Adapter');
+    expect(openApiController).not.toContain('req.app');
+    expect(openApiRequestTypes).toContain('req.user');
+    expect(openApiRequestTypes).not.toContain('req.app');
+    expect(appModule).not.toContain('EventEmitter');
+
+    for (const content of [apiAppDto]) {
+      expect(content).not.toMatch(/数据服务平台|企业中台|中台化/);
+      expect(content).not.toMatch(/E-commerce Platform|电商平台/);
+    }
+
+    expect(readme).toContain('Open APIs are thin adapters over existing services');
+    expect(apiAuthQuickstart).toContain('do not introduce a separate domain/application layer');
   });
 
   it('removes unused api statistics endpoints and RBAC placeholder endpoints', () => {

@@ -37,6 +37,19 @@ pnpm run migration:run
 pnpm start:prod
 ```
 
+## Synology Docker Deployment
+
+This deployment uses an existing MySQL instance and starts only the backend API and frontend nginx container. Keep `home-admin` and `home-web` as sibling directories.
+
+```bash
+cp .env.synology.example .env.synology
+openssl rand -base64 32
+openssl rand -base64 32
+./scripts/deploy-synology.sh
+```
+
+Set `DB_HOST` to the MySQL address reachable from Docker. Do not use `localhost` for MySQL inside the backend container.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and edit the values you need.

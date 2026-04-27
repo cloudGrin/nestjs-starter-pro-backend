@@ -142,29 +142,9 @@ export const configValidationSchema = Joi.object({
   SWAGGER_PATH: Joi.string().default('api-docs'),
 
   // ========================================
-  // CORS 配置（生产环境严格检查）
+  // CORS 配置
   // ========================================
-  CORS_ORIGIN: Joi.when('NODE_ENV', {
-    is: 'production',
-    then: Joi.string()
-      .required()
-      .custom((value, helpers) => {
-        const origins = value
-          .split(',')
-          .map((item: string) => item.trim())
-          .filter(Boolean);
-
-        if (origins.includes('*')) {
-          return helpers.error('cors.wildcard');
-        }
-        return value;
-      })
-      .messages({
-        'any.required': '⚠️  CORS_ORIGIN 在生产环境是必需的',
-        'cors.wildcard': '⚠️  CORS_ORIGIN 在生产环境不能设置为 *，请指定具体域名',
-      }),
-    otherwise: Joi.string().default('*'),
-  }),
+  CORS_ORIGIN: Joi.string().default('*'),
 
   CORS_CREDENTIALS: Joi.boolean().default(false),
 

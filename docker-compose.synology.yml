@@ -1,0 +1,75 @@
+name: home
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: home-admin
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      TZ: "${TZ:-Asia/Shanghai}"
+
+      DB_HOST: "${DB_HOST:?DB_HOST is required}"
+      DB_PORT: "${DB_PORT:-3306}"
+      DB_USERNAME: "${DB_USERNAME:-home}"
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
+      DB_DATABASE: "${DB_DATABASE:-home}"
+      DB_LOGGING: "false"
+
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
+      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN:-7d}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}"
+      JWT_REFRESH_EXPIRES_IN: "${JWT_REFRESH_EXPIRES_IN:-30d}"
+
+      API_PREFIX: api
+      API_VERSION: "1"
+      TRUST_PROXY: "${TRUST_PROXY:-true}"
+      SWAGGER_ENABLE: "false"
+
+      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
+      CORS_CREDENTIALS: "${CORS_CREDENTIALS:-false}"
+
+      LOG_LEVEL: info
+      LOG_DIR: /app/logs
+      LOG_CONSOLE: "true"
+
+      FILE_STORAGE: local
+      FILE_UPLOAD_DIR: /app/uploads
+      FILE_BASE_URL: "${FILE_BASE_URL:-/api/v1/files}"
+      FILE_MAX_SIZE: "${FILE_MAX_SIZE:-52428800}"
+    volumes:
+      - ./data/uploads:/app/uploads
+      - ./data/logs:/app/logs
+    networks:
+      - home-network
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../home-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    container_name: home-web
+    environment:
+      API_UPSTREAM: http://api:3000
+    ports:
+      - "${WEB_PORT:-8088}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - home-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  home-network:
+    driver: bridge

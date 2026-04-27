@@ -41,8 +41,8 @@ services:
       # Swagger配置（生产环境强制关闭）
       SWAGGER_ENABLE: 'false'
 
-      # CORS配置（生产环境需要指定具体域名）
-      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required for production}
+      # CORS配置
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
       CORS_CREDENTIALS: ${CORS_CREDENTIALS:-false}
 
       # 文件存储配置

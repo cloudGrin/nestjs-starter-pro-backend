@@ -11,10 +11,12 @@ import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { RefreshTokenEntity } from '~/modules/auth/entities/refresh-token.entity';
+import { UserNotificationSettingEntity } from '~/modules/notification/entities/user-notification-setting.entity';
 import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
+import { UpdateUserNotificationSettingsDto } from '../dto/update-user-notification-settings.dto';
 import { QueryUserDto } from '../dto/query-user.dto';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto';
 import { UserStatus } from '~/common/enums/user.enum';
@@ -40,6 +42,8 @@ export class UserService {
     private readonly roleRepository: Repository<RoleEntity>,
     @InjectRepository(RefreshTokenEntity)
     private readonly refreshTokenRepository: Repository<RefreshTokenEntity>,
+    @InjectRepository(UserNotificationSettingEntity)
+    private readonly notificationSettingRepository: Repository<UserNotificationSettingEntity>,
     private readonly logger: LoggerService,
     private readonly cache: CacheService,
   ) {}
@@ -87,6 +91,44 @@ export class UserService {
     const { password: _password, ...userWithoutPassword } = savedUser;
 
     return userWithoutPassword as UserEntity;
+  }
+
+  async getNotificationSettings(userId: number): Promise<UserNotificationSettingEntity> {
+    await this.findByIdWithRolesOrFail(userId);
+
+    const setting = await this.notificationSettingRepository.findOne({
+      where: { userId },
+    });
+
+    return setting ?? this.createDefaultNotificationSettings(userId);
+  }
+
+  async updateNotificationSettings(
+    userId: number,
+    dto: UpdateUserNotificationSettingsDto,
+    actor?: UserActionActor,
+  ): Promise<UserNotificationSettingEntity> {
+    const user = await this.findByIdWithRolesOrFail(userId);
+    this.ensureCanMutateSuperAdminTarget(user, actor, '修改超级管理员通知绑定');
+
+    const existing = await this.notificationSettingRepository.findOne({
+      where: { userId },
+    });
+    const next = {
+      userId,
+      barkKey: this.normalizeOptionalText(
+        this.getPatchValue(dto, 'barkKey', existing?.barkKey ?? null),
+      ),
+      feishuUserId: this.normalizeOptionalText(
+        this.getPatchValue(dto, 'feishuUserId', existing?.feishuUserId ?? null),
+      ),
+    };
+
+    const entity = existing
+      ? Object.assign(existing, next)
+      : this.notificationSettingRepository.create(next);
+
+    return this.notificationSettingRepository.save(entity);
   }
 
   /**
@@ -325,6 +367,7 @@ export class UserService {
     await this.ensureNotLastActiveSuperAdmin(user, undefined);
 
     await this.userRepository.softDelete(id);
+    await this.notificationSettingRepository.delete({ userId: id });
     await this.revokeRefreshTokens(id);
     this.logger.debug(`用户软删除完成 id=${id}`);
 
@@ -353,6 +396,7 @@ export class UserService {
 
     for (const user of users) {
       await this.userRepository.softDelete(user.id);
+      await this.notificationSettingRepository.delete({ userId: user.id });
       await this.revokeRefreshTokens(user.id);
       this.logger.debug(`用户软删除完成 id=${user.id}`);
     }
@@ -704,5 +748,26 @@ export class UserService {
 
   private async revokeRefreshTokens(userId: number): Promise<void> {
     await this.refreshTokenRepository.update({ userId, isRevoked: false }, { isRevoked: true });
+  }
+
+  private createDefaultNotificationSettings(userId: number): UserNotificationSettingEntity {
+    return Object.assign(new UserNotificationSettingEntity(), {
+      userId,
+      barkKey: null,
+      feishuUserId: null,
+    });
+  }
+
+  private normalizeOptionalText(value?: string | null): string | null {
+    const text = value?.trim();
+    return text ? text : null;
+  }
+
+  private getPatchValue<T extends keyof UpdateUserNotificationSettingsDto>(
+    dto: UpdateUserNotificationSettingsDto,
+    key: T,
+    fallback: UpdateUserNotificationSettingsDto[T],
+  ): UpdateUserNotificationSettingsDto[T] {
+    return Object.prototype.hasOwnProperty.call(dto, key) ? dto[key] : fallback;
   }
 }

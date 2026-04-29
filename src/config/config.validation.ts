@@ -183,10 +183,8 @@ export const configValidationSchema = Joi.object({
   // ========================================
   // 通知配置（简化）
   // ========================================
-  NOTIFY_BARK_ENABLE: Joi.boolean().default(false),
   NOTIFY_BARK_BASE_URL: Joi.string().optional(),
-  NOTIFY_BARK_DEFAULT_KEY: Joi.string().optional(),
 
-  NOTIFY_FEISHU_ENABLE: Joi.boolean().default(false),
-  NOTIFY_FEISHU_WEBHOOK: Joi.string().optional(),
+  NOTIFY_FEISHU_APP_ID: Joi.string().optional(),
+  NOTIFY_FEISHU_APP_SECRET: Joi.string().optional(),
 });

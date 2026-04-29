@@ -7,9 +7,16 @@ import { NotificationChannel, NotificationDeliveryResult } from '../entities/not
 import { ChannelSendContext, NotificationChannelAdapter } from './notification-channel.interface';
 
 interface FeishuConfig {
-  enable: boolean;
-  defaultWebhook?: string;
+  appId?: string;
+  appSecret?: string;
 }
+
+interface FeishuTenantAccessToken {
+  value: string;
+  expiresAt: number;
+}
+
+const FEISHU_API_BASE_URL = 'https://open.feishu.cn/open-apis';
 
 @Injectable()
 export class FeishuChannelAdapter implements NotificationChannelAdapter {
@@ -17,96 +24,108 @@ export class FeishuChannelAdapter implements NotificationChannelAdapter {
 
   private readonly config: FeishuConfig;
   private readonly logger = new Logger(FeishuChannelAdapter.name);
+  private tenantAccessToken?: FeishuTenantAccessToken;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
     this.config = this.configService.get<FeishuConfig>('notification.channels.feishu', {
-      enable: false,
+      appId: undefined,
+      appSecret: undefined,
     });
-  }
-
-  isEnabled(): boolean {
-    return !!this.config?.enable;
   }
 
   async send(context: ChannelSendContext): Promise<NotificationDeliveryResult> {
     const sentAt = dayjs().toISOString();
 
-    if (!this.isEnabled()) {
-      return {
-        channel: this.type,
-        success: false,
-        error: 'Feishu channel disabled',
-        sentAt,
-      };
-    }
+    const receiveId = context.notificationSetting?.feishuUserId?.trim();
 
-    const webhook =
-      (context.notification.metadata as any)?.feishuWebhook ?? this.config.defaultWebhook;
-
-    if (!webhook) {
+    if (!receiveId) {
       this.logger.warn(
-        `Skip Feishu delivery: missing webhook for notification ${context.notification.id}`,
+        `Skip Feishu delivery: missing recipient binding for notification ${context.notification.id}`,
       );
       return {
         channel: this.type,
         success: false,
-        error: 'Missing Feishu webhook',
+        error: 'Missing recipient Feishu user_id binding',
         sentAt,
       };
     }
 
-    // 使用互动卡片提升可读性，如需纯文本可调整 msg_type
-    const payload = {
-      msg_type: 'interactive',
-      card: {
-        header: {
-          title: {
-            tag: 'plain_text',
-            content: context.notification.title,
+    if (!this.config.appId || !this.config.appSecret) {
+      return {
+        channel: this.type,
+        success: false,
+        error: 'Missing Feishu app credentials',
+        sentAt,
+      };
+    }
+
+    const card = {
+      header: {
+        title: {
+          tag: 'plain_text',
+          content: context.notification.title,
+        },
+      },
+      elements: [
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: context.notification.content,
           },
         },
-        elements: [
-          {
-            tag: 'div',
-            text: {
-              tag: 'lark_md',
-              content: context.notification.content,
-            },
-          },
-          ...(context.notification.metadata && (context.notification.metadata as any).link
-            ? [
-                {
-                  tag: 'action',
-                  actions: [
-                    {
-                      tag: 'button',
-                      text: {
-                        tag: 'plain_text',
-                        content: (context.notification.metadata as any).linkText || '查看详情',
-                      },
-                      type: 'primary',
-                      url: (context.notification.metadata as any).link,
+        ...(context.notification.metadata && (context.notification.metadata as any).link
+          ? [
+              {
+                tag: 'action',
+                actions: [
+                  {
+                    tag: 'button',
+                    text: {
+                      tag: 'plain_text',
+                      content: (context.notification.metadata as any).linkText || '查看详情',
                     },
-                  ],
-                },
-              ]
-            : []),
-        ],
-      },
+                    type: 'primary',
+                    url: (context.notification.metadata as any).link,
+                  },
+                ],
+              },
+            ]
+          : []),
+      ],
+    };
+
+    const payload = {
+      receive_id: receiveId,
+      msg_type: 'interactive',
+      content: JSON.stringify(card),
     };
 
     try {
-      const response = await firstValueFrom(this.httpService.post(webhook, payload));
-      const ok = response.data?.StatusCode === 0 || response.data?.code === 0;
-      this.logger.debug(`[Feishu] Send notification ${context.notification.id}, success=${ok}`);
+      const tenantAccessToken = await this.getTenantAccessToken();
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${FEISHU_API_BASE_URL}/im/v1/messages?receive_id_type=user_id`,
+          payload,
+          {
+            headers: {
+              Authorization: `Bearer ${tenantAccessToken}`,
+            },
+          },
+        ),
+      );
+      const ok = response.data?.code === 0;
+      this.logger.debug(
+        `[Feishu] Send notification ${context.notification.id} to ${receiveId}, success=${ok}`,
+      );
       return {
         channel: this.type,
         success: ok,
         response: typeof response.data === 'object' ? response.data : undefined,
-        error: ok ? undefined : response.data?.msg || 'Feishu webhook error',
+        error: ok ? undefined : response.data?.msg || 'Feishu message error',
         sentAt,
       };
     } catch (error: any) {
@@ -120,5 +139,32 @@ export class FeishuChannelAdapter implements NotificationChannelAdapter {
         sentAt,
       };
     }
+  }
+
+  private async getTenantAccessToken(): Promise<string> {
+    const now = Date.now();
+    if (this.tenantAccessToken && this.tenantAccessToken.expiresAt > now) {
+      return this.tenantAccessToken.value;
+    }
+
+    const response = await firstValueFrom(
+      this.httpService.post(`${FEISHU_API_BASE_URL}/auth/v3/tenant_access_token/internal`, {
+        app_id: this.config.appId,
+        app_secret: this.config.appSecret,
+      }),
+    );
+    const token = response.data?.tenant_access_token;
+
+    if (!token) {
+      throw new Error(response.data?.msg || 'Failed to get Feishu tenant access token');
+    }
+
+    const expiresInSeconds = Number(response.data?.expire) || 7200;
+    this.tenantAccessToken = {
+      value: token,
+      expiresAt: now + Math.max(expiresInSeconds - 300, 60) * 1000,
+    };
+
+    return token;
   }
 }

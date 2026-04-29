@@ -15,6 +15,7 @@ import {
 import { CreateNotificationDto } from '../dto/create-notification.dto';
 import { QueryNotificationDto } from '../dto/query-notification.dto';
 import { UserEntity } from '~/modules/user/entities/user.entity';
+import { UserNotificationSettingEntity } from '../entities/user-notification-setting.entity';
 import { BarkChannelAdapter } from '../channels/bark.channel';
 import { FeishuChannelAdapter } from '../channels/feishu.channel';
 import { NotificationChannelAdapter } from '../channels/notification-channel.interface';
@@ -36,6 +37,8 @@ export class NotificationService {
     private readonly notificationRepository: Repository<NotificationEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(UserNotificationSettingEntity)
+    private readonly notificationSettingRepository: Repository<UserNotificationSettingEntity>,
     private readonly barkChannelAdapter: BarkChannelAdapter,
     private readonly feishuChannelAdapter: FeishuChannelAdapter,
     private readonly logger: LoggerService,
@@ -238,9 +241,21 @@ export class NotificationService {
     forceExternal = false,
   ): Promise<Map<number, NotificationDeliveryResult[]>> {
     const results = new Map<number, NotificationDeliveryResult[]>();
+    const externalNotifications = notifications.filter((notification) => {
+      const shouldSendExternal = forceExternal || notification.sendExternal;
+      const externalChannels =
+        notification.channels?.filter((channel) => channel !== NotificationChannel.INTERNAL) || [];
+
+      return !!notification.recipientId && shouldSendExternal && externalChannels.length > 0;
+    });
+
+    if (externalNotifications.length === 0) {
+      return results;
+    }
+
     const recipientIds = Array.from(
       new Set(
-        notifications
+        externalNotifications
           .map((notification) => notification.recipientId)
           .filter((recipientId): recipientId is number => typeof recipientId === 'number'),
       ),
@@ -248,6 +263,7 @@ export class NotificationService {
 
     const recipients = recipientIds.length > 0 ? await this.findUsersByIds(recipientIds) : [];
     const recipientMap = new Map(recipients.map((recipient) => [recipient.id, recipient]));
+    const settingMap = await this.findNotificationSettingsByUserIds(recipientIds);
 
     for (const notification of notifications) {
       if (!notification.recipientId) {
@@ -274,6 +290,7 @@ export class NotificationService {
       }
 
       const deliveryResults: NotificationDeliveryResult[] = [];
+      const notificationSetting = settingMap.get(notification.recipientId);
 
       for (const channel of externalChannels) {
         const adapter = this.getChannelAdapter(channel);
@@ -287,18 +304,15 @@ export class NotificationService {
           continue;
         }
 
-        if (!adapter.isEnabled()) {
-          deliveryResults.push({
-            channel,
-            success: false,
-            error: 'Channel not enabled',
-            sentAt: new Date().toISOString(),
-          });
+        if (!this.isChannelBound(channel, notificationSetting)) {
+          deliveryResults.push(this.buildUnboundDeliveryResult(channel));
           continue;
         }
 
         try {
-          deliveryResults.push(await adapter.send({ notification, recipient }));
+          deliveryResults.push(
+            await adapter.send({ notification, recipient, notificationSetting }),
+          );
         } catch (error: any) {
           deliveryResults.push({
             channel,
@@ -326,6 +340,43 @@ export class NotificationService {
       default:
         return null;
     }
+  }
+
+  private async findNotificationSettingsByUserIds(
+    ids: number[],
+  ): Promise<Map<number, UserNotificationSettingEntity>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    const settings = await this.notificationSettingRepository.find({
+      where: { userId: In(ids) },
+    });
+
+    return new Map((settings ?? []).map((setting) => [setting.userId, setting]));
+  }
+
+  private isChannelBound(
+    channel: NotificationChannel,
+    setting?: UserNotificationSettingEntity,
+  ): boolean {
+    switch (channel) {
+      case NotificationChannel.BARK:
+        return !!setting?.barkKey?.trim();
+      case NotificationChannel.FEISHU:
+        return !!setting?.feishuUserId?.trim();
+      default:
+        return false;
+    }
+  }
+
+  private buildUnboundDeliveryResult(channel: NotificationChannel): NotificationDeliveryResult {
+    return {
+      channel,
+      success: false,
+      error: `${channel} not bound for recipient`,
+      sentAt: new Date().toISOString(),
+    };
   }
 
   private async findUsersByIds(ids: number[]): Promise<UserEntity[]> {

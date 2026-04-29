@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationEntity } from './entities/notification.entity';
+import { UserNotificationSettingEntity } from './entities/user-notification-setting.entity';
 import { UserEntity } from '../user/entities/user.entity';
 import { NotificationService } from './services/notification.service';
 import { NotificationController } from './controllers/notification.controller';
@@ -10,7 +11,7 @@ import { FeishuChannelAdapter } from './channels/feishu.channel';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([NotificationEntity, UserEntity]),
+    TypeOrmModule.forFeature([NotificationEntity, UserEntity, UserNotificationSettingEntity]),
     HttpModule.register({ timeout: 5000 }),
   ],
   controllers: [NotificationController],

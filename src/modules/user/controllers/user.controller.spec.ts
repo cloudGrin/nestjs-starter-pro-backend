@@ -43,4 +43,11 @@ describe('UserController', () => {
     expect(source).not.toContain('@Body() ids: number[]');
     expect(source).not.toContain('@Body() roleIds: number[]');
   });
+
+  it('passes the current actor when updating notification settings', () => {
+    const source = readFileSync(join(__dirname, 'user.controller.ts'), 'utf8');
+
+    expect(source).toContain('@CurrentUser() user: AuthenticatedUser');
+    expect(source).toContain('return this.userService.updateNotificationSettings(id, dto, user);');
+  });
 });

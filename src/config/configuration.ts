@@ -232,22 +232,18 @@ export const configuration = (): Configuration => ({
        * Bark 推送（iOS 推送通知）
        */
       bark: {
-        /** 是否启用（默认 false） */
-        enable: process.env.NOTIFY_BARK_ENABLE === 'true',
         /** Bark 服务地址 */
         baseUrl: process.env.NOTIFY_BARK_BASE_URL,
-        /** 默认设备密钥 */
-        defaultKey: process.env.NOTIFY_BARK_DEFAULT_KEY,
       },
 
       /**
-       * 飞书机器人通知
+       * 飞书应用机器人通知
        */
       feishu: {
-        /** 是否启用（默认 false） */
-        enable: process.env.NOTIFY_FEISHU_ENABLE === 'true',
-        /** 默认 Webhook 地址 */
-        defaultWebhook: process.env.NOTIFY_FEISHU_WEBHOOK,
+        /** 飞书应用 App ID */
+        appId: process.env.NOTIFY_FEISHU_APP_ID,
+        /** 飞书应用 App Secret */
+        appSecret: process.env.NOTIFY_FEISHU_APP_SECRET,
       },
     },
   },

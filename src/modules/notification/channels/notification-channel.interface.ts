@@ -3,15 +3,16 @@ import {
   NotificationChannel,
   NotificationDeliveryResult,
 } from '../entities/notification.entity';
+import { UserNotificationSettingEntity } from '../entities/user-notification-setting.entity';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 
 export interface ChannelSendContext {
   notification: NotificationEntity;
   recipient: UserEntity;
+  notificationSetting?: UserNotificationSettingEntity;
 }
 
 export interface NotificationChannelAdapter {
   readonly type: NotificationChannel;
-  isEnabled(): boolean;
   send(context: ChannelSendContext): Promise<NotificationDeliveryResult>;
 }

@@ -25,6 +25,7 @@ import { UserService } from '../services/user.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
+import { UpdateUserNotificationSettingsDto } from '../dto/update-user-notification-settings.dto';
 import { QueryUserDto } from '../dto/query-user.dto';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/change-password.dto';
 import { DeleteUsersDto } from '../dto/delete-users.dto';
@@ -110,6 +111,35 @@ export class UserController {
   async removeMany(@Body() dto: DeleteUsersDto, @CurrentUser() user: AuthenticatedUser) {
     await this.userService.deleteUsers(dto.ids, user);
     return MessageResponseDto.of('批量删除成功');
+  }
+
+  @Get(':id/notification-settings')
+  @RequirePermissions('user:read')
+  @ApiOperation({ summary: '获取用户通知绑定配置' })
+  @ApiParam({ name: 'id', description: '用户ID' })
+  @ApiOkResponse({ description: '获取用户通知绑定配置成功' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
+  @ApiNotFoundResponse({ description: '请求的资源不存在' })
+  async getNotificationSettings(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.getNotificationSettings(id);
+  }
+
+  @Put(':id/notification-settings')
+  @RequirePermissions('user:update')
+  @ApiOperation({ summary: '更新用户通知绑定配置' })
+  @ApiParam({ name: 'id', description: '用户ID' })
+  @ApiOkResponse({ description: '更新用户通知绑定配置成功' })
+  @ApiBadRequestResponse({ description: '参数验证失败' })
+  @ApiUnauthorizedResponse({ description: '用户未认证或 token 已过期' })
+  @ApiForbiddenResponse({ description: '用户无权限访问该资源' })
+  @ApiNotFoundResponse({ description: '请求的资源不存在' })
+  async updateNotificationSettings(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUserNotificationSettingsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.userService.updateNotificationSettings(id, dto, user);
   }
 
   @Get(':id')

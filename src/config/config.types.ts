@@ -99,13 +99,11 @@ export interface FileConfig {
 export interface NotificationConfig {
   channels: {
     bark: {
-      enable: boolean;
       baseUrl?: string;
-      defaultKey?: string;
     };
     feishu: {
-      enable: boolean;
-      defaultWebhook?: string;
+      appId?: string;
+      appSecret?: string;
     };
   };
 }

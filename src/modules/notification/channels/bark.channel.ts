@@ -7,9 +7,7 @@ import { NotificationChannel, NotificationDeliveryResult } from '../entities/not
 import { ChannelSendContext, NotificationChannelAdapter } from './notification-channel.interface';
 
 interface BarkConfig {
-  enable: boolean;
   baseUrl?: string;
-  defaultKey?: string;
 }
 
 @Injectable()
@@ -24,36 +22,23 @@ export class BarkChannelAdapter implements NotificationChannelAdapter {
     private readonly httpService: HttpService,
   ) {
     this.config = this.configService.get<BarkConfig>('notification.channels.bark', {
-      enable: false,
+      baseUrl: undefined,
     });
-  }
-
-  isEnabled(): boolean {
-    return !!this.config?.enable;
   }
 
   async send(context: ChannelSendContext): Promise<NotificationDeliveryResult> {
     const sentAt = dayjs().toISOString();
 
-    if (!this.isEnabled()) {
-      return {
-        channel: this.type,
-        success: false,
-        error: 'Bark channel disabled',
-        sentAt,
-      };
-    }
-
-    const key = (context.notification.metadata as any)?.barkKey ?? this.config.defaultKey;
+    const key = context.notificationSetting?.barkKey?.trim();
 
     if (!key) {
       this.logger.warn(
-        `Skip Bark delivery: missing device key for notification ${context.notification.id}`,
+        `Skip Bark delivery: missing recipient binding for notification ${context.notification.id}`,
       );
       return {
         channel: this.type,
         success: false,
-        error: 'Missing Bark device key',
+        error: 'Missing recipient Bark binding',
         sentAt,
       };
     }

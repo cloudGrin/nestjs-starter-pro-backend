@@ -1,10 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { RefreshTokenEntity } from '~/modules/auth/entities/refresh-token.entity';
+import { UserNotificationSettingEntity } from '~/modules/notification/entities/user-notification-setting.entity';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
 import {
@@ -37,6 +43,7 @@ describe('UserService', () => {
   let userRepository: any;
   let roleRepository: jest.Mocked<any>;
   let refreshTokenRepository: jest.Mocked<any>;
+  let notificationSettingRepository: jest.Mocked<any>;
   let cache: jest.Mocked<CacheService>;
   let logger: jest.Mocked<LoggerService>;
 
@@ -44,6 +51,7 @@ describe('UserService', () => {
     const mockUserRepository = createMockRepository<UserEntity>();
     const mockRoleRepository = createMockRepository<RoleEntity>();
     const mockRefreshTokenRepository = createMockRepository<RefreshTokenEntity>();
+    const mockNotificationSettingRepository = createMockRepository<UserNotificationSettingEntity>();
     const mockCache = createMockCacheService();
     const mockLogger = createMockLogger();
 
@@ -63,6 +71,10 @@ describe('UserService', () => {
           useValue: mockRefreshTokenRepository,
         },
         {
+          provide: getRepositoryToken(UserNotificationSettingEntity),
+          useValue: mockNotificationSettingRepository,
+        },
+        {
           provide: LoggerService,
           useValue: mockLogger,
         },
@@ -77,6 +89,7 @@ describe('UserService', () => {
     userRepository = module.get(getRepositoryToken(UserEntity));
     roleRepository = module.get(getRepositoryToken(RoleEntity));
     refreshTokenRepository = module.get(getRepositoryToken(RefreshTokenEntity));
+    notificationSettingRepository = module.get(getRepositoryToken(UserNotificationSettingEntity));
     cache = module.get(CacheService);
     logger = module.get(LoggerService);
   });
@@ -412,6 +425,102 @@ describe('UserService', () => {
         { userId: 2, isRevoked: false },
         { isRevoked: true },
       );
+    });
+  });
+
+  describe('notification settings', () => {
+    it('returns disabled channel defaults when a user has no notification binding', async () => {
+      userRepository.findOne.mockResolvedValue(UserMockFactory.create({ id: 1 }));
+      notificationSettingRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.getNotificationSettings(1)).resolves.toMatchObject({
+        userId: 1,
+        barkKey: null,
+        feishuUserId: null,
+      });
+    });
+
+    it('saves admin maintained notification binding targets', async () => {
+      userRepository.findOne.mockResolvedValue(UserMockFactory.create({ id: 1 }));
+      notificationSettingRepository.findOne.mockResolvedValue(null);
+      notificationSettingRepository.create.mockImplementation((value: any) => value);
+      notificationSettingRepository.save.mockImplementation(async (value: any) => ({
+        id: 10,
+        ...value,
+      }));
+
+      await expect(
+        service.updateNotificationSettings(1, {
+          barkKey: 'user-bark-key',
+          feishuUserId: 'ou_user_1',
+        }),
+      ).resolves.toMatchObject({
+        userId: 1,
+        barkKey: 'user-bark-key',
+        feishuUserId: 'ou_user_1',
+      });
+
+      expect(notificationSettingRepository.create).toHaveBeenCalledWith({
+        userId: 1,
+        barkKey: 'user-bark-key',
+        feishuUserId: 'ou_user_1',
+      });
+    });
+
+    it('normalizes blank channel targets to null', async () => {
+      userRepository.findOne.mockResolvedValue(UserMockFactory.create({ id: 1 }));
+      notificationSettingRepository.findOne.mockResolvedValue(null);
+      notificationSettingRepository.create.mockImplementation((value: any) => value);
+      notificationSettingRepository.save.mockImplementation(async (value: any) => value);
+
+      await expect(
+        service.updateNotificationSettings(1, {
+          barkKey: '',
+          feishuUserId: '   ',
+        }),
+      ).resolves.toMatchObject({
+        barkKey: null,
+        feishuUserId: null,
+      });
+    });
+
+    it('clears channel target values when settings send null', async () => {
+      userRepository.findOne.mockResolvedValue(UserMockFactory.create({ id: 1 }));
+      notificationSettingRepository.findOne.mockResolvedValue({
+        id: 10,
+        userId: 1,
+        barkKey: 'old-bark-key',
+        feishuUserId: 'ou_old',
+      });
+      notificationSettingRepository.save.mockImplementation(async (value: any) => value);
+
+      await expect(
+        service.updateNotificationSettings(1, {
+          barkKey: null,
+          feishuUserId: null,
+        }),
+      ).resolves.toMatchObject({
+        barkKey: null,
+        feishuUserId: null,
+      });
+    });
+
+    it('rejects non-super-admin actors updating super admin notification bindings', async () => {
+      const superAdminUser = UserMockFactory.create({ id: 1 });
+      superAdminUser.roles = [RoleMockFactory.create({ code: 'super_admin' })];
+      userRepository.findOne.mockResolvedValue(superAdminUser);
+
+      await expect(
+        (service as any).updateNotificationSettings(
+          1,
+          {
+            barkKey: 'user-bark-key',
+          },
+          { id: 2, isSuperAdmin: false, roleCode: 'admin' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(notificationSettingRepository.save).not.toHaveBeenCalled();
     });
   });
 

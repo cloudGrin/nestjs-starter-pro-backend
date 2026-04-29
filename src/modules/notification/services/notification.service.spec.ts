@@ -12,6 +12,7 @@ import {
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { UserStatus } from '~/common/enums/user.enum';
+import { UserNotificationSettingEntity } from '../entities/user-notification-setting.entity';
 import { BarkChannelAdapter } from '../channels/bark.channel';
 import { FeishuChannelAdapter } from '../channels/feishu.channel';
 import { createMockRepository, createMockLogger } from '~/test-utils';
@@ -20,6 +21,7 @@ describe('NotificationService', () => {
   let service: NotificationService;
   let notificationRepository: jest.Mocked<Repository<NotificationEntity>>;
   let userRepository: jest.Mocked<Repository<UserEntity>>;
+  let notificationSettingRepository: jest.Mocked<Repository<UserNotificationSettingEntity>>;
   let barkAdapter: jest.Mocked<BarkChannelAdapter>;
   let feishuAdapter: jest.Mocked<FeishuChannelAdapter>;
   let _logger: jest.Mocked<LoggerService>;
@@ -27,14 +29,13 @@ describe('NotificationService', () => {
   beforeEach(async () => {
     const mockNotificationRepository = createMockRepository<NotificationEntity>();
     const mockUserRepository = createMockRepository<UserEntity>();
+    const mockNotificationSettingRepository = createMockRepository<UserNotificationSettingEntity>();
     const mockBarkAdapter = {
       type: NotificationChannel.BARK,
-      isEnabled: jest.fn().mockReturnValue(true),
       send: jest.fn(),
     } as unknown as jest.Mocked<BarkChannelAdapter>;
     const mockFeishuAdapter = {
       type: NotificationChannel.FEISHU,
-      isEnabled: jest.fn().mockReturnValue(true),
       send: jest.fn(),
     } as unknown as jest.Mocked<FeishuChannelAdapter>;
     const mockLogger = createMockLogger();
@@ -44,6 +45,10 @@ describe('NotificationService', () => {
         NotificationService,
         { provide: getRepositoryToken(NotificationEntity), useValue: mockNotificationRepository },
         { provide: getRepositoryToken(UserEntity), useValue: mockUserRepository },
+        {
+          provide: getRepositoryToken(UserNotificationSettingEntity),
+          useValue: mockNotificationSettingRepository,
+        },
         { provide: BarkChannelAdapter, useValue: mockBarkAdapter },
         { provide: FeishuChannelAdapter, useValue: mockFeishuAdapter },
         { provide: LoggerService, useValue: mockLogger },
@@ -53,6 +58,7 @@ describe('NotificationService', () => {
     service = module.get(NotificationService);
     notificationRepository = module.get(getRepositoryToken(NotificationEntity));
     userRepository = module.get(getRepositoryToken(UserEntity));
+    notificationSettingRepository = module.get(getRepositoryToken(UserNotificationSettingEntity));
     barkAdapter = module.get(BarkChannelAdapter);
     feishuAdapter = module.get(FeishuChannelAdapter);
     _logger = module.get(LoggerService);
@@ -87,6 +93,7 @@ describe('NotificationService', () => {
         where: { id: expect.anything() },
         relations: ['roles'],
       });
+      expect(notificationSettingRepository.find).not.toHaveBeenCalled();
       expect(notificationRepository.create).toHaveBeenCalled();
       expect(notificationRepository.save).toHaveBeenCalledWith(notifications);
     });
@@ -104,6 +111,12 @@ describe('NotificationService', () => {
       ] as NotificationEntity[];
 
       userRepository.find.mockResolvedValue([{ id: 1, username: 'test' }] as UserEntity[]);
+      notificationSettingRepository.find.mockResolvedValue([
+        {
+          userId: 1,
+          feishuUserId: 'ou_user_1',
+        } as UserNotificationSettingEntity,
+      ]);
       notificationRepository.create.mockReturnValue(notifications as any);
       notificationRepository.save.mockResolvedValue(notifications as any);
       feishuAdapter.send.mockResolvedValue({
@@ -118,6 +131,75 @@ describe('NotificationService', () => {
         expect.objectContaining({ sendExternal: true }),
       ]);
       expect(feishuAdapter.send).toHaveBeenCalled();
+    });
+
+    it('sends Bark through the recipient user notification binding', async () => {
+      const dto = {
+        title: '任务提醒',
+        content: '按用户绑定发送',
+        recipientIds: [1],
+        channels: [NotificationChannel.BARK],
+        sendExternal: true,
+      };
+      const notifications = [
+        { id: 1, recipientId: 1, channels: dto.channels },
+      ] as NotificationEntity[];
+
+      userRepository.find.mockResolvedValue([{ id: 1, username: 'test' }] as UserEntity[]);
+      notificationSettingRepository.find.mockResolvedValue([
+        {
+          userId: 1,
+          barkKey: 'user-bark-key',
+        } as UserNotificationSettingEntity,
+      ]);
+      notificationRepository.create.mockReturnValue(notifications as any);
+      notificationRepository.save.mockResolvedValue(notifications as any);
+      barkAdapter.send.mockResolvedValue({
+        channel: NotificationChannel.BARK,
+        success: true,
+        sentAt: new Date().toISOString(),
+      });
+
+      await service.createNotification(dto, 2);
+
+      expect(barkAdapter.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notificationSetting: expect.objectContaining({
+            barkKey: 'user-bark-key',
+          }),
+        }),
+      );
+    });
+
+    it('records external delivery failure instead of using global fallback when Bark is not bound', async () => {
+      const dto = {
+        title: '任务提醒',
+        content: '未绑定时不外发',
+        recipientIds: [1],
+        channels: [NotificationChannel.BARK],
+        sendExternal: true,
+      };
+      const notifications = [
+        { id: 1, recipientId: 1, channels: dto.channels },
+      ] as NotificationEntity[];
+
+      userRepository.find.mockResolvedValue([{ id: 1, username: 'test' }] as UserEntity[]);
+      notificationSettingRepository.find.mockResolvedValue([]);
+      notificationRepository.create.mockReturnValue(notifications as any);
+      notificationRepository.save.mockResolvedValue(notifications as any);
+
+      await service.createNotification(dto, 2);
+
+      expect(barkAdapter.send).not.toHaveBeenCalled();
+      expect(notificationRepository.update).toHaveBeenCalledWith(1, {
+        deliveryResults: [
+          expect.objectContaining({
+            channel: NotificationChannel.BARK,
+            success: false,
+            error: expect.stringContaining('not bound'),
+          }),
+        ],
+      });
     });
 
     it('广播通知时应该查询所有活跃用户', async () => {
@@ -289,7 +371,7 @@ describe('NotificationService', () => {
   });
 
   it('保留飞书和 bark adapter 注入', () => {
-    expect(barkAdapter.isEnabled).toBeDefined();
-    expect(feishuAdapter.isEnabled).toBeDefined();
+    expect(barkAdapter.send).toBeDefined();
+    expect(feishuAdapter.send).toBeDefined();
   });
 });

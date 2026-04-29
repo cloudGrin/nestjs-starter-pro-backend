@@ -141,6 +141,7 @@ export class UserService {
     this.logger.debug(`更新用户时找到用户 id=${id}, username=${user.username}`);
 
     this.ensureCanMutateSuperAdminTarget(user, actor, '修改超级管理员');
+    const previousStatus = user.status;
 
     // 检查邮箱是否存在
     if (dto.email && dto.email !== user.email) {
@@ -171,6 +172,11 @@ export class UserService {
     this.logger.debug(`用户信息合并完成，准备保存 id=${id}`);
     const updatedUser = await this.userRepository.save(user);
     this.logger.debug(`用户更新保存成功 id=${updatedUser.id}`);
+
+    if (dto.status && dto.status !== previousStatus && dto.status !== UserStatus.ACTIVE) {
+      await this.revokeRefreshTokens(id);
+      this.logger.debug(`用户状态变更为非活跃后清除令牌 userId=${id}, status=${dto.status}`);
+    }
 
     this.logger.log(`Updated user: ${updatedUser.username} (ID: ${updatedUser.id})`);
 
@@ -424,9 +430,12 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
-    const roles = await this.roleRepository.find({
-      where: { id: In(roleIds), isActive: true },
-    });
+    const roles =
+      roleIds.length === 0
+        ? []
+        : await this.roleRepository.find({
+            where: { id: In(roleIds), isActive: true },
+          });
 
     this.logger.debug(
       `分配角色查询结果 userId=${userId}, 请求数量=${roleIds.length}, 查询数量=${roles.length}`,
@@ -528,9 +537,12 @@ export class UserService {
   }
 
   private async isUsernameExist(username: string, excludeId?: number): Promise<boolean> {
-    const qb = this.userRepository.createQueryBuilder('user').where('user.username = :username', {
-      username,
-    });
+    const qb = this.userRepository
+      .createQueryBuilder('user')
+      .withDeleted()
+      .where('user.username = :username', {
+        username,
+      });
 
     if (excludeId) {
       qb.andWhere('user.id != :id', { id: excludeId });
@@ -540,9 +552,12 @@ export class UserService {
   }
 
   private async isEmailExist(email: string, excludeId?: number): Promise<boolean> {
-    const qb = this.userRepository.createQueryBuilder('user').where('user.email = :email', {
-      email,
-    });
+    const qb = this.userRepository
+      .createQueryBuilder('user')
+      .withDeleted()
+      .where('user.email = :email', {
+        email,
+      });
 
     if (excludeId) {
       qb.andWhere('user.id != :id', { id: excludeId });
@@ -552,9 +567,12 @@ export class UserService {
   }
 
   private async isPhoneExist(phone: string, excludeId?: number): Promise<boolean> {
-    const qb = this.userRepository.createQueryBuilder('user').where('user.phone = :phone', {
-      phone,
-    });
+    const qb = this.userRepository
+      .createQueryBuilder('user')
+      .withDeleted()
+      .where('user.phone = :phone', {
+        phone,
+      });
 
     if (excludeId) {
       qb.andWhere('user.id != :id', { id: excludeId });
@@ -721,7 +739,7 @@ export class UserService {
     }
 
     if (roleId) {
-      qb.andWhere('role.id = :roleId', { roleId });
+      qb.innerJoin('user.roles', 'filterRole', 'filterRole.id = :roleId', { roleId });
     }
 
     if (sort && USER_SORT_FIELDS.has(sort)) {
@@ -748,6 +766,11 @@ export class UserService {
 
   private async revokeRefreshTokens(userId: number): Promise<void> {
     await this.refreshTokenRepository.update({ userId, isRevoked: false }, { isRevoked: true });
+    await this.revokeAllAccessTokens(userId);
+  }
+
+  private async revokeAllAccessTokens(userId: number): Promise<void> {
+    await this.userRepository.increment({ id: userId }, 'tokenVersion', 1);
   }
 
   private createDefaultNotificationSettings(userId: number): UserNotificationSettingEntity {

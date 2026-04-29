@@ -109,6 +109,18 @@ describe('FileService', () => {
         ),
       ).rejects.toThrow(BusinessException);
     });
+
+    it('数据库保存失败时回滚已写入的存储文件', async () => {
+      const file = createMockFile();
+      const entity = { id: 1, originalName: file.originalname } as FileEntity;
+      const storage = storageFactory.getStrategy(FileStorageType.LOCAL);
+
+      repository.create.mockReturnValue(entity);
+      repository.save.mockRejectedValue(new Error('db unavailable'));
+
+      await expect(service.upload(file, { module: 'avatar' }, 1)).rejects.toThrow('db unavailable');
+      expect(storage.delete).toHaveBeenCalledWith('uploads/2024/01/20/test_123.jpg');
+    });
   });
 
   describe('findFiles', () => {
@@ -169,10 +181,28 @@ describe('FileService', () => {
 
       await service.remove(1);
 
+      expect(repository.softDelete).toHaveBeenCalledWith(1);
       expect(storageFactory.getStrategy(FileStorageType.LOCAL).delete).toHaveBeenCalledWith(
         file.path,
       );
+    });
+
+    it('物理删除失败时恢复软删除记录，避免数据库指向丢失文件', async () => {
+      const file = {
+        id: 1,
+        path: 'uploads/test.jpg',
+        storage: FileStorageType.LOCAL,
+      } as FileEntity;
+      const storage = storageFactory.getStrategy(FileStorageType.LOCAL);
+      (repository as any).restore = jest.fn().mockResolvedValue({ affected: 1 });
+      repository.findOne.mockResolvedValue(file);
+      repository.softDelete.mockResolvedValue({ affected: 1 } as any);
+      (storage.delete as jest.Mock).mockRejectedValue(new Error('storage unavailable'));
+
+      await expect(service.remove(1)).rejects.toThrow('storage unavailable');
+
       expect(repository.softDelete).toHaveBeenCalledWith(1);
+      expect((repository as any).restore).toHaveBeenCalledWith(1);
     });
   });
 });

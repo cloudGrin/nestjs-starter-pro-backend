@@ -241,9 +241,12 @@ export class RoleService {
       throw new BadRequestException('系统角色权限不能修改');
     }
 
-    const permissions = await this.permissionRepository.find({
-      where: { id: In(permissionIds), isActive: true },
-    });
+    const permissions =
+      permissionIds.length === 0
+        ? []
+        : await this.permissionRepository.find({
+            where: { id: In(permissionIds), isActive: true },
+          });
 
     this.logger.debug(
       `角色权限查询完成 roleId=${roleId}, 请求数量=${permissionIds.length}, 查询数量=${permissions.length}`,
@@ -373,7 +376,10 @@ export class RoleService {
   }
 
   private async isCodeExist(code: string, excludeId?: number): Promise<boolean> {
-    const qb = this.roleRepository.createQueryBuilder('role').where('role.code = :code', { code });
+    const qb = this.roleRepository
+      .createQueryBuilder('role')
+      .withDeleted()
+      .where('role.code = :code', { code });
 
     if (excludeId) {
       qb.andWhere('role.id != :id', { id: excludeId });

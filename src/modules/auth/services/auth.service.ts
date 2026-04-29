@@ -12,6 +12,7 @@ import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserStatus } from '~/common/enums/user.enum';
 import { StringUtil } from '~/common/utils';
+import { getExpiresInSeconds, hashRefreshToken } from './token-revocation.util';
 
 export interface JwtPayload {
   sub: number;
@@ -20,6 +21,8 @@ export interface JwtPayload {
   type: 'access' | 'refresh';
   sessionId?: string;
   jti?: string; // JWT ID, 确保token唯一性
+  iat?: number;
+  tokenVersion?: number;
 }
 
 export interface AuthTokens {
@@ -98,6 +101,7 @@ export class AuthService {
     const user = await this.findUserForLogin(account);
 
     if (!user) {
+      await this.recordIpLoginFailure(ipAddress);
       this.emitLoginFailure(account, ipAddress, userAgent, '用户不存在');
       throw new UnauthorizedException('用户名或密码错误');
     }
@@ -198,10 +202,11 @@ export class AuthService {
     try {
       // 验证刷新令牌
       const payload = await this.verifyRefreshToken(refreshToken);
+      const tokenHash = hashRefreshToken(refreshToken);
 
       // 查找存储的刷新令牌
       const storedToken = await this.refreshTokenRepository.findOne({
-        where: { token: refreshToken },
+        where: { tokenHash },
         relations: ['user', 'user.roles'],
       });
 
@@ -255,7 +260,7 @@ export class AuthService {
         return {
           accessToken,
           refreshToken: newRefreshToken,
-          expiresIn: this.getExpiresInSeconds(this.accessTokenExpiresIn),
+          expiresIn: getExpiresInSeconds(this.accessTokenExpiresIn),
           sessionId,
         };
       }
@@ -263,7 +268,7 @@ export class AuthService {
       return {
         accessToken,
         refreshToken: refreshToken,
-        expiresIn: this.getExpiresInSeconds(this.accessTokenExpiresIn),
+        expiresIn: getExpiresInSeconds(this.accessTokenExpiresIn),
         sessionId,
       };
     } catch (error) {
@@ -278,13 +283,32 @@ export class AuthService {
   /**
    * 登出
    */
-  async logout(userId: number, refreshToken?: string): Promise<void> {
+  async logout(userId: number, refreshToken?: string, currentSessionId?: string): Promise<void> {
     if (refreshToken) {
+      const tokenHash = hashRefreshToken(refreshToken);
+      const storedToken = await this.refreshTokenRepository.findOne({
+        where: { userId, tokenHash, isRevoked: false },
+      });
+      const sessionId = storedToken?.deviceId || currentSessionId;
+
       // 撤销指定的刷新令牌
-      await this.refreshTokenRepository.update({ token: refreshToken }, { isRevoked: true });
+      await this.refreshTokenRepository.update(
+        { userId, tokenHash, isRevoked: false },
+        { isRevoked: true },
+      );
+
+      if (sessionId) {
+        await this.refreshTokenRepository.update(
+          { userId, deviceId: sessionId, isRevoked: false },
+          { isRevoked: true },
+        );
+      } else {
+        await this.revokeAllAccessSessions(userId);
+      }
     } else {
       // 撤销该用户的所有刷新令牌
       await this.refreshTokenRepository.update({ userId, isRevoked: false }, { isRevoked: true });
+      await this.revokeAllAccessSessions(userId);
     }
 
     // 清除权限缓存
@@ -352,7 +376,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: this.getExpiresInSeconds(this.accessTokenExpiresIn),
+      expiresIn: getExpiresInSeconds(this.accessTokenExpiresIn),
       sessionId: sid,
     };
   }
@@ -368,6 +392,7 @@ export class AuthService {
       type: 'access',
       sessionId,
       jti: StringUtil.shortUuid(), // 确保每个token唯一
+      tokenVersion: user.tokenVersion ?? 0,
     };
 
     return this.jwtService.signAsync(payload as any, {
@@ -406,12 +431,12 @@ export class AuthService {
   ): Promise<void> {
     // 计算过期时间
     const expiresAt = new Date();
-    const expiresInMs = this.getExpiresInSeconds(this.refreshTokenExpiresIn) * 1000;
+    const expiresInMs = getExpiresInSeconds(this.refreshTokenExpiresIn) * 1000;
     expiresAt.setTime(expiresAt.getTime() + expiresInMs);
 
     // 创建刷新令牌记录
     const refreshToken = this.refreshTokenRepository.create({
-      token,
+      tokenHash: hashRefreshToken(token),
       userId,
       ipAddress,
       userAgent,
@@ -421,32 +446,25 @@ export class AuthService {
 
     await this.refreshTokenRepository.save(refreshToken);
 
-    // 限制每个用户最多保留5个有效的刷新令牌（排除刚创建的token）
-    await this.limitUserRefreshTokens(userId, 5, refreshToken.id);
+    // 限制每个用户最多保留5个有效的刷新令牌
+    await this.limitUserRefreshTokens(userId, 5);
   }
 
   /**
    * 限制用户刷新令牌数量
    */
-  private async limitUserRefreshTokens(
-    userId: number,
-    maxCount: number,
-    excludeId?: number,
-  ): Promise<void> {
+  private async limitUserRefreshTokens(userId: number, maxCount: number): Promise<void> {
     const tokens = await this.refreshTokenRepository.find({
       where: { userId, isRevoked: false },
       order: { id: 'DESC' }, // 使用 ID 而不是 createdAt 确保排序稳定性
     });
 
-    // 过滤掉要排除的token（通常是刚创建的）
-    const tokensToConsider = excludeId ? tokens.filter((t) => t.id !== excludeId) : tokens;
-
-    if (tokensToConsider.length > maxCount) {
-      const tokensToRevoke = tokensToConsider.slice(maxCount);
+    if (tokens.length > maxCount) {
+      const tokensToRevoke = tokens.slice(maxCount);
 
       // 批量撤销旧token
       for (const token of tokensToRevoke) {
-        await this.refreshTokenRepository.update({ token: token.token }, { isRevoked: true });
+        await this.refreshTokenRepository.update({ id: token.id }, { isRevoked: true });
       }
     }
   }
@@ -472,32 +490,21 @@ export class AuthService {
   /**
    * 获取过期时间（秒）
    */
-  private getExpiresInSeconds(expiresIn: string): number {
-    const match = expiresIn.match(/(\d+)([dhms])/);
-    if (!match) {
-      return 3600; // 默认1小时
-    }
-
-    const value = parseInt(match[1]);
-    const unit = match[2];
-
-    switch (unit) {
-      case 'd':
-        return value * 86400;
-      case 'h':
-        return value * 3600;
-      case 'm':
-        return value * 60;
-      case 's':
-        return value;
-      default:
-        return 3600;
-    }
-  }
-
   private async clearUserPermissionCache(userId: number): Promise<void> {
     const cacheKey = `user:permissions:${userId}`;
     await this.cache.del(cacheKey);
+  }
+
+  private async recordIpLoginFailure(ipAddress?: string): Promise<void> {
+    if (!ipAddress) {
+      return;
+    }
+
+    await this.cache.incr(`login:attempts:ip:${ipAddress}`, 30 * 60);
+  }
+
+  private async revokeAllAccessSessions(userId: number): Promise<void> {
+    await this.userRepository.increment({ id: userId }, 'tokenVersion', 1);
   }
 
   private emitLoginFailure(account: string, ip?: string, userAgent?: string, reason?: string) {

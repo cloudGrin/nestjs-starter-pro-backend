@@ -51,6 +51,11 @@ services:
       FILE_BASE_URL: ${FILE_BASE_URL:-/api/v1/files}
       FILE_MAX_SIZE: 52428800  # 50MB
 
+      # 通知配置
+      NOTIFY_BARK_BASE_URL: ${NOTIFY_BARK_BASE_URL:-}
+      NOTIFY_FEISHU_APP_ID: ${NOTIFY_FEISHU_APP_ID:-}
+      NOTIFY_FEISHU_APP_SECRET: ${NOTIFY_FEISHU_APP_SECRET:-}
+
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs

@@ -172,6 +172,20 @@ describe('ApiAuthService', () => {
   });
 
   describe('updateApp', () => {
+    it('rejects duplicate app name during update', async () => {
+      const app = createMockApp({ id: 1, name: 'Old App' });
+
+      appRepository.findOne.mockResolvedValue(app);
+      appRepository.count.mockResolvedValue(1);
+
+      await expect(service.updateApp(1, { name: 'New App' })).rejects.toThrow(BadRequestException);
+
+      expect(appRepository.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({ name: 'New App' }),
+      });
+      expect(appRepository.save).not.toHaveBeenCalled();
+    });
+
     it('clears cached API key auth when app scopes or active status changes', async () => {
       const keys = [
         createMockKey({ id: 11, keyHash: 'hash-11' }),
@@ -194,6 +208,24 @@ describe('ApiAuthService', () => {
       });
       expect(cacheService.del).toHaveBeenCalledWith('api_key:hash-11');
       expect(cacheService.del).toHaveBeenCalledWith('api_key:hash-12');
+    });
+
+    it('clears cached API key auth when app name changes', async () => {
+      const keys = [createMockKey({ id: 11, keyHash: 'hash-11' })];
+      const app = createMockApp({ id: 1, name: 'Old App' });
+
+      appRepository.findOne.mockResolvedValue(app);
+      appRepository.count.mockResolvedValue(0);
+      appRepository.save.mockResolvedValue({ ...app, name: 'New App' });
+      keyRepository.find.mockResolvedValue(keys);
+
+      await service.updateApp(1, { name: 'New App' });
+
+      expect(keyRepository.find).toHaveBeenCalledWith({
+        where: { appId: 1 },
+        order: { createdAt: 'DESC' },
+      });
+      expect(cacheService.del).toHaveBeenCalledWith('api_key:hash-11');
     });
   });
 

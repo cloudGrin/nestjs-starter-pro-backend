@@ -77,6 +77,12 @@ describe('MenuService', () => {
 
     it('应该成功创建菜单', async () => {
       const mockMenu = createMockMenu(mockCreateDto);
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+      };
+      menuRepository.createQueryBuilder.mockReturnValue(qb as any);
       menuRepository.create.mockReturnValue(mockMenu);
       menuRepository.save.mockResolvedValue(mockMenu);
 
@@ -86,6 +92,18 @@ describe('MenuService', () => {
       expect(menuRepository.create).toHaveBeenCalledWith(mockCreateDto);
       expect(menuRepository.save).toHaveBeenCalledWith(mockMenu);
       expect(logger.log).toHaveBeenCalledWith(`创建菜单: ${mockMenu.name}`);
+    });
+
+    it('创建菜单时拒绝重复路径', async () => {
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(1),
+      };
+      menuRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+      await expect(service.create(mockCreateDto)).rejects.toThrow(BadRequestException);
+      expect(menuRepository.save).not.toHaveBeenCalled();
     });
 
     it('当指定的父菜单不存在时应该抛出 NotFoundException', async () => {
@@ -102,8 +120,14 @@ describe('MenuService', () => {
       const existingMenu = createMockMenu({ id: 1 });
       const dto: UpdateMenuDto = { name: '更新后的菜单', path: '/updated' };
       const updatedMenu = createMockMenu({ ...existingMenu, ...dto });
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+      };
 
       menuRepository.findOne.mockResolvedValue(existingMenu);
+      menuRepository.createQueryBuilder.mockReturnValue(qb as any);
       menuRepository.save.mockResolvedValue(updatedMenu);
 
       const result = await service.update(1, dto);
@@ -116,6 +140,21 @@ describe('MenuService', () => {
       menuRepository.findOne.mockResolvedValue(createMockMenu({ id: 1 }));
 
       await expect(service.update(1, { parentId: 1 })).rejects.toThrow(BadRequestException);
+    });
+
+    it('更新菜单时拒绝重复路径', async () => {
+      const existingMenu = createMockMenu({ id: 1, path: '/old' });
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(1),
+      };
+
+      menuRepository.findOne.mockResolvedValue(existingMenu);
+      menuRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+      await expect(service.update(1, { path: '/duplicated' })).rejects.toThrow(BadRequestException);
+      expect(menuRepository.save).not.toHaveBeenCalled();
     });
   });
 
@@ -301,6 +340,15 @@ describe('MenuService', () => {
 
       expect(result.parentId).toBe(3);
       expect(transactionalRepo.save).toHaveBeenCalledWith(expect.objectContaining({ parentId: 3 }));
+    });
+  });
+
+  describe('batchUpdateStatus', () => {
+    it('rejects when some menu ids do not exist', async () => {
+      menuRepository.count.mockResolvedValue(1);
+
+      await expect(service.batchUpdateStatus([1, 2], false)).rejects.toThrow(BadRequestException);
+      expect(menuRepository.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 });

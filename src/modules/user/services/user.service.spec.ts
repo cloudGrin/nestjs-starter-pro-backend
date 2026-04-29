@@ -27,7 +27,9 @@ const createUserQueryBuilderMock = () => {
   const builder = {
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
     leftJoinAndSelect: jest.fn().mockReturnThis(),
+    withDeleted: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
@@ -138,6 +140,7 @@ describe('UserService', () => {
           password: 'Password123!',
         } as any),
       ).rejects.toThrow(ConflictException);
+      expect(qb.withDeleted).toHaveBeenCalled();
     });
 
     it('创建用户时忽略 roleIds，角色只能走专用分配接口', async () => {
@@ -221,6 +224,7 @@ describe('UserService', () => {
       await expect(service.updateUser(1, { email: 'new@example.com' } as any)).rejects.toThrow(
         ConflictException,
       );
+      expect(qb.withDeleted).toHaveBeenCalled();
     });
 
     it('更新用户时不把 roleIds 写入用户实体', async () => {
@@ -235,6 +239,22 @@ describe('UserService', () => {
       expect(roleRepository.find).not.toHaveBeenCalled();
       expect(savedUser).toMatchObject({ nickname: '新昵称' });
       expect(savedUser).not.toHaveProperty('roleIds');
+    });
+
+    it('通过通用更新接口禁用用户时撤销有效令牌', async () => {
+      const existingUser = UserMockFactory.create({ id: 1, status: UserStatus.ACTIVE });
+
+      userRepository.findOne.mockResolvedValue(existingUser);
+      userRepository.save.mockImplementation(async (entity) => entity);
+      refreshTokenRepository.update.mockResolvedValue(undefined);
+
+      await service.updateUser(1, { status: UserStatus.DISABLED } as any);
+
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 1, isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(userRepository.increment).toHaveBeenCalledWith({ id: 1 }, 'tokenVersion', 1);
     });
   });
 
@@ -251,6 +271,24 @@ describe('UserService', () => {
 
       expect(result.items).toEqual(mockUsers);
       expect(result.meta.totalItems).toBe(2);
+    });
+
+    it('按角色筛选时仍保留用户的完整角色列表', async () => {
+      const qb = createUserQueryBuilderMock();
+
+      userRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getManyAndCount.mockResolvedValue([[UserMockFactory.create({ id: 1 })], 1]);
+
+      await service.findUsers({ page: 1, limit: 10, roleId: 2 } as any);
+
+      expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('user.roles', 'role');
+      expect(qb.innerJoin).toHaveBeenCalledWith(
+        'user.roles',
+        'filterRole',
+        'filterRole.id = :roleId',
+        { roleId: 2 },
+      );
+      expect(qb.andWhere).not.toHaveBeenCalledWith('role.id = :roleId', { roleId: 2 });
     });
 
     it('ignores unsupported sort fields and falls back to createdAt ordering', async () => {
@@ -323,6 +361,7 @@ describe('UserService', () => {
         { userId: 1, isRevoked: false },
         { isRevoked: true },
       );
+      expect(userRepository.increment).toHaveBeenCalledWith({ id: 1 }, 'tokenVersion', 1);
     });
 
     it('旧密码错误时抛出BadRequestException', async () => {
@@ -355,6 +394,7 @@ describe('UserService', () => {
         { userId: 1, isRevoked: false },
         { isRevoked: true },
       );
+      expect(userRepository.increment).toHaveBeenCalledWith({ id: 1 }, 'tokenVersion', 1);
     });
   });
 
@@ -383,6 +423,7 @@ describe('UserService', () => {
         { userId: 1, isRevoked: false },
         { isRevoked: true },
       );
+      expect(userRepository.increment).toHaveBeenCalledWith({ id: 1 }, 'tokenVersion', 1);
     });
   });
 
@@ -399,6 +440,7 @@ describe('UserService', () => {
         { userId: 1, isRevoked: false },
         { isRevoked: true },
       );
+      expect(userRepository.increment).toHaveBeenCalledWith({ id: 1 }, 'tokenVersion', 1);
     });
 
     it('批量删除时用户不全应抛出异常', async () => {
@@ -425,6 +467,8 @@ describe('UserService', () => {
         { userId: 2, isRevoked: false },
         { isRevoked: true },
       );
+      expect(userRepository.increment).toHaveBeenCalledWith({ id: 1 }, 'tokenVersion', 1);
+      expect(userRepository.increment).toHaveBeenCalledWith({ id: 2 }, 'tokenVersion', 1);
     });
   });
 
@@ -539,6 +583,19 @@ describe('UserService', () => {
 
       expect(result.roles).toEqual(roles);
       expect(userRepository.save).toHaveBeenCalled();
+    });
+
+    it('允许传空角色列表来清空用户角色', async () => {
+      const user = UserMockFactory.create({ id: 1 });
+      user.roles = [RoleMockFactory.create({ id: 1 })];
+      userRepository.findOne.mockResolvedValue(user);
+      userRepository.save.mockImplementation(async (entity) => entity);
+
+      const result = await service.assignRoles(1, []);
+
+      expect(roleRepository.find).not.toHaveBeenCalled();
+      expect(result.roles).toEqual([]);
+      expect(cache.del).toHaveBeenCalledWith('user:permissions:1');
     });
   });
 

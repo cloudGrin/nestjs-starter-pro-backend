@@ -3,15 +3,16 @@ import { BaseEntity } from '~/core/base/base.entity';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 
 @Entity('refresh_tokens')
-@Index(['token', 'userId'])
+@Index('UQ_refresh_tokens_token_hash', ['tokenHash'], { unique: true })
+@Index('IDX_refresh_tokens_tokenHash_userId', ['tokenHash', 'userId'])
 export class RefreshTokenEntity extends BaseEntity {
   @Column({
     type: 'varchar',
-    length: 500,
-    unique: true,
-    comment: '刷新Token',
+    name: 'token_hash',
+    length: 64,
+    comment: '刷新Token SHA-256哈希',
   })
-  token: string;
+  tokenHash: string;
 
   @Column({
     type: 'int',

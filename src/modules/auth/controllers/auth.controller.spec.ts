@@ -26,4 +26,18 @@ describe('AuthController', () => {
     expect(paths).not.toContain('profile');
     expect(paths).not.toContain('check');
   });
+
+  it('passes the current access-token session id to logout', async () => {
+    const authService = {
+      logout: jest.fn().mockResolvedValue(undefined),
+    };
+    const configService = {
+      get: jest.fn(),
+    };
+    const controller = new AuthController(authService as any, configService as any);
+
+    await controller.logout({ id: 1, sessionId: 'access-session' } as any, 'bad-refresh-token');
+
+    expect(authService.logout).toHaveBeenCalledWith(1, 'bad-refresh-token', 'access-session');
+  });
 });

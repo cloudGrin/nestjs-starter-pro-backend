@@ -13,6 +13,7 @@ import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserStatus } from '~/common/enums/user.enum';
 import { faker } from '@faker-js/faker';
 import * as bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 
@@ -25,6 +26,8 @@ const createUserLoginQueryBuilder = () => {
   };
   return qb;
 };
+
+const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -42,6 +45,7 @@ describe('AuthService', () => {
     user.password = bcrypt.hashSync('Password123!', 10);
     user.realName = faker.person.fullName();
     user.status = UserStatus.ACTIVE;
+    user.tokenVersion = 0;
     user.lockedUntil = null;
     user.loginAttempts = 0;
     user.roles = [];
@@ -58,7 +62,7 @@ describe('AuthService', () => {
     const token = new RefreshTokenEntity();
     token.id = faker.number.int({ min: 1, max: 1000 });
     token.userId = faker.number.int({ min: 1, max: 1000 });
-    token.token = faker.string.uuid();
+    token.tokenHash = hashToken(faker.string.uuid());
     token.deviceId = faker.string.uuid();
     token.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     token.isRevoked = false;
@@ -74,6 +78,7 @@ describe('AuthService', () => {
       createQueryBuilder: jest.fn(),
       save: jest.fn(),
       update: jest.fn(),
+      increment: jest.fn(),
     };
 
     const mockRefreshTokenRepository = {
@@ -180,6 +185,21 @@ describe('AuthService', () => {
         mockUser.id,
         expect.objectContaining({ lastLoginIp: mockIp }),
       );
+      expect(refreshTokenRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenHash: hashToken('mock-refresh-token'),
+          userId: mockUser.id,
+        }),
+      );
+      expect(refreshTokenRepository.create.mock.calls[0][0]).not.toHaveProperty('token');
+      expect(jwtService.signAsync).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          type: 'access',
+          tokenVersion: mockUser.tokenVersion,
+        }),
+        expect.any(Object),
+      );
     });
 
     it('登录响应包含普通角色的有效权限清单', async () => {
@@ -225,6 +245,7 @@ describe('AuthService', () => {
       await expect(service.login(mockLoginDto, mockIp, mockUserAgent)).rejects.toThrow(
         UnauthorizedException,
       );
+      expect(cacheService.incr).toHaveBeenCalledWith(`login:attempts:ip:${mockIp}`, 30 * 60);
     });
 
     it('当密码错误时应该抛出UnauthorizedException并记录失败', async () => {
@@ -285,7 +306,7 @@ describe('AuthService', () => {
       const mockUser = createMockUser({ status: UserStatus.ACTIVE });
       const mockRefreshToken = createMockRefreshToken({
         userId: mockUser.id,
-        token: mockRefreshTokenString,
+        tokenHash: hashToken(mockRefreshTokenString),
         expiresAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
         user: mockUser,
       });
@@ -304,7 +325,7 @@ describe('AuthService', () => {
       expect(result.accessToken).toBe('new-access-token');
       expect(result.refreshToken).toBe(mockRefreshTokenString);
       expect(refreshTokenRepository.findOne).toHaveBeenCalledWith({
-        where: { token: mockRefreshTokenString },
+        where: { tokenHash: hashToken(mockRefreshTokenString) },
         relations: ['user', 'user.roles'],
       });
     });
@@ -313,7 +334,7 @@ describe('AuthService', () => {
       const mockUser = createMockUser({ status: UserStatus.ACTIVE });
       const storedToken = createMockRefreshToken({
         userId: mockUser.id,
-        token: mockRefreshTokenString,
+        tokenHash: hashToken(mockRefreshTokenString),
         expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
         user: mockUser,
       });
@@ -352,15 +373,42 @@ describe('AuthService', () => {
 
   describe('logout', () => {
     it('应该成功登出单个会话', async () => {
+      refreshTokenRepository.findOne.mockResolvedValue(
+        createMockRefreshToken({
+          userId: 1,
+          tokenHash: hashToken('refresh-token'),
+          deviceId: 'session-1',
+        }),
+      );
       refreshTokenRepository.update.mockResolvedValue(undefined);
 
       await service.logout(1, 'refresh-token');
 
       expect(refreshTokenRepository.update).toHaveBeenCalledWith(
-        { token: 'refresh-token' },
+        { userId: 1, tokenHash: hashToken('refresh-token'), isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 1, deviceId: 'session-1', isRevoked: false },
         { isRevoked: true },
       );
       expect(cacheService.del).toHaveBeenCalledWith('user:permissions:1');
+    });
+
+    it('传入无效刷新令牌时仍撤销当前访问令牌对应会话', async () => {
+      refreshTokenRepository.findOne.mockResolvedValue(null);
+      refreshTokenRepository.update.mockResolvedValue(undefined);
+
+      await service.logout(1, 'stale-refresh-token', 'current-session');
+
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 1, tokenHash: hashToken('stale-refresh-token'), isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 1, deviceId: 'current-session', isRevoked: false },
+        { isRevoked: true },
+      );
     });
 
     it('应该成功登出所有会话', async () => {
@@ -372,6 +420,7 @@ describe('AuthService', () => {
         { userId: 1, isRevoked: false },
         { isRevoked: true },
       );
+      expect(userRepository.increment).toHaveBeenCalledWith({ id: 1 }, 'tokenVersion', 1);
       expect(cacheService.del).toHaveBeenCalledWith('user:permissions:1');
     });
 
@@ -379,6 +428,25 @@ describe('AuthService', () => {
       refreshTokenRepository.update.mockRejectedValue(new Error('database unavailable'));
 
       await expect(service.logout(1, 'refresh-token')).rejects.toThrow('database unavailable');
+    });
+  });
+
+  describe('limitUserRefreshTokens', () => {
+    it('keeps the newly-created token within the max session count', async () => {
+      const tokens = [6, 5, 4, 3, 2, 1].map((id) =>
+        createMockRefreshToken({
+          id,
+          userId: 1,
+          tokenHash: hashToken(`token-${id}`),
+        }),
+      );
+      refreshTokenRepository.find.mockResolvedValue(tokens);
+      refreshTokenRepository.update.mockResolvedValue(undefined);
+
+      await (service as any).limitUserRefreshTokens(1, 5, 6);
+
+      expect(refreshTokenRepository.update).toHaveBeenCalledTimes(1);
+      expect(refreshTokenRepository.update).toHaveBeenCalledWith({ id: 1 }, { isRevoked: true });
     });
   });
 });

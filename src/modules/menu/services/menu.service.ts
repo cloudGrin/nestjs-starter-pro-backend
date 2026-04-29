@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { TreeUtil } from '~/common/utils/tree.util';
 import { MenuEntity } from '../entities/menu.entity';
@@ -35,6 +35,10 @@ export class MenuService {
         throw new NotFoundException(`父菜单 ID ${dto.parentId} 不存在`);
       }
       this.logger.debug(`创建菜单时找到父菜单 parentId=${dto.parentId}, name=${parent.name}`);
+    }
+
+    if (dto.path && !(await this.validatePath(dto.path))) {
+      throw new BadRequestException('菜单路径已存在');
     }
 
     const entity = this.menuRepository.create(dto);
@@ -80,6 +84,10 @@ export class MenuService {
         }
         this.logger.debug(`更新菜单父级校验通过 id=${id}, targetParent=${dto.parentId}`);
       }
+    }
+
+    if (dto.path && dto.path !== entity.path && !(await this.validatePath(dto.path, id))) {
+      throw new BadRequestException('菜单路径已存在');
     }
 
     Object.assign(entity, dto);
@@ -366,14 +374,26 @@ export class MenuService {
    */
   async batchUpdateStatus(menuIds: number[], isActive: boolean): Promise<void> {
     this.logger.debug(`批量更新菜单状态 menuIds=${JSON.stringify(menuIds)}, isActive=${isActive}`);
+    const uniqueIds = Array.from(new Set(menuIds));
+    if (uniqueIds.length === 0) {
+      return;
+    }
+
+    const existingCount = await this.menuRepository.count({
+      where: { id: In(uniqueIds) },
+    });
+    if (existingCount !== uniqueIds.length) {
+      throw new BadRequestException('部分菜单不存在');
+    }
+
     await this.menuRepository
       .createQueryBuilder()
       .update()
       .set({ isActive })
-      .whereInIds(menuIds)
+      .whereInIds(uniqueIds)
       .execute();
 
-    this.logger.log(`批量${isActive ? '启用' : '禁用'} ${menuIds.length} 个菜单`);
+    this.logger.log(`批量${isActive ? '启用' : '禁用'} ${uniqueIds.length} 个菜单`);
   }
 
   /**

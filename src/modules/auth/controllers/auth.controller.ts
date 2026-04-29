@@ -68,7 +68,7 @@ export class AuthController {
     @CurrentUser() user: AuthenticatedUser,
     @Body('refreshToken') refreshToken?: string,
   ) {
-    await this.authService.logout(user.id, refreshToken);
+    await this.authService.logout(user.id, refreshToken, user.sessionId);
     return MessageResponseDto.of('登出成功');
   }
 }

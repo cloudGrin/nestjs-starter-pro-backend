@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { ApiAppEntity } from '../entities/api-app.entity';
 import { ApiKeyEntity } from '../entities/api-key.entity';
 import { CacheService } from '~/shared/cache/cache.service';
@@ -93,10 +93,16 @@ export class ApiAuthService {
    */
   async updateApp(appId: number, dto: UpdateApiAppDto): Promise<ApiAppEntity> {
     const app = await this.getApp(appId);
+    const nameChanged = dto.name !== undefined && dto.name !== app.name;
+
+    if (dto.name && nameChanged && (await this.isAppNameExist(dto.name, appId))) {
+      throw new BadRequestException('应用名称已存在');
+    }
+
     Object.assign(app, dto);
     const updated = await this.appRepository.save(app);
 
-    if (dto.scopes !== undefined || 'isActive' in dto) {
+    if (nameChanged || dto.scopes !== undefined || 'isActive' in dto) {
       await this.clearAppKeyCache(appId);
     }
 
@@ -296,9 +302,9 @@ export class ApiAuthService {
     };
   }
 
-  private async isAppNameExist(name: string): Promise<boolean> {
+  private async isAppNameExist(name: string, excludeId?: number): Promise<boolean> {
     const count = await this.appRepository.count({
-      where: { name },
+      where: excludeId ? { name, id: Not(excludeId) } : { name },
     });
     return count > 0;
   }

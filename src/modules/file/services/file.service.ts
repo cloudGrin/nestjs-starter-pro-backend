@@ -92,41 +92,68 @@ export class FileService {
     const category = FileUtil.getFileCategory(file.originalname);
     const hash = this.computeHash(file.buffer!);
 
-    const stored = await storage.saveFile(file.buffer!, {
-      filename: uniqueFilename,
-      relativePath,
-      isPublic: options.isPublic ?? false,
-    });
-    this.logger?.log(
-      `[FileUpload] Stored file "${stored.filename}" via ${this.storageType} (path=${stored.path})`,
-    );
+    let stored: Awaited<ReturnType<FileStorageStrategy['saveFile']>> | undefined;
+    let entity: FileEntity | undefined;
 
-    const entity = await this.fileRepository.save(
-      this.fileRepository.create({
-        originalName: file.originalname,
-        filename: stored.filename,
-        path: stored.path,
-        url: stored.url,
-        mimeType: file.mimetype,
-        size: stored.size,
-        category,
-        storage: this.storageType,
-        hash,
-        module: options.module,
-        tags: options.tags,
+    try {
+      stored = await storage.saveFile(file.buffer!, {
+        filename: uniqueFilename,
+        relativePath,
         isPublic: options.isPublic ?? false,
-        remark: options.remark,
-        metadata: stored.metadata,
-        uploaderId,
-      }),
-    );
+      });
+      this.logger?.log(
+        `[FileUpload] Stored file "${stored.filename}" via ${this.storageType} (path=${stored.path})`,
+      );
 
-    if (entity.isPublic && entity.storage === FileStorageType.LOCAL) {
-      entity.url = this.buildPublicDownloadUrl(entity.id);
-      await this.fileRepository.update(entity.id, { url: entity.url });
+      entity = await this.fileRepository.save(
+        this.fileRepository.create({
+          originalName: file.originalname,
+          filename: stored.filename,
+          path: stored.path,
+          url: stored.url,
+          mimeType: file.mimetype,
+          size: stored.size,
+          category,
+          storage: this.storageType,
+          hash,
+          module: options.module,
+          tags: options.tags,
+          isPublic: options.isPublic ?? false,
+          remark: options.remark,
+          metadata: stored.metadata,
+          uploaderId,
+        }),
+      );
+
+      if (entity.isPublic && entity.storage === FileStorageType.LOCAL) {
+        entity.url = this.buildPublicDownloadUrl(entity.id);
+        await this.fileRepository.update(entity.id, { url: entity.url });
+      }
+    } catch (error) {
+      let recordRollbackSucceeded = true;
+      if (entity?.id) {
+        await this.fileRepository.softDelete(entity.id).catch((restoreError) => {
+          recordRollbackSucceeded = false;
+          this.logger?.error(
+            `[FileUpload] Failed to roll back file record ${entity?.id}`,
+            restoreError.stack,
+          );
+        });
+      }
+
+      if (stored?.path && recordRollbackSucceeded) {
+        await storage.delete(stored.path).catch((deleteError) => {
+          this.logger?.error(
+            `[FileUpload] Failed to remove stored file after database error: ${stored?.path}`,
+            deleteError.stack,
+          );
+        });
+      }
+
+      throw error;
     }
 
-    return entity;
+    return entity!;
   }
 
   /**
@@ -194,13 +221,23 @@ export class FileService {
     const entity = await this.findById(id);
     const storage = this.getStorageStrategy(entity.storage);
 
-    if (entity.path) {
-      await storage.delete(entity.path);
-    }
-
     const deleteResult = await this.fileRepository.softDelete(id);
     if (!deleteResult.affected) {
       throw BusinessException.notFound('File', id);
+    }
+
+    try {
+      if (entity.path) {
+        await storage.delete(entity.path);
+      }
+    } catch (error) {
+      await this.fileRepository.restore(id).catch((restoreError) => {
+        this.logger?.error(
+          `[FileDelete] Failed to restore file record ${id} after storage delete failure`,
+          restoreError.stack,
+        );
+      });
+      throw error;
     }
   }
 

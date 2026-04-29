@@ -38,6 +38,7 @@ export class UserMockFactory {
     ]);
     user.status = UserStatus.ACTIVE;
     user.loginAttempts = 0;
+    user.tokenVersion = 0;
     user.lastLoginAt = faker.date.recent();
     user.lastLoginIp = faker.internet.ip();
     user.createdAt = faker.date.past();

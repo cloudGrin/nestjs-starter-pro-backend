@@ -126,6 +126,13 @@ export class UserEntity extends SoftDeleteBaseEntity {
   loginAttempts: number;
 
   @Column({
+    type: 'int',
+    default: 0,
+    comment: '访问Token版本',
+  })
+  tokenVersion: number;
+
+  @Column({
     type: 'timestamp',
     nullable: true,
     comment: '锁定截止时间',

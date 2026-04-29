@@ -10,10 +10,13 @@ describe('AssignUserRolesDto', () => {
     expect(dto.roleIds).toEqual([1, 2]);
   });
 
-  it('rejects empty or non-integer role id lists', async () => {
+  it('accepts an empty list to clear all user roles', async () => {
     await expect(
       validate(plainToInstance(AssignUserRolesDto, { roleIds: [] })),
-    ).resolves.not.toHaveLength(0);
+    ).resolves.toHaveLength(0);
+  });
+
+  it('rejects non-integer role id lists', async () => {
     await expect(
       validate(plainToInstance(AssignUserRolesDto, { roleIds: [1, 'abc'] })),
     ).resolves.not.toHaveLength(0);

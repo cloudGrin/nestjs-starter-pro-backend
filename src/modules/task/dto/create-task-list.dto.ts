@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -18,6 +19,7 @@ export class CreateTaskListDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: '清单名称不能为空' })
   @MaxLength(100)
   name: string;
 

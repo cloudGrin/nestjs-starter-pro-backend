@@ -7,6 +7,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
@@ -22,6 +23,7 @@ export class UpdateTaskListDto {
   @IsProvided()
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: '清单名称不能为空' })
   @MaxLength(100)
   name?: string;
 

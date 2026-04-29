@@ -27,6 +27,7 @@ export class TaskListService {
   async createList(dto: CreateTaskListDto, user: CurrentUserLike): Promise<TaskListEntity> {
     const entity = this.taskListRepository.create({
       ...dto,
+      name: this.normalizeName(dto.name),
       ownerId: user.id,
       scope: dto.scope ?? TaskListScope.PERSONAL,
       isArchived: dto.isArchived ?? false,
@@ -60,7 +61,11 @@ export class TaskListService {
   ): Promise<TaskListEntity> {
     const entity = await this.findById(id);
     this.ensureCanManageList(entity, user);
-    Object.assign(entity, dto);
+    await this.ensureCanChangeScope(entity, dto.scope);
+    Object.assign(entity, {
+      ...dto,
+      ...(dto.name !== undefined ? { name: this.normalizeName(dto.name) } : {}),
+    });
     return this.taskListRepository.save(entity);
   }
 
@@ -102,6 +107,29 @@ export class TaskListService {
     }
 
     throw BusinessException.notFound('Task list', list.id);
+  }
+
+  private async ensureCanChangeScope(
+    list: TaskListEntity,
+    nextScope?: TaskListScope,
+  ): Promise<void> {
+    if (list.scope !== TaskListScope.FAMILY || nextScope !== TaskListScope.PERSONAL) {
+      return;
+    }
+
+    const taskCount = await this.taskRepository.count({ where: { listId: list.id } });
+    if (taskCount > 0) {
+      throw BusinessException.validationFailed('家庭清单下仍有任务，不能改为个人清单');
+    }
+  }
+
+  private normalizeName(value: string): string {
+    const name = value.trim();
+    if (!name) {
+      throw BusinessException.validationFailed('清单名称不能为空');
+    }
+
+    return name;
   }
 
   private isSuperAdmin(user: CurrentUserLike): boolean {

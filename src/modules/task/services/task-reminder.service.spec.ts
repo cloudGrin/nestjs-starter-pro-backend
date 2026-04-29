@@ -54,6 +54,7 @@ describe('TaskReminderService', () => {
     });
 
     taskRepository.find.mockResolvedValue([task]);
+    taskRepository.findOne.mockResolvedValue(task);
     taskRepository.update.mockResolvedValue({ affected: 1 } as any);
 
     const count = await service.sendDueReminders(now);
@@ -63,7 +64,9 @@ describe('TaskReminderService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           status: TaskStatus.PENDING,
+          list: { isArchived: false },
         }),
+        relations: ['list'],
       }),
     );
     expect(notificationService.createNotification).toHaveBeenCalledWith(
@@ -92,6 +95,76 @@ describe('TaskReminderService', () => {
     );
   });
 
+  it('only scans tasks from active lists', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    taskRepository.find.mockResolvedValue([]);
+
+    await service.sendDueReminders(now);
+
+    expect(taskRepository.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relations: ['list'],
+        where: expect.objectContaining({
+          list: { isArchived: false },
+        }),
+      }),
+    );
+  });
+
+  it('always includes the internal channel once when normalizing reminder channels', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    const task = Object.assign(new TaskEntity(), {
+      id: 8,
+      title: '外部提醒',
+      status: TaskStatus.PENDING,
+      creatorId: 1,
+      remindAt: now,
+      reminderChannels: [
+        NotificationChannel.BARK,
+        NotificationChannel.INTERNAL,
+        NotificationChannel.BARK,
+      ],
+      sendExternalReminder: true,
+    });
+
+    taskRepository.find.mockResolvedValue([task]);
+    taskRepository.findOne.mockResolvedValue(task);
+    taskRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+    await service.sendDueReminders(now);
+
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
+      }),
+    );
+  });
+
+  it('falls back to the internal channel when reminder channels are empty', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    const task = Object.assign(new TaskEntity(), {
+      id: 9,
+      title: '站内提醒',
+      status: TaskStatus.PENDING,
+      creatorId: 1,
+      remindAt: now,
+      reminderChannels: [],
+      sendExternalReminder: false,
+    });
+
+    taskRepository.find.mockResolvedValue([task]);
+    taskRepository.findOne.mockResolvedValue(task);
+    taskRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+    await service.sendDueReminders(now);
+
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channels: [NotificationChannel.INTERNAL],
+      }),
+    );
+  });
+
   it('skips a reminder that was already claimed by another cron run', async () => {
     const now = new Date('2026-05-01T09:00:00.000Z');
     const task = Object.assign(new TaskEntity(), {
@@ -111,6 +184,36 @@ describe('TaskReminderService', () => {
     expect(notificationService.createNotification).not.toHaveBeenCalled();
   });
 
+  it('skips a reminder when its list is archived after scanning but before delivery', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    const task = Object.assign(new TaskEntity(), {
+      id: 7,
+      title: '接孩子',
+      status: TaskStatus.PENDING,
+      creatorId: 1,
+      remindAt: now,
+      list: { isArchived: false },
+    });
+    const archivedTask = Object.assign(new TaskEntity(), {
+      ...task,
+      list: { isArchived: true },
+    });
+
+    taskRepository.find.mockResolvedValue([task]);
+    taskRepository.findOne.mockResolvedValue(archivedTask);
+    taskRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+    const count = await service.sendDueReminders(now);
+
+    expect(count).toBe(0);
+    expect(taskRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 7 },
+      relations: ['list'],
+    });
+    expect(taskRepository.update).toHaveBeenLastCalledWith(7, { remindedAt: null });
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+  });
+
   it('truncates long notification titles to fit the notification title column', async () => {
     const now = new Date('2026-05-01T09:00:00.000Z');
     const task = Object.assign(new TaskEntity(), {
@@ -122,6 +225,7 @@ describe('TaskReminderService', () => {
     });
 
     taskRepository.find.mockResolvedValue([task]);
+    taskRepository.findOne.mockResolvedValue(task);
     taskRepository.update.mockResolvedValue({ affected: 1 } as any);
 
     const count = await service.sendDueReminders(now);

@@ -69,6 +69,7 @@ describe('TaskService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
   });
 
   function mockTaskLookup(task: TaskEntity): void {
@@ -79,6 +80,17 @@ describe('TaskService', () => {
       setLock: jest.fn().mockReturnThis(),
       getOne: jest.fn().mockResolvedValue(task),
     } as any);
+  }
+
+  function mockActiveFamilyList(id = 2): TaskListEntity {
+    const list = Object.assign(new TaskListEntity(), {
+      id,
+      name: '家庭计划',
+      scope: TaskListScope.FAMILY,
+      isArchived: false,
+    });
+    listRepository.findOne.mockResolvedValue(list);
+    return list;
   }
 
   it('creates a family task assigned to an existing user', async () => {
@@ -122,7 +134,9 @@ describe('TaskService', () => {
 
     expect(result).toEqual(savedTask);
     expect(listRepository.findOne).toHaveBeenCalledWith({ where: { id: 2 } });
-    expect(userRepository.findOne).toHaveBeenCalledWith({ where: { id: 5 } });
+    expect(userRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 5, status: UserStatus.ACTIVE },
+    });
     expect(taskRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         title: '每周整理冰箱',
@@ -134,7 +148,7 @@ describe('TaskService', () => {
         urgent: false,
         tags: ['family'],
         recurrenceType: TaskRecurrenceType.WEEKLY,
-        reminderChannels: [NotificationChannel.BARK],
+        reminderChannels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
         sendExternalReminder: true,
       }),
     );
@@ -155,6 +169,95 @@ describe('TaskService', () => {
         {
           title: '越权任务',
           listId: 3,
+        },
+        { id: 1 } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a task in an archived list', async () => {
+    const list = Object.assign(new TaskListEntity(), {
+      id: 5,
+      name: '归档清单',
+      scope: TaskListScope.FAMILY,
+      isArchived: true,
+    });
+
+    listRepository.findOne.mockResolvedValue(list);
+
+    await expect(
+      service.createTask(
+        {
+          title: '不应进入归档',
+          listId: 5,
+        },
+        { id: 1 } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a task whose reminder time is after the due time', async () => {
+    mockActiveFamilyList();
+
+    await expect(
+      service.createTask(
+        {
+          title: '错误提醒时间',
+          listId: 2,
+          dueAt: '2026-05-01T09:00:00.000Z',
+          remindAt: '2026-05-01T10:00:00.000Z',
+        },
+        { id: 1 } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a recurring task without a due time', async () => {
+    mockActiveFamilyList();
+
+    await expect(
+      service.createTask(
+        {
+          title: '缺少截止时间',
+          listId: 2,
+          recurrenceType: TaskRecurrenceType.DAILY,
+        },
+        { id: 1 } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating an anniversary without a due time', async () => {
+    mockActiveFamilyList();
+
+    await expect(
+      service.createTask(
+        {
+          title: '缺少纪念日日期',
+          listId: 2,
+          taskType: TaskType.ANNIVERSARY,
+        },
+        { id: 1 } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects enabling external reminders without an external channel', async () => {
+    mockActiveFamilyList();
+
+    await expect(
+      service.createTask(
+        {
+          title: '缺少外部渠道',
+          listId: 2,
+          dueAt: '2026-05-01T10:00:00.000Z',
+          reminderChannels: [NotificationChannel.INTERNAL],
+          sendExternalReminder: true,
         },
         { id: 1 } as any,
       ),
@@ -238,6 +341,148 @@ describe('TaskService', () => {
     expect(userRepository.findOne).not.toHaveBeenCalled();
   });
 
+  it('resets reminder delivery state when reminder time changes', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 13,
+      title: '改提醒时间',
+      remindAt: new Date('2026-05-01T09:00:00.000Z'),
+      remindedAt: new Date('2026-05-01T09:00:00.000Z'),
+      list: Object.assign(new TaskListEntity(), {
+        scope: TaskListScope.FAMILY,
+      }),
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+
+    const result = await service.updateTask(
+      13,
+      {
+        remindAt: '2026-05-02T09:00:00.000Z',
+      } as any,
+      { id: 1 } as any,
+    );
+
+    expect(result.remindAt?.toISOString()).toBe('2026-05-02T09:00:00.000Z');
+    expect(result.remindedAt).toBeNull();
+  });
+
+  it('requires migrating a task out of an archived list before editing it', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 16,
+      title: '归档清单任务',
+      listId: 8,
+      status: TaskStatus.PENDING,
+      taskType: TaskType.TASK,
+      recurrenceType: TaskRecurrenceType.NONE,
+      reminderChannels: [NotificationChannel.INTERNAL],
+      sendExternalReminder: false,
+      list: Object.assign(new TaskListEntity(), {
+        id: 8,
+        scope: TaskListScope.FAMILY,
+        isArchived: true,
+      }),
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+
+    await expect(
+      service.updateTask(16, { title: '仍在归档清单' } as any, { id: 1 } as any),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects partial updates that would break strict task date rules', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 17,
+      title: '普通任务',
+      listId: 2,
+      status: TaskStatus.PENDING,
+      taskType: TaskType.TASK,
+      recurrenceType: TaskRecurrenceType.NONE,
+      dueAt: null,
+      remindAt: null,
+      reminderChannels: [NotificationChannel.INTERNAL],
+      sendExternalReminder: false,
+      list: Object.assign(new TaskListEntity(), {
+        id: 2,
+        scope: TaskListScope.FAMILY,
+        isArchived: false,
+      }),
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+
+    await expect(
+      service.updateTask(17, { recurrenceType: TaskRecurrenceType.DAILY } as any, { id: 1 } as any),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects moving a family task into a personal list for normal users', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 14,
+      title: '家庭任务',
+      listId: 2,
+      list: Object.assign(new TaskListEntity(), {
+        id: 2,
+        scope: TaskListScope.FAMILY,
+      }),
+    });
+    const targetList = Object.assign(new TaskListEntity(), {
+      id: 9,
+      scope: TaskListScope.PERSONAL,
+      ownerId: 1,
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+    listRepository.findOne.mockResolvedValue(targetList);
+
+    await expect(service.updateTask(14, { listId: 9 } as any, { id: 1 } as any)).rejects.toThrow(
+      BusinessException,
+    );
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('moves an archived task onto the active target list when migrating it', async () => {
+    const archivedList = Object.assign(new TaskListEntity(), {
+      id: 8,
+      scope: TaskListScope.FAMILY,
+      isArchived: true,
+    });
+    const targetList = Object.assign(new TaskListEntity(), {
+      id: 9,
+      scope: TaskListScope.FAMILY,
+      isArchived: false,
+    });
+    const task = Object.assign(new TaskEntity(), {
+      id: 18,
+      title: '归档清单任务',
+      listId: archivedList.id,
+      status: TaskStatus.PENDING,
+      taskType: TaskType.TASK,
+      recurrenceType: TaskRecurrenceType.NONE,
+      reminderChannels: [NotificationChannel.INTERNAL],
+      sendExternalReminder: false,
+      list: archivedList,
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+    listRepository.findOne.mockResolvedValue(targetList);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+
+    const result = await service.updateTask(18, { listId: targetList.id } as any, { id: 1 } as any);
+
+    expect(result.listId).toBe(targetList.id);
+    expect(result.list).toBe(targetList);
+    expect(taskRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listId: targetList.id,
+        list: targetList,
+      }),
+    );
+  });
+
   it('filters tasks by taskId for notification deep links', async () => {
     const qb = {
       leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -276,6 +521,26 @@ describe('TaskService', () => {
     expect(result).toEqual([assignee]);
   });
 
+  it('rejects assigning inactive users even when the user id exists', async () => {
+    mockActiveFamilyList();
+    userRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.createTask(
+        {
+          title: '指派给禁用用户',
+          listId: 2,
+          assigneeId: 5,
+        },
+        { id: 1 } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(userRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 5, status: UserStatus.ACTIVE },
+    });
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
   it('rolls a recurring task forward and records the completed occurrence', async () => {
     const task = Object.assign(new TaskEntity(), {
       id: 1,
@@ -307,6 +572,34 @@ describe('TaskService', () => {
     expect(result.dueAt?.toISOString()).toBe('2026-05-08T10:00:00.000Z');
     expect(result.remindAt?.toISOString()).toBe('2026-05-08T09:00:00.000Z');
     expect(result.remindedAt).toBeNull();
+  });
+
+  it('rejects a duplicate completion right after a recurring task rolls forward', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-01T10:00:05.000Z'));
+    const task = Object.assign(new TaskEntity(), {
+      id: 7,
+      title: '每周整理冰箱',
+      status: TaskStatus.PENDING,
+      dueAt: new Date('2026-05-08T10:00:00.000Z'),
+      remindAt: new Date('2026-05-08T09:00:00.000Z'),
+      recurrenceType: TaskRecurrenceType.WEEKLY,
+      recurrenceInterval: 1,
+      list: Object.assign(new TaskListEntity(), {
+        scope: TaskListScope.FAMILY,
+      }),
+    });
+    const latestCompletion = Object.assign(new TaskCompletionEntity(), {
+      taskId: 7,
+      completedAt: new Date('2026-05-01T10:00:00.000Z'),
+      nextDueAt: new Date('2026-05-08T10:00:00.000Z'),
+    });
+
+    mockTaskLookup(task);
+    completionRepository.findOne.mockResolvedValue(latestCompletion);
+
+    await expect(service.completeTask(7, 7, { id: 7 } as any)).rejects.toThrow(BusinessException);
+    expect(completionRepository.save).not.toHaveBeenCalled();
+    expect(taskRepository.save).not.toHaveBeenCalled();
   });
 
   it('rolls a recurring reminder-only task forward instead of reminding again immediately', async () => {
@@ -361,6 +654,23 @@ describe('TaskService', () => {
         occurrenceDueAt: new Date('2026-05-01T10:00:00.000Z'),
       }),
     );
+  });
+
+  it('rejects reopening a task that is not completed', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 15,
+      title: '仍是待办',
+      status: TaskStatus.PENDING,
+      remindedAt: new Date('2026-05-01T09:00:00.000Z'),
+      list: Object.assign(new TaskListEntity(), {
+        scope: TaskListScope.FAMILY,
+      }),
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+
+    await expect(service.reopenTask(15, { id: 1 } as any)).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
   });
 
   it('locks the task row before completing it', async () => {

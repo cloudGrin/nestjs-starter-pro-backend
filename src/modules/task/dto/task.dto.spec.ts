@@ -37,6 +37,13 @@ describe('task DTOs', () => {
     );
   });
 
+  it('rejects blank task and list names', async () => {
+    await expect(transformBody(CreateTaskDto, { title: '   ', listId: 1 })).rejects.toThrow();
+    await expect(transformBody(UpdateTaskDto, { title: '   ' })).rejects.toThrow();
+    await expect(transformBody(CreateTaskListDto, { name: '   ' })).rejects.toThrow();
+    await expect(transformBody(UpdateTaskListDto, { name: '   ' })).rejects.toThrow();
+  });
+
   it('rejects non-positive ids in task query', async () => {
     const dto = plainToInstance(QueryTaskDto, {
       listId: 0,
@@ -48,6 +55,14 @@ describe('task DTOs', () => {
     expect(errors.map((error) => error.property)).toEqual(
       expect.arrayContaining(['listId', 'assigneeId']),
     );
+  });
+
+  it('normalizes query tag arrays the same way as comma-separated tags', () => {
+    const dto = plainToInstance(QueryTaskDto, {
+      tags: [' home ', '', 'work'],
+    });
+
+    expect(dto.tags).toEqual(['home', 'work']);
   });
 
   it('does not materialize task defaults on partial updates', async () => {

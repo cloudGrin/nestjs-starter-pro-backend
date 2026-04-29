@@ -14,7 +14,7 @@ export enum TaskQueryView {
 
 function toTagList(value: unknown): string[] | undefined {
   if (Array.isArray(value)) {
-    return value.map(String).filter(Boolean);
+    return value.map((item) => String(item).trim()).filter(Boolean);
   }
 
   if (typeof value === 'string') {

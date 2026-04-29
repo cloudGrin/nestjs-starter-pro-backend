@@ -26,7 +26,9 @@ export class TaskReminderService {
         status: TaskStatus.PENDING,
         remindAt: LessThanOrEqual(now),
         remindedAt: IsNull(),
+        list: { isArchived: false },
       },
+      relations: ['list'],
     });
 
     let sent = 0;
@@ -52,18 +54,38 @@ export class TaskReminderService {
         continue;
       }
 
+      const claimedTask = await this.taskRepository.findOne({
+        where: { id: task.id },
+        relations: ['list'],
+      });
+      if (!claimedTask) {
+        continue;
+      }
+
+      if (claimedTask.list?.isArchived) {
+        await this.taskRepository.update(task.id, { remindedAt: null });
+        continue;
+      }
+
+      const claimedRecipientId = claimedTask.assigneeId ?? claimedTask.creatorId;
+      if (!claimedRecipientId) {
+        this.logger.warn(`Skip task reminder without recipient taskId=${claimedTask.id}`);
+        await this.taskRepository.update(task.id, { remindedAt: null });
+        continue;
+      }
+
       try {
         await this.notificationService.createNotification({
-          title: this.buildReminderTitle(task.title),
-          content: task.description || task.title,
-          recipientIds: [recipientId],
+          title: this.buildReminderTitle(claimedTask.title),
+          content: claimedTask.description || claimedTask.title,
+          recipientIds: [claimedRecipientId],
           type: NotificationType.REMINDER,
-          channels: this.normalizeChannels(task.reminderChannels),
-          sendExternal: task.sendExternalReminder,
+          channels: this.normalizeChannels(claimedTask.reminderChannels),
+          sendExternal: claimedTask.sendExternalReminder,
           metadata: {
             module: 'task',
-            taskId: task.id,
-            link: `/tasks?taskId=${task.id}`,
+            taskId: claimedTask.id,
+            link: `/tasks?taskId=${claimedTask.id}`,
           },
         });
 
@@ -84,11 +106,6 @@ export class TaskReminderService {
 
   private normalizeChannels(channels?: NotificationChannel[] | null): NotificationChannel[] {
     const list = channels && channels.length > 0 ? [...channels] : [NotificationChannel.INTERNAL];
-
-    if (!list.includes(NotificationChannel.INTERNAL)) {
-      list.unshift(NotificationChannel.INTERNAL);
-    }
-
-    return Array.from(new Set(list));
+    return Array.from(new Set([NotificationChannel.INTERNAL, ...list]));
   }
 }

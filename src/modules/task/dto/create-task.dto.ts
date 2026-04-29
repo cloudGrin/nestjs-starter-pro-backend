@@ -9,6 +9,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -23,6 +24,7 @@ export class CreateTaskDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: '任务标题不能为空' })
   @MaxLength(200)
   title: string;
 

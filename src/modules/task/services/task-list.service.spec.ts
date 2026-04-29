@@ -63,6 +63,27 @@ describe('TaskListService', () => {
     );
   });
 
+  it('trims task list names before saving', async () => {
+    const saved = Object.assign(new TaskListEntity(), {
+      id: 2,
+      name: '家庭计划',
+      scope: TaskListScope.PERSONAL,
+      sort: 0,
+      isArchived: false,
+      ownerId: 3,
+    });
+    repository.create.mockImplementation((data) => data as TaskListEntity);
+    repository.save.mockResolvedValue(saved);
+
+    await service.createList({ name: '  家庭计划  ' }, { id: 3 });
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '家庭计划',
+      }),
+    );
+  });
+
   it('limits normal users to family lists and their own personal lists', async () => {
     repository.find.mockResolvedValue([]);
 
@@ -101,5 +122,21 @@ describe('TaskListService', () => {
 
     await expect((service as any).removeList(4, { id: 3 })).rejects.toThrow(BusinessException);
     expect(repository.softDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects converting a non-empty family list to a personal list', async () => {
+    repository.findOne.mockResolvedValue(
+      Object.assign(new TaskListEntity(), {
+        id: 4,
+        scope: TaskListScope.FAMILY,
+      }),
+    );
+    taskRepository.count.mockResolvedValue(1);
+
+    await expect(
+      service.updateList(4, { scope: TaskListScope.PERSONAL }, { id: 3 }),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.count).toHaveBeenCalledWith({ where: { listId: 4 } });
+    expect(repository.save).not.toHaveBeenCalled();
   });
 });

@@ -7,6 +7,7 @@ import { PaginationResult } from '~/common/types/pagination.types';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { UserStatus } from '~/common/enums/user.enum';
+import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
 import { CreateTaskDto, QueryTaskDto, TaskQueryView, UpdateTaskDto } from '../dto';
 import { TaskListEntity, TaskListScope } from '../entities/task-list.entity';
 import { TaskEntity, TaskRecurrenceType, TaskStatus, TaskType } from '../entities/task.entity';
@@ -36,6 +37,11 @@ const TASK_SORT_FIELDS = new Set([
   'completedAt',
   'title',
 ]);
+const RECENT_COMPLETION_DEDUP_WINDOW_MS = 30_000;
+const EXTERNAL_REMINDER_CHANNELS = new Set<NotificationChannel>([
+  NotificationChannel.BARK,
+  NotificationChannel.FEISHU,
+]);
 
 @Injectable()
 export class TaskService {
@@ -57,9 +63,10 @@ export class TaskService {
     this.ensureCanUseList(list, user);
     await this.ensureAssigneeExists(dto.assigneeId);
 
-    const entity = this.taskRepository.create({
-      ...this.toTaskPatch(dto),
-      title: dto.title,
+    const patch = this.toTaskPatch(dto);
+    const entityData = {
+      ...patch,
+      title: this.normalizeRequiredText(dto.title),
       listId: dto.listId,
       creatorId: user.id,
       assigneeId: dto.assigneeId,
@@ -70,10 +77,12 @@ export class TaskService {
       important: dto.important ?? false,
       urgent: dto.urgent ?? false,
       tags: dto.tags ?? null,
-      reminderChannels: dto.reminderChannels ?? null,
+      reminderChannels: patch.reminderChannels ?? [NotificationChannel.INTERNAL],
       sendExternalReminder: dto.sendExternalReminder ?? false,
-    });
+    };
 
+    this.ensureTaskRules(entityData as TaskEntity);
+    const entity = this.taskRepository.create(entityData);
     const saved = await this.taskRepository.save(entity);
     this.logger.log(`Created task "${saved.title}" by user ${user.id}`);
     return saved;
@@ -126,17 +135,34 @@ export class TaskService {
 
   async updateTask(id: number, dto: UpdateTaskDto, user: CurrentUserLike): Promise<TaskEntity> {
     const entity = await this.findByIdOrFail(id, user);
+    let targetList: TaskListEntity | undefined;
 
     if (dto.listId !== undefined) {
-      const list = await this.ensureListExists(dto.listId);
-      this.ensureCanUseList(list, user);
+      targetList = await this.ensureListExists(dto.listId);
+      this.ensureCanUseList(targetList, user);
+      this.ensureCanMoveTaskToList(entity, targetList, user);
     }
 
     if (dto.assigneeId !== undefined) {
       await this.ensureAssigneeExists(dto.assigneeId);
     }
 
-    Object.assign(entity, this.toTaskPatch(dto));
+    const patch = this.toTaskPatch(dto);
+    if (targetList) {
+      patch.list = targetList;
+    }
+    if (
+      patch.remindAt !== undefined &&
+      !this.isSameDateValue(entity.remindAt ?? null, patch.remindAt)
+    ) {
+      patch.remindedAt = null;
+    }
+
+    const nextEntity = Object.assign(Object.create(Object.getPrototypeOf(entity)), entity, patch);
+    this.ensureArchivedTaskMigrated(entity, nextEntity);
+    this.ensureTaskRules(nextEntity);
+
+    Object.assign(entity, patch);
     return this.taskRepository.save(entity);
   }
 
@@ -155,6 +181,14 @@ export class TaskService {
       }
 
       const completedAt = new Date();
+      if (this.isRecurring(task)) {
+        await this.ensureNotRecentlyCompletedRecurringOccurrence(
+          task,
+          completionRepository,
+          completedAt,
+        );
+      }
+
       const nextOccurrence = this.isRecurring(task)
         ? this.calculateNextOccurrencePatch(task, completedAt)
         : null;
@@ -183,6 +217,10 @@ export class TaskService {
 
   async reopenTask(id: number, user: CurrentUserLike): Promise<TaskEntity> {
     const task = await this.findByIdOrFail(id, user);
+    if (task.status !== TaskStatus.COMPLETED) {
+      throw BusinessException.validationFailed('只有已完成任务可以重开');
+    }
+
     task.status = TaskStatus.PENDING;
     task.completedAt = null;
     task.remindedAt = null;
@@ -211,7 +249,9 @@ export class TaskService {
       return;
     }
 
-    const assignee = await this.userRepository.findOne({ where: { id: assigneeId } });
+    const assignee = await this.userRepository.findOne({
+      where: { id: assigneeId, status: UserStatus.ACTIVE },
+    });
     if (!assignee) {
       throw BusinessException.notFound('User', assigneeId);
     }
@@ -255,7 +295,6 @@ export class TaskService {
     };
 
     for (const key of [
-      'title',
       'description',
       'listId',
       'assigneeId',
@@ -265,12 +304,19 @@ export class TaskService {
       'tags',
       'recurrenceType',
       'recurrenceInterval',
-      'reminderChannels',
       'sendExternalReminder',
     ] as const) {
       if (dto[key] !== undefined) {
         (patch as any)[key] = dto[key];
       }
+    }
+
+    if (dto.title !== undefined) {
+      patch.title = this.normalizeRequiredText(dto.title);
+    }
+
+    if (dto.reminderChannels !== undefined) {
+      patch.reminderChannels = this.normalizeReminderChannels(dto.reminderChannels);
     }
 
     return patch;
@@ -358,7 +404,62 @@ export class TaskService {
     task.remindedAt = null;
   }
 
+  private normalizeRequiredText(value: string): string {
+    const text = value.trim();
+    if (!text) {
+      throw BusinessException.validationFailed('任务标题不能为空');
+    }
+
+    return text;
+  }
+
+  private normalizeReminderChannels(
+    channels?: NotificationChannel[] | null,
+  ): NotificationChannel[] {
+    const list = channels && channels.length > 0 ? channels : [NotificationChannel.INTERNAL];
+    return Array.from(new Set([NotificationChannel.INTERNAL, ...list]));
+  }
+
+  private ensureTaskRules(task: TaskEntity): void {
+    const recurrenceType = task.recurrenceType ?? TaskRecurrenceType.NONE;
+    const taskType = task.taskType ?? TaskType.TASK;
+
+    if (task.remindAt && task.dueAt && task.remindAt.getTime() > task.dueAt.getTime()) {
+      throw BusinessException.validationFailed('提醒时间不能晚于截止时间');
+    }
+
+    if (recurrenceType !== TaskRecurrenceType.NONE && !task.dueAt) {
+      throw BusinessException.validationFailed('重复任务必须设置截止时间');
+    }
+
+    if (taskType === TaskType.ANNIVERSARY && !task.dueAt) {
+      throw BusinessException.validationFailed('纪念日必须设置日期');
+    }
+
+    if (task.sendExternalReminder && !this.hasExternalReminderChannel(task.reminderChannels)) {
+      throw BusinessException.validationFailed('外部提醒需要选择 Bark 或飞书');
+    }
+  }
+
+  private hasExternalReminderChannel(channels?: NotificationChannel[] | null): boolean {
+    return channels?.some((channel) => EXTERNAL_REMINDER_CHANNELS.has(channel)) ?? false;
+  }
+
+  private ensureArchivedTaskMigrated(current: TaskEntity, next: TaskEntity): void {
+    if (!current.list?.isArchived) {
+      return;
+    }
+
+    if (next.listId === current.listId) {
+      throw BusinessException.validationFailed('归档清单任务必须迁移到可用清单');
+    }
+  }
+
   private ensureCanUseList(list: TaskListEntity, user: CurrentUserLike): void {
+    if (list.isArchived) {
+      throw BusinessException.validationFailed('清单已归档，不能用于任务');
+    }
+
     if (this.isSuperAdmin(user)) {
       return;
     }
@@ -372,6 +473,60 @@ export class TaskService {
     }
 
     throw BusinessException.notFound('Task list', list.id);
+  }
+
+  private ensureCanMoveTaskToList(
+    task: TaskEntity,
+    targetList: TaskListEntity,
+    user: CurrentUserLike,
+  ): void {
+    if (task.listId === targetList.id || this.isSuperAdmin(user)) {
+      return;
+    }
+
+    if (task.list?.scope === TaskListScope.FAMILY && targetList.scope === TaskListScope.PERSONAL) {
+      throw BusinessException.validationFailed('家庭任务不能移动到个人清单');
+    }
+  }
+
+  private isSameDateValue(left: Date | null, right: Date | null): boolean {
+    if (!left && !right) {
+      return true;
+    }
+
+    if (!left || !right) {
+      return false;
+    }
+
+    return left.getTime() === right.getTime();
+  }
+
+  private async ensureNotRecentlyCompletedRecurringOccurrence(
+    task: TaskEntity,
+    completionRepository: Repository<TaskCompletionEntity>,
+    now: Date,
+  ): Promise<void> {
+    const currentOccurrence = task.dueAt ?? task.remindAt ?? null;
+    if (!currentOccurrence) {
+      return;
+    }
+
+    const latestCompletion = await completionRepository.findOne({
+      where: { taskId: task.id },
+      order: { completedAt: 'DESC' },
+    });
+
+    if (!latestCompletion?.completedAt || !latestCompletion.nextDueAt) {
+      return;
+    }
+
+    const rolledToLatestNext = latestCompletion.nextDueAt.getTime() === currentOccurrence.getTime();
+    const elapsedMs = now.getTime() - latestCompletion.completedAt.getTime();
+    const completedRecently = elapsedMs >= 0 && elapsedMs <= RECENT_COMPLETION_DEDUP_WINDOW_MS;
+
+    if (rolledToLatestNext && completedRecently) {
+      throw BusinessException.validationFailed('任务刚刚已完成，请稍后再操作');
+    }
   }
 
   private canAccessTask(task: TaskEntity, user: CurrentUserLike): boolean {

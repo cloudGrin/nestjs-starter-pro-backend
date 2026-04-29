@@ -214,6 +214,58 @@ describe('TaskReminderService', () => {
     expect(notificationService.createNotification).not.toHaveBeenCalled();
   });
 
+  it('skips a reminder when the task is completed after scanning but before delivery', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    const task = Object.assign(new TaskEntity(), {
+      id: 10,
+      title: '接孩子',
+      status: TaskStatus.PENDING,
+      creatorId: 1,
+      remindAt: now,
+      list: { isArchived: false },
+    });
+    const completedTask = Object.assign(new TaskEntity(), {
+      ...task,
+      status: TaskStatus.COMPLETED,
+    });
+
+    taskRepository.find.mockResolvedValue([task]);
+    taskRepository.findOne.mockResolvedValue(completedTask);
+    taskRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+    const count = await service.sendDueReminders(now);
+
+    expect(count).toBe(0);
+    expect(taskRepository.update).toHaveBeenLastCalledWith(10, { remindedAt: null });
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+  });
+
+  it('skips a reminder when the reminder time is moved to the future after scanning', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    const task = Object.assign(new TaskEntity(), {
+      id: 11,
+      title: '接孩子',
+      status: TaskStatus.PENDING,
+      creatorId: 1,
+      remindAt: now,
+      list: { isArchived: false },
+    });
+    const rescheduledTask = Object.assign(new TaskEntity(), {
+      ...task,
+      remindAt: new Date('2026-05-01T10:00:00.000Z'),
+    });
+
+    taskRepository.find.mockResolvedValue([task]);
+    taskRepository.findOne.mockResolvedValue(rescheduledTask);
+    taskRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+    const count = await service.sendDueReminders(now);
+
+    expect(count).toBe(0);
+    expect(taskRepository.update).toHaveBeenLastCalledWith(11, { remindedAt: null });
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+  });
+
   it('truncates long notification titles to fit the notification title column', async () => {
     const now = new Date('2026-05-01T09:00:00.000Z');
     const task = Object.assign(new TaskEntity(), {

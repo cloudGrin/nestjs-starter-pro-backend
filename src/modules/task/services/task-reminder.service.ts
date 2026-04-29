@@ -67,6 +67,11 @@ export class TaskReminderService {
         continue;
       }
 
+      if (!this.isStillDueForReminder(claimedTask, now)) {
+        await this.taskRepository.update(task.id, { remindedAt: null });
+        continue;
+      }
+
       const claimedRecipientId = claimedTask.assigneeId ?? claimedTask.creatorId;
       if (!claimedRecipientId) {
         this.logger.warn(`Skip task reminder without recipient taskId=${claimedTask.id}`);
@@ -107,5 +112,13 @@ export class TaskReminderService {
   private normalizeChannels(channels?: NotificationChannel[] | null): NotificationChannel[] {
     const list = channels && channels.length > 0 ? [...channels] : [NotificationChannel.INTERNAL];
     return Array.from(new Set([NotificationChannel.INTERNAL, ...list]));
+  }
+
+  private isStillDueForReminder(task: TaskEntity, now: Date): boolean {
+    if (task.status !== TaskStatus.PENDING || !task.remindAt) {
+      return false;
+    }
+
+    return task.remindAt.getTime() <= now.getTime();
   }
 }

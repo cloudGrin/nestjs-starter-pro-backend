@@ -1,0 +1,134 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { createMockLogger, createMockRepository } from '~/test-utils';
+import { LoggerService } from '~/shared/logger/logger.service';
+import {
+  NotificationChannel,
+  NotificationType,
+} from '~/modules/notification/entities/notification.entity';
+import { NotificationService } from '~/modules/notification/services/notification.service';
+import { TaskEntity, TaskStatus } from '../entities/task.entity';
+import { TaskReminderService } from './task-reminder.service';
+
+describe('TaskReminderService', () => {
+  let service: TaskReminderService;
+  let taskRepository: jest.Mocked<Repository<TaskEntity>>;
+  let notificationService: jest.Mocked<NotificationService>;
+
+  beforeEach(async () => {
+    const notificationServiceMock = {
+      createNotification: jest.fn().mockResolvedValue([]),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        TaskReminderService,
+        { provide: getRepositoryToken(TaskEntity), useValue: createMockRepository<TaskEntity>() },
+        { provide: NotificationService, useValue: notificationServiceMock },
+        { provide: LoggerService, useValue: createMockLogger() },
+      ],
+    }).compile();
+
+    service = module.get(TaskReminderService);
+    taskRepository = module.get(getRepositoryToken(TaskEntity));
+    notificationService = module.get(NotificationService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('sends due task reminders through the existing notification service', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    const task = Object.assign(new TaskEntity(), {
+      id: 3,
+      title: '接孩子',
+      description: '16:30 到校门口',
+      status: TaskStatus.PENDING,
+      creatorId: 1,
+      assigneeId: 2,
+      remindAt: now,
+      reminderChannels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
+      sendExternalReminder: true,
+    });
+
+    taskRepository.find.mockResolvedValue([task]);
+    taskRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+    const count = await service.sendDueReminders(now);
+
+    expect(count).toBe(1);
+    expect(taskRepository.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: TaskStatus.PENDING,
+        }),
+      }),
+    );
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: '任务提醒：接孩子',
+        content: '16:30 到校门口',
+        recipientIds: [2],
+        type: NotificationType.REMINDER,
+        channels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
+        sendExternal: true,
+        metadata: expect.objectContaining({
+          module: 'task',
+          taskId: 3,
+        }),
+      }),
+    );
+    expect(taskRepository.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 3,
+        status: TaskStatus.PENDING,
+        remindedAt: expect.anything(),
+      }),
+      {
+        remindedAt: now,
+      },
+    );
+  });
+
+  it('skips a reminder that was already claimed by another cron run', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    const task = Object.assign(new TaskEntity(), {
+      id: 4,
+      title: '接孩子',
+      status: TaskStatus.PENDING,
+      creatorId: 1,
+      remindAt: now,
+    });
+
+    taskRepository.find.mockResolvedValue([task]);
+    taskRepository.update.mockResolvedValue({ affected: 0 } as any);
+
+    const count = await service.sendDueReminders(now);
+
+    expect(count).toBe(0);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+  });
+
+  it('truncates long notification titles to fit the notification title column', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    const task = Object.assign(new TaskEntity(), {
+      id: 5,
+      title: '很长的任务标题'.repeat(30),
+      status: TaskStatus.PENDING,
+      creatorId: 1,
+      remindAt: now,
+    });
+
+    taskRepository.find.mockResolvedValue([task]);
+    taskRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+    const count = await service.sendDueReminders(now);
+
+    expect(count).toBe(1);
+    const payload = notificationService.createNotification.mock.calls[0][0];
+    expect(payload.title.length).toBeLessThanOrEqual(150);
+    expect(payload.title.startsWith('任务提醒：')).toBe(true);
+  });
+});

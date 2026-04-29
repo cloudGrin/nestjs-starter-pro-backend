@@ -137,6 +137,14 @@ describe('AdminBootstrapService', () => {
           code: 'api-app:key:create',
           isSystem: true,
         }),
+        expect.objectContaining({
+          code: 'task:create',
+          isSystem: true,
+        }),
+        expect.objectContaining({
+          code: 'task:complete',
+          isSystem: true,
+        }),
       ]),
     );
     expect(menuRepository.count).toHaveBeenCalled();
@@ -178,19 +186,56 @@ describe('AdminBootstrapService', () => {
           name: '通知中心',
           parentId: 10,
         }),
+        expect.objectContaining({
+          name: '任务中心',
+          path: '/tasks',
+          component: 'TaskCenterPage',
+          parentId: null,
+        }),
       ]),
     );
   });
 
-  it('已有用户时跳过初始化且不输出密码', async () => {
+  it('已有用户时补齐默认权限和任务菜单但不重新创建 admin 或输出密码', async () => {
+    const role = Object.assign(new RoleEntity(), {
+      id: 1,
+      code: 'super_admin',
+      name: '超级管理员',
+      category: RoleCategory.SYSTEM,
+      isActive: true,
+      isSystem: true,
+    });
+
     userRepository.count.mockResolvedValue(1);
+    roleRepository.findOne.mockResolvedValue(role);
+    permissionRepository.find.mockResolvedValue([]);
+    permissionRepository.create.mockImplementation((data) => data as PermissionEntity);
+    permissionRepository.save.mockResolvedValue([] as unknown as PermissionEntity);
+    menuRepository.count.mockResolvedValue(1);
+    menuRepository.findOne.mockResolvedValue(null);
+    menuRepository.create.mockImplementation((data) => data as MenuEntity);
+    menuRepository.save.mockImplementation(async (data) => data as unknown as MenuEntity);
 
     await service.onApplicationBootstrap();
 
     expect(userRepository.count).toHaveBeenCalledWith({ withDeleted: true });
-    expect(roleRepository.findOne).not.toHaveBeenCalled();
-    expect(roleRepository.create).not.toHaveBeenCalled();
     expect(userRepository.create).not.toHaveBeenCalled();
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('password: '));
+    expect(permissionRepository.save).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'task:read',
+          isSystem: true,
+        }),
+      ]),
+    );
+    expect(menuRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '任务中心',
+        path: '/tasks',
+        component: 'TaskCenterPage',
+        parentId: null,
+      }),
+    );
   });
 });

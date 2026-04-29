@@ -13,6 +13,8 @@ import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserStatus } from '~/common/enums/user.enum';
 import { faker } from '@faker-js/faker';
 import * as bcrypt from 'bcryptjs';
+import { RoleEntity } from '~/modules/role/entities/role.entity';
+import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 
 const createUserLoginQueryBuilder = () => {
   const qb = {
@@ -178,6 +180,41 @@ describe('AuthService', () => {
         mockUser.id,
         expect.objectContaining({ lastLoginIp: mockIp }),
       );
+    });
+
+    it('登录响应包含普通角色的有效权限清单', async () => {
+      const role = Object.assign(new RoleEntity(), {
+        id: 2,
+        code: 'task_user',
+        name: '任务用户',
+        isActive: true,
+        permissions: [
+          Object.assign(new PermissionEntity(), { code: 'task:read', isActive: true }),
+          Object.assign(new PermissionEntity(), { code: 'task:create', isActive: true }),
+          Object.assign(new PermissionEntity(), { code: 'task:delete', isActive: false }),
+        ],
+      });
+      const mockUser = createMockUser({
+        username: 'testuser',
+        status: UserStatus.ACTIVE,
+        roles: [role],
+      });
+      const qb = createUserLoginQueryBuilder();
+      qb.getOne.mockResolvedValue(mockUser);
+      const refreshTokenEntity = createMockRefreshToken();
+
+      userRepository.createQueryBuilder.mockReturnValue(qb);
+      userRepository.update.mockResolvedValue(undefined);
+      jwtService.signAsync
+        .mockResolvedValueOnce('mock-access-token')
+        .mockResolvedValueOnce('mock-refresh-token');
+      refreshTokenRepository.create.mockReturnValue(refreshTokenEntity);
+      refreshTokenRepository.save.mockResolvedValue(refreshTokenEntity);
+
+      const result = await service.login(mockLoginDto, mockIp, mockUserAgent);
+
+      expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('role.permissions', 'permission');
+      expect(result.user.permissions).toEqual(['task:read', 'task:create']);
     });
 
     it('当用户不存在时应该抛出UnauthorizedException', async () => {

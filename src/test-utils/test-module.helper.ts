@@ -20,6 +20,7 @@ export function createMockRepository<T extends ObjectLiteral = any>(): jest.Mock
     findOne: jest.fn(),
     findOneBy: jest.fn(),
     findAndCount: jest.fn(),
+    count: jest.fn(),
     save: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),

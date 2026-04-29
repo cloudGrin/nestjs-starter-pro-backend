@@ -25,6 +25,7 @@ import { OpenApiModule } from './modules/open-api/open-api.module';
 import { HealthModule } from './modules/health/health.module';
 import { PermissionModule } from './modules/permission/permission.module';
 import { MenuModule } from './modules/menu/menu.module';
+import { TaskModule } from './modules/task/task.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { MenuModule } from './modules/menu/menu.module';
     MenuModule,
     FileModule,
     NotificationModule,
+    TaskModule,
     CronModule,
     ApiAuthModule,
     OpenApiModule,

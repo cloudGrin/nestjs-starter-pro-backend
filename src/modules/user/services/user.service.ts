@@ -163,7 +163,7 @@ export class UserService {
 
     const user = await this.userRepository.findOne({
       where: { id },
-      relations: ['roles'],
+      relations: ['roles', 'roles.permissions'],
     });
 
     if (!user) {
@@ -174,6 +174,9 @@ export class UserService {
     this.logger.debug(
       `[UserService.findUserById] TypeORM查询用户详情: userId=${id}, username=${user.username}, rolesCount=${user.roles?.length || 0}, roleCodes=${JSON.stringify(user.roles?.map((r) => r.code) || [])}`,
     );
+
+    (user as UserEntity & { permissions?: string[] }).permissions =
+      this.collectActivePermissionCodes(user);
 
     return user;
   }
@@ -531,6 +534,24 @@ export class UserService {
 
   private isSuperAdminUser(user: UserEntity): boolean {
     return user.roles?.some((role) => role.code === SUPER_ADMIN_ROLE_CODE) ?? false;
+  }
+
+  private collectActivePermissionCodes(user: UserEntity): string[] {
+    const codes = new Set<string>();
+
+    for (const role of user.roles || []) {
+      if (role.isActive === false) {
+        continue;
+      }
+
+      for (const permission of role.permissions || []) {
+        if (permission.isActive !== false) {
+          codes.add(permission.code);
+        }
+      }
+    }
+
+    return Array.from(codes);
   }
 
   private isActorSuperAdmin(actor?: UserActionActor): boolean {

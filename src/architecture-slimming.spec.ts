@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 const projectRoot = join(__dirname, '..');
@@ -7,6 +7,11 @@ const sourceRoot = __dirname;
 const readSource = (path: string) => readFileSync(join(sourceRoot, path), 'utf8');
 const existsInSource = (path: string) => existsSync(join(sourceRoot, path));
 const readProject = (path: string) => readFileSync(join(projectRoot, path), 'utf8');
+const readAllMigrations = () =>
+  readdirSync(join(sourceRoot, 'migrations'))
+    .filter((file) => file.endsWith('.ts'))
+    .map((file) => readSource(`migrations/${file}`))
+    .join('\n');
 
 describe('architecture slimming', () => {
   it('does not load generic scaffold modules without current business usage', () => {
@@ -20,13 +25,12 @@ describe('architecture slimming', () => {
 
   it('keeps task scheduling as code cron only, not a database task platform', () => {
     const appModule = readSource('app.module.ts');
-    const migration = readSource('migrations/1730000000000-InitSchema.ts');
+    const migrations = readAllMigrations();
 
     expect(appModule).toContain('CronModule');
-    expect(appModule).not.toContain('TaskModule');
-    expect(existsInSource('modules/task')).toBe(false);
-    expect(migration).not.toContain('task_definitions');
-    expect(migration).not.toContain('task_logs');
+    expect(migrations).not.toContain('task_definitions');
+    expect(migrations).not.toContain('task_logs');
+    expect(existsInSource('modules/workflow')).toBe(false);
   });
 
   it('keeps file module to direct upload/download/list/delete only', () => {

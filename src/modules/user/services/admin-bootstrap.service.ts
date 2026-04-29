@@ -45,6 +45,12 @@ const DEFAULT_SYSTEM_PERMISSIONS = [
   { code: 'api-app:key:create', name: '创建 API 密钥', module: 'api-auth', sort: 50 },
   { code: 'api-app:key:read', name: '查看 API 密钥', module: 'api-auth', sort: 60 },
   { code: 'api-app:key:delete', name: '删除 API 密钥', module: 'api-auth', sort: 70 },
+  { code: 'task:create', name: '创建任务', module: 'task', sort: 10 },
+  { code: 'task:read', name: '查看任务', module: 'task', sort: 20 },
+  { code: 'task:update', name: '更新任务', module: 'task', sort: 30 },
+  { code: 'task:delete', name: '删除任务', module: 'task', sort: 40 },
+  { code: 'task:complete', name: '完成任务', module: 'task', sort: 50 },
+  { code: 'task-list:manage', name: '管理任务清单', module: 'task', sort: 60 },
 ] as const;
 
 @Injectable()
@@ -66,14 +72,14 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     const userCount = await this.userRepository.count({ withDeleted: true });
+    const role = await this.ensureSuperAdminRole();
+    await this.ensureDefaultPermissions();
+    await this.ensureDefaultMenus();
 
     if (userCount > 0) {
       return;
     }
 
-    const role = await this.ensureSuperAdminRole();
-    await this.ensureDefaultPermissions();
-    await this.ensureDefaultMenus();
     const password = this.generatePassword();
     const admin = this.userRepository.create({
       username: AdminBootstrapService.ADMIN_USERNAME,
@@ -139,6 +145,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
   private async ensureDefaultMenus(): Promise<void> {
     const menuCount = await this.menuRepository.count();
     if (menuCount > 0) {
+      await this.ensureTaskCenterMenu();
       return;
     }
 
@@ -155,6 +162,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     const savedSystemMenu = await this.menuRepository.save(systemMenu);
 
     const menus = this.menuRepository.create([
+      this.createTaskCenterMenu(),
       {
         name: '用户管理',
         path: '/system/users',
@@ -242,6 +250,33 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     ]);
 
     await this.menuRepository.save(menus);
+  }
+
+  private async ensureTaskCenterMenu(): Promise<void> {
+    const existing = await this.menuRepository.findOne({
+      where: { path: '/tasks' },
+    });
+
+    if (existing) {
+      return;
+    }
+
+    await this.menuRepository.save(this.menuRepository.create(this.createTaskCenterMenu()));
+  }
+
+  private createTaskCenterMenu(): Partial<MenuEntity> {
+    return {
+      name: '任务中心',
+      path: '/tasks',
+      type: MenuType.MENU,
+      icon: 'check-square',
+      component: 'TaskCenterPage',
+      parentId: null,
+      sort: 15,
+      isVisible: true,
+      isActive: true,
+      meta: { title: '任务中心', icon: 'check-square' },
+    };
   }
 
   private generatePassword(length = 20): string {

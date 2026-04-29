@@ -43,6 +43,7 @@ export interface AuthUserResponse {
     code: string;
     name: string;
   }>;
+  permissions: string[];
   isSuperAdmin: boolean;
   roleCode?: string;
 }
@@ -508,6 +509,7 @@ export class AuthService {
       .createQueryBuilder('user')
       .addSelect(['user.password'])
       .leftJoinAndSelect('user.roles', 'role')
+      .leftJoinAndSelect('role.permissions', 'permission')
       .where('user.username = :account', { account })
       .getOne();
 
@@ -516,6 +518,7 @@ export class AuthService {
         .createQueryBuilder('user')
         .addSelect(['user.password'])
         .leftJoinAndSelect('user.roles', 'role')
+        .leftJoinAndSelect('role.permissions', 'permission')
         .where('user.email = :account', { account })
         .getOne();
     }
@@ -525,6 +528,7 @@ export class AuthService {
         .createQueryBuilder('user')
         .addSelect(['user.password'])
         .leftJoinAndSelect('user.roles', 'role')
+        .leftJoinAndSelect('role.permissions', 'permission')
         .where('user.phone = :account', { account })
         .getOne();
     }
@@ -551,9 +555,28 @@ export class AuthService {
       phone: user.phone,
       status: user.status,
       roles,
+      permissions: this.collectActivePermissionCodes(user),
       isSuperAdmin,
       roleCode: isSuperAdmin ? 'super_admin' : roleCodes[0],
     };
+  }
+
+  private collectActivePermissionCodes(user: UserEntity): string[] {
+    const codes = new Set<string>();
+
+    for (const role of user.roles || []) {
+      if (role.isActive === false) {
+        continue;
+      }
+
+      for (const permission of role.permissions || []) {
+        if (permission.isActive !== false) {
+          codes.add(permission.code);
+        }
+      }
+    }
+
+    return Array.from(codes);
   }
 
   private async updateLoginInfo(

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { AuthService } from '~/modules/auth/services/auth.service';
+import { TaskReminderService } from '~/modules/task/services/task-reminder.service';
 
 /**
  * Code-defined cron extension point.
@@ -14,6 +15,7 @@ export class CronService {
   constructor(
     private readonly logger: LoggerService,
     private readonly authService: AuthService,
+    private readonly taskReminderService: TaskReminderService,
   ) {}
 
   @Cron('0 3 * * *')
@@ -22,6 +24,18 @@ export class CronService {
       await this.authService.cleanupExpiredTokens();
     } catch (error) {
       this.logJobError('cleanupExpiredRefreshTokens', error);
+    }
+  }
+
+  @Cron('*/1 * * * *')
+  async sendTaskReminders(): Promise<void> {
+    try {
+      const sent = await this.taskReminderService.sendDueReminders();
+      if (sent > 0) {
+        this.logger.log(`Cron job "sendTaskReminders" sent ${sent} reminders`);
+      }
+    } catch (error) {
+      this.logJobError('sendTaskReminders', error);
     }
   }
 

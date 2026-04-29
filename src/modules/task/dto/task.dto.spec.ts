@@ -1,0 +1,138 @@
+import { ValidationPipe } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { CreateTaskDto } from './create-task.dto';
+import { CreateTaskListDto } from './create-task-list.dto';
+import { QueryTaskDto } from './query-task.dto';
+import { UpdateTaskDto } from './update-task.dto';
+import { UpdateTaskListDto } from './update-task-list.dto';
+
+describe('task DTOs', () => {
+  const validationPipe = new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
+  });
+
+  const transformBody = <T extends object>(metatype: new () => T, value: Record<string, unknown>) =>
+    validationPipe.transform(value, {
+      type: 'body',
+      metatype,
+    });
+
+  it('rejects non-positive ids in create task payload', async () => {
+    const dto = plainToInstance(CreateTaskDto, {
+      title: '任务',
+      listId: 0,
+      assigneeId: -1,
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.map((error) => error.property)).toEqual(
+      expect.arrayContaining(['listId', 'assigneeId']),
+    );
+  });
+
+  it('rejects non-positive ids in task query', async () => {
+    const dto = plainToInstance(QueryTaskDto, {
+      listId: 0,
+      assigneeId: -1,
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.map((error) => error.property)).toEqual(
+      expect.arrayContaining(['listId', 'assigneeId']),
+    );
+  });
+
+  it('does not materialize task defaults on partial updates', async () => {
+    const dto = await transformBody(UpdateTaskDto, {
+      title: '改标题',
+    });
+
+    expect(dto).toEqual({
+      title: '改标题',
+    });
+  });
+
+  it('does not materialize task list defaults on partial updates', async () => {
+    const dto = await transformBody(UpdateTaskListDto, {
+      name: '改清单',
+    });
+
+    expect(dto).toEqual({
+      name: '改清单',
+    });
+  });
+
+  it('rejects null for non-nullable task update fields', async () => {
+    await expect(transformBody(UpdateTaskDto, { title: null })).rejects.toThrow();
+    await expect(transformBody(UpdateTaskDto, { listId: null })).rejects.toThrow();
+    await expect(transformBody(UpdateTaskDto, { important: null })).rejects.toThrow();
+  });
+
+  it('allows null for nullable task update fields', async () => {
+    const dto = await transformBody(UpdateTaskDto, {
+      description: null,
+      assigneeId: null,
+      dueAt: null,
+      remindAt: null,
+      tags: null,
+      recurrenceInterval: null,
+      reminderChannels: null,
+    });
+
+    expect(dto).toEqual({
+      description: null,
+      assigneeId: null,
+      dueAt: null,
+      remindAt: null,
+      tags: null,
+      recurrenceInterval: null,
+      reminderChannels: null,
+    });
+  });
+
+  it('rejects null for non-nullable task list update fields', async () => {
+    await expect(transformBody(UpdateTaskListDto, { name: null })).rejects.toThrow();
+    await expect(transformBody(UpdateTaskListDto, { scope: null })).rejects.toThrow();
+    await expect(transformBody(UpdateTaskListDto, { sort: null })).rejects.toThrow();
+  });
+
+  it('allows null for nullable task list update fields', async () => {
+    const dto = await transformBody(UpdateTaskListDto, {
+      color: null,
+    });
+
+    expect(dto).toEqual({
+      color: null,
+    });
+  });
+
+  it('keeps create task defaults at the service layer instead of DTO transform time', async () => {
+    const dto = await transformBody(CreateTaskDto, {
+      title: '任务',
+      listId: 1,
+    });
+
+    expect(dto).toEqual({
+      title: '任务',
+      listId: 1,
+    });
+  });
+
+  it('keeps create task list defaults at the service layer instead of DTO transform time', async () => {
+    const dto = await transformBody(CreateTaskListDto, {
+      name: '默认清单',
+    });
+
+    expect(dto).toEqual({
+      name: '默认清单',
+    });
+  });
+});

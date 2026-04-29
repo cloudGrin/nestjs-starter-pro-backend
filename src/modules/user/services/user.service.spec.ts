@@ -10,6 +10,7 @@ import { CacheService } from '~/shared/cache/cache.service';
 import {
   UserMockFactory,
   RoleMockFactory,
+  PermissionMockFactory,
   createMockRepository,
   createMockLogger,
   createMockCacheService,
@@ -261,6 +262,26 @@ describe('UserService', () => {
       const result = await service.findUserById(1);
 
       expect(result).toEqual(user);
+    });
+
+    it('用户详情包含有效权限清单供前端按钮鉴权使用', async () => {
+      const user = UserMockFactory.create({ id: 1 });
+      const role = RoleMockFactory.create({ code: 'task_user', isActive: true });
+      role.permissions = [
+        PermissionMockFactory.create({ code: 'task:read', isActive: true }),
+        PermissionMockFactory.create({ code: 'task:update', isActive: true }),
+        PermissionMockFactory.create({ code: 'task:delete', isActive: false }),
+      ];
+      user.roles = [role];
+      userRepository.findOne.mockResolvedValue(user);
+
+      const result = await service.findUserById(1);
+
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 1 },
+        relations: ['roles', 'roles.permissions'],
+      });
+      expect((result as any).permissions).toEqual(['task:read', 'task:update']);
     });
 
     it('用户不存在时抛出NotFoundException', async () => {

@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import * as dotenv from 'dotenv';
 import { configuration, getDatabaseConfig } from './configuration';
 import { configValidationSchema } from './config.validation';
 
@@ -62,6 +65,14 @@ describe('configuration', () => {
     expect(validation.error).toBeUndefined();
     expect(config.app.trustProxy).toBe(true);
     expect(config.file.external.oss.secure).toBe(false);
+  });
+
+  it('accepts the env example template as a valid development configuration', () => {
+    const envExample = dotenv.parse(readFileSync(join(__dirname, '../../.env.example')));
+
+    const validation = configValidationSchema.validate(envExample, { allowUnknown: false });
+
+    expect(validation.error).toBeUndefined();
   });
 
   it('rejects removed or misspelled environment variables', () => {

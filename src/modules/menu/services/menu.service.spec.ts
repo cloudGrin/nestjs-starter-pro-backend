@@ -113,6 +113,23 @@ describe('MenuService', () => {
         NotFoundException,
       );
     });
+
+    it('父级不是目录时应该拒绝创建子菜单', async () => {
+      const parentMenu = createMockMenu({ id: 2, type: MenuType.MENU });
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+      };
+      menuRepository.findOne.mockResolvedValue(parentMenu);
+      menuRepository.createQueryBuilder.mockReturnValue(qb as any);
+      menuRepository.create.mockReturnValue(createMockMenu({ ...mockCreateDto, parentId: 2 }));
+
+      await expect(service.create({ ...mockCreateDto, parentId: 2 })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(menuRepository.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('update', () => {
@@ -154,6 +171,34 @@ describe('MenuService', () => {
       menuRepository.createQueryBuilder.mockReturnValue(qb as any);
 
       await expect(service.update(1, { path: '/duplicated' })).rejects.toThrow(BadRequestException);
+      expect(menuRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('父级不是目录时应该拒绝更新父菜单', async () => {
+      const existingMenu = createMockMenu({ id: 1, parentId: null });
+      const parentMenu = createMockMenu({ id: 2, type: MenuType.MENU, parentId: null });
+      menuRepository.findOne
+        .mockResolvedValueOnce(existingMenu)
+        .mockResolvedValueOnce(parentMenu)
+        .mockResolvedValueOnce(parentMenu);
+
+      await expect(service.update(1, { parentId: 2 })).rejects.toThrow(BadRequestException);
+      expect(menuRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('存在子菜单时应该拒绝将目录改为菜单', async () => {
+      const child = createMockMenu({ id: 2, parentId: 1 });
+      const existingMenu = createMockMenu({
+        id: 1,
+        type: MenuType.DIRECTORY,
+        parentId: null,
+        children: [child],
+      });
+      menuRepository.findOne.mockResolvedValue(existingMenu);
+
+      await expect(service.update(1, { type: MenuType.MENU })).rejects.toThrow(
+        BadRequestException,
+      );
       expect(menuRepository.save).not.toHaveBeenCalled();
     });
   });
@@ -323,7 +368,7 @@ describe('MenuService', () => {
   describe('moveMenu', () => {
     it('应该通过事务移动菜单', async () => {
       const menu = createMockMenu({ id: 1, parentId: 2 });
-      const parent = createMockMenu({ id: 3, parentId: null });
+      const parent = createMockMenu({ id: 3, parentId: null, type: MenuType.DIRECTORY });
       const transactionalRepo = {
         findOne: jest
           .fn()
@@ -340,6 +385,68 @@ describe('MenuService', () => {
 
       expect(result.parentId).toBe(3);
       expect(transactionalRepo.save).toHaveBeenCalledWith(expect.objectContaining({ parentId: 3 }));
+    });
+
+    it('目标父级不是目录时应该拒绝移动', async () => {
+      const menu = createMockMenu({ id: 1, parentId: null });
+      const targetParent = createMockMenu({ id: 2, parentId: null, type: MenuType.MENU });
+      const transactionalRepo = {
+        findOne: jest
+          .fn()
+          .mockResolvedValueOnce(menu)
+          .mockResolvedValueOnce(targetParent)
+          .mockResolvedValueOnce(targetParent),
+        save: jest.fn().mockImplementation(async (entity) => entity),
+      };
+      (menuRepository.manager.transaction as jest.Mock).mockImplementation(async (callback) =>
+        callback({ getRepository: jest.fn().mockReturnValue(transactionalRepo) }),
+      );
+
+      await expect(service.moveMenu(1, 2)).rejects.toThrow(BadRequestException);
+      expect(transactionalRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('拖到同级目标节点后面时应该重排 sort', async () => {
+      const movingMenu = createMockMenu({ id: 1, parentId: null, sort: 10 });
+      const targetMenu = createMockMenu({ id: 2, parentId: null, sort: 20 });
+      const nextMenu = createMockMenu({ id: 3, parentId: null, sort: 30 });
+      const transactionalRepo = {
+        findOne: jest
+          .fn()
+          .mockResolvedValueOnce(movingMenu)
+          .mockResolvedValueOnce(targetMenu),
+        find: jest.fn().mockResolvedValue([movingMenu, targetMenu, nextMenu]),
+        save: jest.fn().mockImplementation(async (entity) => entity),
+      };
+      (menuRepository.manager.transaction as jest.Mock).mockImplementation(async (callback) =>
+        callback({ getRepository: jest.fn().mockReturnValue(transactionalRepo) }),
+      );
+
+      await service.moveMenu(1, null, { targetId: 2, position: 'after' });
+
+      expect(transactionalRepo.save).toHaveBeenCalledWith([
+        expect.objectContaining({ id: 2, sort: 10 }),
+        expect.objectContaining({ id: 1, sort: 20 }),
+        expect.objectContaining({ id: 3, sort: 30 }),
+      ]);
+    });
+
+    it('拖拽排序时应该拒绝将目标节点设置为自己', async () => {
+      const movingMenu = createMockMenu({ id: 1, parentId: null, sort: 10 });
+      const transactionalRepo = {
+        findOne: jest.fn().mockResolvedValueOnce(movingMenu),
+        find: jest.fn().mockResolvedValue([movingMenu]),
+        save: jest.fn().mockImplementation(async (entity) => entity),
+      };
+      (menuRepository.manager.transaction as jest.Mock).mockImplementation(async (callback) =>
+        callback({ getRepository: jest.fn().mockReturnValue(transactionalRepo) }),
+      );
+
+      await expect(service.moveMenu(1, null, { targetId: 1, position: 'before' })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(transactionalRepo.find).not.toHaveBeenCalled();
+      expect(transactionalRepo.save).not.toHaveBeenCalled();
     });
   });
 

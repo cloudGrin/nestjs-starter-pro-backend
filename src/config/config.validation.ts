@@ -14,6 +14,8 @@ const isInsecureKey = (value: string): boolean => {
   return keywords.some((keyword) => value.toLowerCase().includes(keyword));
 };
 
+const optionalEmptyString = Joi.string().allow('').optional();
+
 /**
  * 环境变量验证 Schema
  */
@@ -172,19 +174,19 @@ export const configValidationSchema = Joi.object({
 
   // OSS 配置（可选）
   FILE_OSS_ENABLE: Joi.boolean().default(false),
-  FILE_OSS_REGION: Joi.string().optional(),
-  FILE_OSS_BUCKET: Joi.string().optional(),
-  FILE_OSS_ENDPOINT: Joi.string().optional(),
-  FILE_OSS_ACCESS_KEY_ID: Joi.string().optional(),
-  FILE_OSS_ACCESS_KEY_SECRET: Joi.string().optional(),
+  FILE_OSS_REGION: optionalEmptyString,
+  FILE_OSS_BUCKET: optionalEmptyString,
+  FILE_OSS_ENDPOINT: optionalEmptyString,
+  FILE_OSS_ACCESS_KEY_ID: optionalEmptyString,
+  FILE_OSS_ACCESS_KEY_SECRET: optionalEmptyString,
   FILE_OSS_SECURE: Joi.boolean().default(true),
-  FILE_OSS_BASE_URL: Joi.string().optional(),
+  FILE_OSS_BASE_URL: optionalEmptyString,
 
   // ========================================
   // 通知配置（简化）
   // ========================================
-  NOTIFY_BARK_BASE_URL: Joi.string().optional(),
+  NOTIFY_BARK_BASE_URL: optionalEmptyString,
 
-  NOTIFY_FEISHU_APP_ID: Joi.string().optional(),
-  NOTIFY_FEISHU_APP_SECRET: Joi.string().optional(),
+  NOTIFY_FEISHU_APP_ID: optionalEmptyString,
+  NOTIFY_FEISHU_APP_SECRET: optionalEmptyString,
 });

@@ -13,6 +13,7 @@ describe('RoleService', () => {
   let service: RoleService;
   let roleRepository: jest.Mocked<Repository<RoleEntity>>;
   let permissionRepository: jest.Mocked<Repository<PermissionEntity>>;
+  let menuRepository: jest.Mocked<Repository<MenuEntity>>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -32,6 +33,7 @@ describe('RoleService', () => {
     service = module.get(RoleService);
     roleRepository = module.get(getRepositoryToken(RoleEntity));
     permissionRepository = module.get(getRepositoryToken(PermissionEntity));
+    menuRepository = module.get(getRepositoryToken(MenuEntity));
   });
 
   it('does not persist permissionIds as a role entity field during create', async () => {
@@ -105,6 +107,23 @@ describe('RoleService', () => {
     expect(savedRole).not.toHaveProperty('permissionIds');
   });
 
+  it('rejects updating super_admin even when legacy data is not marked as system', async () => {
+    const role = Object.assign(new RoleEntity(), {
+      id: 1,
+      code: 'super_admin',
+      name: '超级管理员',
+      isSystem: false,
+      permissions: [],
+    });
+
+    roleRepository.findOne.mockResolvedValue(role);
+
+    await expect(service.updateRole(1, { name: '改名' } as any)).rejects.toThrow(
+      '超级管理员角色不能修改',
+    );
+    expect(roleRepository.save).not.toHaveBeenCalled();
+  });
+
   it('allows assigning an empty permission list to clear role permissions', async () => {
     const role = Object.assign(new RoleEntity(), {
       id: 1,
@@ -121,5 +140,35 @@ describe('RoleService', () => {
     expect(permissionRepository.find).not.toHaveBeenCalled();
     expect(result.permissions).toEqual([]);
     expect(roleRepository.save).toHaveBeenCalledWith(expect.objectContaining({ permissions: [] }));
+  });
+
+  it('rejects assigning permissions to super_admin because it owns all permissions by default', async () => {
+    const role = Object.assign(new RoleEntity(), {
+      id: 1,
+      code: 'super_admin',
+      isSystem: false,
+      permissions: [],
+    });
+
+    roleRepository.findOne.mockResolvedValue(role);
+
+    await expect(service.assignPermissions(1, [1])).rejects.toThrow('超级管理员角色权限不能修改');
+    expect(permissionRepository.find).not.toHaveBeenCalled();
+    expect(roleRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects assigning menus to super_admin because it owns all menus by default', async () => {
+    const role = Object.assign(new RoleEntity(), {
+      id: 1,
+      code: 'super_admin',
+      isSystem: false,
+      menus: [],
+    });
+
+    roleRepository.findOne.mockResolvedValue(role);
+
+    await expect(service.assignMenus(1, [1])).rejects.toThrow('超级管理员角色菜单不能修改');
+    expect(menuRepository.find).not.toHaveBeenCalled();
+    expect(roleRepository.save).not.toHaveBeenCalled();
   });
 });

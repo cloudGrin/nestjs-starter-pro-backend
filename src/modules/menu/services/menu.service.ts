@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { TreeUtil } from '~/common/utils/tree.util';
-import { MenuEntity } from '../entities/menu.entity';
+import { MenuEntity, MenuType } from '../entities/menu.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
 import { CreateMenuDto, UpdateMenuDto, QueryMenuDto } from '../dto';
 
@@ -34,6 +34,7 @@ export class MenuService {
         this.logger.debug(`创建菜单失败，父菜单不存在 parentId=${dto.parentId}`);
         throw new NotFoundException(`父菜单 ID ${dto.parentId} 不存在`);
       }
+      this.ensureDirectoryParent(parent);
       this.logger.debug(`创建菜单时找到父菜单 parentId=${dto.parentId}, name=${parent.name}`);
     }
 
@@ -75,6 +76,7 @@ export class MenuService {
           this.logger.debug(`更新菜单失败，父菜单不存在 id=${id}, parentId=${dto.parentId}`);
           throw new NotFoundException(`父菜单 ID ${dto.parentId} 不存在`);
         }
+        this.ensureDirectoryParent(parent);
 
         // 检查是否会形成循环依赖
         const hasCircular = await this.checkCircularDependency(id, dto.parentId);
@@ -84,6 +86,15 @@ export class MenuService {
         }
         this.logger.debug(`更新菜单父级校验通过 id=${id}, targetParent=${dto.parentId}`);
       }
+    }
+
+    if (
+      dto.type === MenuType.MENU &&
+      entity.type === MenuType.DIRECTORY &&
+      entity.children &&
+      entity.children.length > 0
+    ) {
+      throw new BadRequestException('存在子菜单的目录不能改为菜单');
     }
 
     if (dto.path && dto.path !== entity.path && !(await this.validatePath(dto.path, id))) {
@@ -315,7 +326,11 @@ export class MenuService {
   /**
    * 移动菜单
    */
-  async moveMenu(id: number, targetParentId: number | null): Promise<MenuEntity> {
+  async moveMenu(
+    id: number,
+    targetParentId: number | null,
+    placement?: { targetId?: number; position?: 'before' | 'after' | 'inside' },
+  ): Promise<MenuEntity> {
     this.logger.debug(`准备移动菜单 id=${id}, targetParentId=${targetParentId}`);
 
     return await this.menuRepository.manager.transaction(async (manager) => {
@@ -329,6 +344,14 @@ export class MenuService {
         throw new NotFoundException('菜单不存在');
       }
 
+      if (
+        placement?.targetId === id &&
+        placement.position &&
+        placement.position !== 'inside'
+      ) {
+        throw new BadRequestException('目标菜单不能是自己');
+      }
+
       if (targetParentId !== null) {
         const parent = await transactionalRepo.findOne({
           where: { id: targetParentId },
@@ -340,6 +363,7 @@ export class MenuService {
           );
           throw new NotFoundException(`父菜单 ID ${targetParentId} 不存在`);
         }
+        this.ensureDirectoryParent(parent);
 
         const hasCircular = await this.checkCircularDependency(
           id,
@@ -359,6 +383,11 @@ export class MenuService {
       menu.parentId = targetParentId;
 
       const saved = await transactionalRepo.save(menu);
+
+      if (placement?.targetId && placement.position && placement.position !== 'inside') {
+        await this.reorderSiblingsAfterMove(transactionalRepo, saved, targetParentId, placement);
+      }
+
       this.logger.debug(
         `菜单移动保存成功 id=${id}, oldParentId=${oldParentId ?? '无'}, newParentId=${saved.parentId ?? '无'}`,
       );
@@ -417,6 +446,41 @@ export class MenuService {
       where: { parentId },
       order: { sort: 'ASC' },
     });
+  }
+
+  private ensureDirectoryParent(parent: MenuEntity): void {
+    if (parent.type !== MenuType.DIRECTORY) {
+      throw new BadRequestException('父菜单必须是目录类型');
+    }
+  }
+
+  private async reorderSiblingsAfterMove(
+    repository: Repository<MenuEntity>,
+    movedMenu: MenuEntity,
+    targetParentId: number | null,
+    placement: { targetId?: number; position?: 'before' | 'after' | 'inside' },
+  ): Promise<void> {
+    const siblings = await repository.find({
+      where: { parentId: targetParentId === null ? IsNull() : targetParentId },
+      order: { sort: 'ASC', createdAt: 'ASC' },
+    });
+
+    const targetIndex = siblings.findIndex((item) => item.id === placement.targetId);
+    if (targetIndex < 0) {
+      throw new BadRequestException('目标菜单不存在于目标父级下');
+    }
+
+    const withoutMoved = siblings.filter((item) => item.id !== movedMenu.id);
+    const targetIndexAfterRemove = withoutMoved.findIndex((item) => item.id === placement.targetId);
+    const insertIndex =
+      placement.position === 'before' ? targetIndexAfterRemove : targetIndexAfterRemove + 1;
+
+    withoutMoved.splice(insertIndex, 0, movedMenu);
+    withoutMoved.forEach((item, index) => {
+      item.sort = (index + 1) * 10;
+    });
+
+    await repository.save(withoutMoved);
   }
 
   private async includeVisibleAncestors(menus: MenuEntity[]): Promise<MenuEntity[]> {

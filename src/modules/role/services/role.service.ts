@@ -16,6 +16,8 @@ import { CreateRoleDto } from '../dto/create-role.dto';
 import { UpdateRoleDto } from '../dto/update-role.dto';
 import { QueryRoleDto } from '../dto/query-role.dto';
 
+const SUPER_ADMIN_ROLE_CODE = 'super_admin';
+
 @Injectable()
 export class RoleService {
   constructor(
@@ -35,7 +37,7 @@ export class RoleService {
   async createRole(dto: CreateRoleDto): Promise<RoleEntity> {
     this.logger.debug(`准备创建角色，code=${dto.code}, name=${dto.name}`);
 
-    if (dto.code === 'super_admin') {
+    if (dto.code === SUPER_ADMIN_ROLE_CODE) {
       throw new BadRequestException('super_admin 为系统保留角色编码');
     }
 
@@ -81,15 +83,11 @@ export class RoleService {
       throw new NotFoundException('角色不存在');
     }
 
-    // 系统角色不能修改
-    if (role.isSystem) {
-      this.logger.debug(`更新角色失败，系统角色禁止修改 id=${id}`);
-      throw new BadRequestException('系统角色不能修改');
-    }
+    this.ensureRoleMutable(role, '角色');
 
     // 检查角色编码是否存在
     if (dto.code && dto.code !== role.code) {
-      if (dto.code === 'super_admin') {
+      if (dto.code === SUPER_ADMIN_ROLE_CODE) {
         throw new BadRequestException('super_admin 为系统保留角色编码');
       }
 
@@ -134,11 +132,7 @@ export class RoleService {
       throw new NotFoundException('角色不存在');
     }
 
-    // 系统角色不能删除
-    if (role.isSystem) {
-      this.logger.debug(`删除角色失败，系统角色禁止删除 id=${id}`);
-      throw new BadRequestException('系统角色不能删除');
-    }
+    this.ensureRoleMutable(role, '角色');
 
     // 检查是否有用户使用该角色
     if (role.users && role.users.length > 0) {
@@ -236,10 +230,7 @@ export class RoleService {
       throw new NotFoundException('角色不存在');
     }
 
-    if (role.isSystem) {
-      this.logger.debug(`分配权限失败，系统角色禁止修改权限 roleId=${roleId}`);
-      throw new BadRequestException('系统角色权限不能修改');
-    }
+    this.ensureRoleMutable(role, '角色权限');
 
     const permissions =
       permissionIds.length === 0
@@ -295,10 +286,7 @@ export class RoleService {
       throw new NotFoundException('角色不存在');
     }
 
-    if (role.isSystem) {
-      this.logger.debug(`分配菜单失败，系统角色禁止修改菜单 roleId=${roleId}`);
-      throw new BadRequestException('系统角色菜单不能修改');
-    }
+    this.ensureRoleMutable(role, '角色菜单');
 
     const menus = await this.menuRepository.find({
       where: { id: In(menuIds), isActive: true },
@@ -359,10 +347,7 @@ export class RoleService {
       throw new NotFoundException('角色不存在');
     }
 
-    if (role.isSystem) {
-      this.logger.debug(`移除菜单失败，系统角色禁止修改菜单 roleId=${roleId}`);
-      throw new BadRequestException('系统角色菜单不能修改');
-    }
+    this.ensureRoleMutable(role, '角色菜单');
 
     // 过滤掉要移除的菜单
     role.menus = (role.menus || []).filter((menu) => !menuIds.includes(menu.id));
@@ -386,6 +371,16 @@ export class RoleService {
     }
 
     return (await qb.getCount()) > 0;
+  }
+
+  private ensureRoleMutable(role: RoleEntity, target: string): void {
+    if (role.code === SUPER_ADMIN_ROLE_CODE) {
+      throw new BadRequestException(`超级管理员${target}不能修改`);
+    }
+
+    if (role.isSystem) {
+      throw new BadRequestException(`系统${target}不能修改`);
+    }
   }
 
   private async findRolesWithQuery(query: {

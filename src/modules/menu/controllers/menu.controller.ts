@@ -131,6 +131,9 @@ export class MenuController {
   @ApiParam({ name: 'id', description: '菜单ID' })
   @ApiOkResponse({ type: MenuEntity })
   async moveMenu(@Param('id', ParseIntPipe) id: number, @Body() dto: MoveMenuDto) {
-    return this.menuService.moveMenu(id, dto.targetParentId ?? null);
+    return this.menuService.moveMenu(id, dto.targetParentId ?? null, {
+      targetId: dto.targetId,
+      position: dto.position,
+    });
   }
 }

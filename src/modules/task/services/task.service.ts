@@ -38,10 +38,20 @@ const TASK_SORT_FIELDS = new Set([
   'title',
 ]);
 const RECENT_COMPLETION_DEDUP_WINDOW_MS = 30_000;
+const MAX_RECURRENCE_SEARCH_STEPS = 4000;
 const EXTERNAL_REMINDER_CHANNELS = new Set<NotificationChannel>([
   NotificationChannel.BARK,
   NotificationChannel.FEISHU,
 ]);
+const RECURRENCE_INTERVAL_LIMITS: Partial<
+  Record<TaskRecurrenceType, { max: number; unit: string }>
+> = {
+  [TaskRecurrenceType.DAILY]: { max: 365, unit: '天' },
+  [TaskRecurrenceType.WEEKLY]: { max: 52, unit: '周' },
+  [TaskRecurrenceType.MONTHLY]: { max: 12, unit: '月' },
+  [TaskRecurrenceType.YEARLY]: { max: 10, unit: '年' },
+  [TaskRecurrenceType.CUSTOM]: { max: 365, unit: '天' },
+};
 
 @Injectable()
 export class TaskService {
@@ -105,6 +115,25 @@ export class TaskService {
 
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
+
+    if (this.shouldFilterCalendarOccurrences(query)) {
+      const candidates = await qb.getMany();
+      const { start, end } = this.resolveDateRange(query, false);
+      const items = candidates.filter((task) => this.taskOccursInRange(task, start, end));
+      const pagedItems = items.slice((page - 1) * limit, page * limit);
+
+      return {
+        items: pagedItems,
+        meta: {
+          totalItems: items.length,
+          itemCount: pagedItems.length,
+          itemsPerPage: limit,
+          totalPages: Math.ceil(items.length / limit),
+          currentPage: page,
+        },
+      };
+    }
+
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, totalItems] = await qb.getManyAndCount();
@@ -432,6 +461,18 @@ export class TaskService {
       throw BusinessException.validationFailed('重复任务必须设置截止时间');
     }
 
+    const intervalLimit = RECURRENCE_INTERVAL_LIMITS[recurrenceType];
+    if (
+      intervalLimit &&
+      task.recurrenceInterval !== null &&
+      task.recurrenceInterval !== undefined &&
+      task.recurrenceInterval > intervalLimit.max
+    ) {
+      throw BusinessException.validationFailed(
+        `重复间隔不能超过 ${intervalLimit.max} ${intervalLimit.unit}`,
+      );
+    }
+
     if (taskType === TaskType.ANNIVERSARY && !task.dueAt) {
       throw BusinessException.validationFailed('纪念日必须设置日期');
     }
@@ -499,6 +540,70 @@ export class TaskService {
     }
 
     return left.getTime() === right.getTime();
+  }
+
+  private shouldFilterCalendarOccurrences(query: QueryTaskDto): boolean {
+    return query.view === TaskQueryView.CALENDAR && Boolean(query.startDate && query.endDate);
+  }
+
+  private taskOccursInRange(task: TaskEntity, start?: Date, end?: Date): boolean {
+    if (this.isDateInRange(task.dueAt ?? null, start, end)) {
+      return true;
+    }
+
+    if (this.isDateInRange(task.remindAt ?? null, start, end)) {
+      return true;
+    }
+
+    if (!this.isRecurring(task) || !start || !end) {
+      return false;
+    }
+
+    return (
+      this.hasRecurringOccurrenceInRange(task.dueAt ?? null, task, start, end) ||
+      this.hasRecurringOccurrenceInRange(task.remindAt ?? null, task, start, end)
+    );
+  }
+
+  private isDateInRange(date: Date | null, start?: Date, end?: Date): boolean {
+    if (!date) {
+      return false;
+    }
+
+    if (start && date.getTime() < start.getTime()) {
+      return false;
+    }
+
+    if (end && date.getTime() > end.getTime()) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private hasRecurringOccurrenceInRange(
+    anchorDate: Date | null,
+    task: TaskEntity,
+    start: Date,
+    end: Date,
+  ): boolean {
+    if (!anchorDate || anchorDate.getTime() > end.getTime()) {
+      return false;
+    }
+
+    let current = dayjs(anchorDate);
+    let steps = 0;
+
+    while (current.toDate().getTime() < start.getTime() && steps < MAX_RECURRENCE_SEARCH_STEPS) {
+      const next = dayjs(this.calculateNextOccurrence(current.toDate(), task));
+      if (!next.isValid() || !next.isAfter(current)) {
+        return false;
+      }
+      current = next;
+      steps += 1;
+    }
+
+    return steps < MAX_RECURRENCE_SEARCH_STEPS && current.toDate().getTime() <= end.getTime();
   }
 
   private async ensureNotRecentlyCompletedRecurringOccurrence(
@@ -627,7 +732,28 @@ export class TaskService {
       return;
     }
 
-    if (view === TaskQueryView.CALENDAR || query.startDate || query.endDate) {
+    if (view === TaskQueryView.CALENDAR) {
+      const { start, end } = this.resolveDateRange(query, false);
+      if (start && end) {
+        qb.andWhere(
+          '(((task.dueAt BETWEEN :rangeStart AND :rangeEnd) OR (task.remindAt BETWEEN :rangeStart AND :rangeEnd)) OR (task.recurrenceType != :noneRecurrenceType AND ((task.dueAt IS NOT NULL AND task.dueAt <= :rangeEnd) OR (task.remindAt IS NOT NULL AND task.remindAt <= :rangeEnd))))',
+          {
+            rangeStart: start,
+            rangeEnd: end,
+            noneRecurrenceType: TaskRecurrenceType.NONE,
+          },
+        );
+      } else if (start) {
+        qb.andWhere('(task.dueAt >= :rangeStart OR task.remindAt >= :rangeStart)', {
+          rangeStart: start,
+        });
+      } else if (end) {
+        qb.andWhere('(task.dueAt <= :rangeEnd OR task.remindAt <= :rangeEnd)', { rangeEnd: end });
+      }
+      return;
+    }
+
+    if (query.startDate || query.endDate) {
       const { start, end } = this.resolveDateRange(query, false);
       if (start && end) {
         qb.andWhere(

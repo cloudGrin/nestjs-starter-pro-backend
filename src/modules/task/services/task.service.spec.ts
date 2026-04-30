@@ -9,6 +9,7 @@ import { BusinessException } from '~/common/exceptions/business.exception';
 import { TaskEntity, TaskRecurrenceType, TaskStatus, TaskType } from '../entities/task.entity';
 import { TaskListEntity, TaskListScope } from '../entities/task-list.entity';
 import { TaskCompletionEntity } from '../entities/task-completion.entity';
+import { TaskQueryView } from '../dto';
 import { TaskService } from './task.service';
 import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
 import { UserStatus } from '~/common/enums/user.enum';
@@ -231,6 +232,33 @@ describe('TaskService', () => {
     expect(taskRepository.save).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [TaskRecurrenceType.WEEKLY, 53],
+    [TaskRecurrenceType.MONTHLY, 13],
+    [TaskRecurrenceType.YEARLY, 11],
+  ])(
+    'rejects creating %s tasks whose recurrence interval exceeds the product limit',
+    async (recurrenceType, recurrenceInterval) => {
+      mockActiveFamilyList();
+      taskRepository.create.mockImplementation((data) => data as TaskEntity);
+      taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+
+      await expect(
+        service.createTask(
+          {
+            title: '超过重复间隔上限',
+            listId: 2,
+            dueAt: '2026-05-01T10:00:00.000Z',
+            recurrenceType,
+            recurrenceInterval,
+          },
+          { id: 1 } as any,
+        ),
+      ).rejects.toThrow(BusinessException);
+      expect(taskRepository.save).not.toHaveBeenCalled();
+    },
+  );
+
   it('rejects creating an anniversary without a due time', async () => {
     mockActiveFamilyList();
 
@@ -419,6 +447,33 @@ describe('TaskService', () => {
     expect(taskRepository.save).not.toHaveBeenCalled();
   });
 
+  it('rejects updating a recurrence interval beyond the selected recurrence type limit', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 19,
+      title: '每月任务',
+      listId: 2,
+      status: TaskStatus.PENDING,
+      taskType: TaskType.TASK,
+      recurrenceType: TaskRecurrenceType.MONTHLY,
+      recurrenceInterval: 1,
+      dueAt: new Date('2026-05-01T10:00:00.000Z'),
+      reminderChannels: [NotificationChannel.INTERNAL],
+      sendExternalReminder: false,
+      list: Object.assign(new TaskListEntity(), {
+        id: 2,
+        scope: TaskListScope.FAMILY,
+        isArchived: false,
+      }),
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+
+    await expect(
+      service.updateTask(19, { recurrenceInterval: 13 } as any, { id: 1 } as any),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
   it('rejects moving a family task into a personal list for normal users', async () => {
     const task = Object.assign(new TaskEntity(), {
       id: 14,
@@ -499,6 +554,54 @@ describe('TaskService', () => {
     await service.findTasks({ taskId: 42, page: 1, limit: 10 } as any, { id: 1 } as any);
 
     expect(qb.andWhere).toHaveBeenCalledWith('task.id = :taskId', { taskId: 42 });
+  });
+
+  it('includes recurring task occurrences that fall inside the calendar range', async () => {
+    const matchingTask = Object.assign(new TaskEntity(), {
+      id: 21,
+      title: '每周缴费',
+      status: TaskStatus.PENDING,
+      recurrenceType: TaskRecurrenceType.WEEKLY,
+      recurrenceInterval: 1,
+      dueAt: new Date('2026-04-24T10:00:00.000Z'),
+      remindAt: null,
+    });
+    const outOfRangeTask = Object.assign(new TaskEntity(), {
+      id: 22,
+      title: '年度检查',
+      status: TaskStatus.PENDING,
+      recurrenceType: TaskRecurrenceType.WEEKLY,
+      recurrenceInterval: 52,
+      dueAt: new Date('2026-04-30T10:00:00.000Z'),
+      remindAt: null,
+    });
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([matchingTask, outOfRangeTask]),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    taskRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+    const result = await service.findTasks(
+      {
+        view: TaskQueryView.CALENDAR,
+        startDate: '2026-05-01T00:00:00.000Z',
+        endDate: '2026-05-31T23:59:59.999Z',
+        page: 1,
+        limit: 100,
+      } as any,
+      { id: 1, isSuperAdmin: true } as any,
+    );
+
+    expect(result.items).toEqual([matchingTask]);
+    expect(result.meta.totalItems).toBe(1);
+    expect(qb.getManyAndCount).not.toHaveBeenCalled();
   });
 
   it('returns active assignee options without requiring user management permissions', async () => {

@@ -344,11 +344,7 @@ export class MenuService {
         throw new NotFoundException('菜单不存在');
       }
 
-      if (
-        placement?.targetId === id &&
-        placement.position &&
-        placement.position !== 'inside'
-      ) {
+      if (placement?.targetId === id && placement.position && placement.position !== 'inside') {
         throw new BadRequestException('目标菜单不能是自己');
       }
 

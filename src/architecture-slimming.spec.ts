@@ -7,6 +7,11 @@ const sourceRoot = __dirname;
 const readSource = (path: string) => readFileSync(join(sourceRoot, path), 'utf8');
 const existsInSource = (path: string) => existsSync(join(sourceRoot, path));
 const readProject = (path: string) => readFileSync(join(projectRoot, path), 'utf8');
+const readEnvKeys = (path: string) =>
+  readProject(path)
+    .split(/\r?\n/)
+    .map((line) => line.match(/^([A-Za-z_][A-Za-z0-9_]*)=/)?.[1])
+    .filter(Boolean);
 const readAllMigrations = () =>
   readdirSync(join(sourceRoot, 'migrations'))
     .filter((file) => file.endsWith('.ts'))
@@ -696,6 +701,10 @@ describe('architecture slimming', () => {
       expect(content).not.toMatch(/FILE_CHUNK|FILE_IMAGE/);
       expect(content).not.toMatch(/\.xls|\.xlsx/);
     }
+  });
+
+  it('keeps committed environment templates aligned', () => {
+    expect(readEnvKeys('.env.test')).toEqual(readEnvKeys('.env.example'));
   });
 
   it('keeps public docs aligned with the current lightweight personal-admin scope', () => {

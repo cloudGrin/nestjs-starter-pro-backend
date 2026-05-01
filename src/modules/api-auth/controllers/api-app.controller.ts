@@ -15,6 +15,7 @@ import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 import { UpdateApiAppDto } from '../dto/update-api-app.dto';
 import { QueryApiAppsDto } from '../dto/query-api-apps.dto';
+import { QueryApiAccessLogsDto } from '../dto/query-api-access-logs.dto';
 import {
   ApiAppDeleteResponseDto,
   ApiKeyCreatedResponseDto,
@@ -36,6 +37,23 @@ export class ApiAppController {
   @ApiOperation({ summary: '获取API应用列表' })
   async getApps(@Query() query: QueryApiAppsDto) {
     return this.apiAuthService.getApps(query);
+  }
+
+  @Get('scopes')
+  @RequirePermissions('api-app:read')
+  @ApiOperation({ summary: '获取开放API权限范围' })
+  async getApiScopes() {
+    return this.apiAuthService.getApiScopes();
+  }
+
+  @Get(':appId/access-logs')
+  @RequirePermissions('api-app:key:read')
+  @ApiOperation({ summary: '获取应用API访问日志' })
+  async getAccessLogs(
+    @Param('appId', ParseIntPipe) appId: number,
+    @Query() query: QueryApiAccessLogsDto,
+  ) {
+    return this.apiAuthService.getAccessLogs(appId, query);
   }
 
   @Get(':appId')

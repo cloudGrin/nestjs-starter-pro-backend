@@ -196,9 +196,7 @@ describe('MenuService', () => {
       });
       menuRepository.findOne.mockResolvedValue(existingMenu);
 
-      await expect(service.update(1, { type: MenuType.MENU })).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.update(1, { type: MenuType.MENU })).rejects.toThrow(BadRequestException);
       expect(menuRepository.save).not.toHaveBeenCalled();
     });
   });
@@ -411,10 +409,7 @@ describe('MenuService', () => {
       const targetMenu = createMockMenu({ id: 2, parentId: null, sort: 20 });
       const nextMenu = createMockMenu({ id: 3, parentId: null, sort: 30 });
       const transactionalRepo = {
-        findOne: jest
-          .fn()
-          .mockResolvedValueOnce(movingMenu)
-          .mockResolvedValueOnce(targetMenu),
+        findOne: jest.fn().mockResolvedValueOnce(movingMenu).mockResolvedValueOnce(targetMenu),
         find: jest.fn().mockResolvedValue([movingMenu, targetMenu, nextMenu]),
         save: jest.fn().mockImplementation(async (entity) => entity),
       };

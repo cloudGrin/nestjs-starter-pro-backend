@@ -4,15 +4,21 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ApiAuthService } from './api-auth.service';
 import { ApiAppEntity } from '../entities/api-app.entity';
 import { ApiKeyEntity } from '../entities/api-key.entity';
+import { ApiAccessLogEntity } from '../entities/api-access-log.entity';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto, ApiKeyEnvironment } from '../dto/create-api-key.dto';
+import { OpenApiScopeRegistryService } from './open-api-scope-registry.service';
 
 describe('ApiAuthService', () => {
   let service: ApiAuthService;
   let appRepository: any;
   let keyRepository: any;
+  let accessLogRepository: any;
   let cacheService: jest.Mocked<CacheService>;
+  let openApiScopeRegistry: jest.Mocked<
+    Pick<OpenApiScopeRegistryService, 'getApiScopeGroups' | 'getRegisteredScopeCodes'>
+  >;
 
   const createMockApp = (overrides?: Partial<ApiAppEntity>): ApiAppEntity => {
     const app = new ApiAppEntity();
@@ -61,10 +67,42 @@ describe('ApiAuthService', () => {
       save: jest.fn(),
     };
 
+    const mockAccessLogRepository = {
+      findAndCount: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+    };
+
     const mockCacheService = {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
+    };
+
+    const mockOpenApiScopeRegistry = {
+      getApiScopeGroups: jest.fn().mockReturnValue([
+        {
+          key: 'open-user',
+          title: '用户公开资料',
+          scopes: [
+            {
+              code: 'read:users',
+              label: '读取用户公开资料',
+              description: '获取用户公开资料列表',
+            },
+          ],
+          endpoints: [
+            {
+              scope: 'read:users',
+              method: 'GET',
+              path: '/api/v1/open/users',
+              summary: '获取用户公开资料列表',
+              description: '获取用户公开资料列表',
+            },
+          ],
+        },
+      ]),
+      getRegisteredScopeCodes: jest.fn().mockReturnValue(new Set(['read:users', 'write:users'])),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -72,14 +110,18 @@ describe('ApiAuthService', () => {
         ApiAuthService,
         { provide: getRepositoryToken(ApiAppEntity), useValue: mockAppRepository },
         { provide: getRepositoryToken(ApiKeyEntity), useValue: mockKeyRepository },
+        { provide: getRepositoryToken(ApiAccessLogEntity), useValue: mockAccessLogRepository },
         { provide: CacheService, useValue: mockCacheService },
+        { provide: OpenApiScopeRegistryService, useValue: mockOpenApiScopeRegistry },
       ],
     }).compile();
 
     service = module.get<ApiAuthService>(ApiAuthService);
     appRepository = module.get(getRepositoryToken(ApiAppEntity));
     keyRepository = module.get(getRepositoryToken(ApiKeyEntity));
+    accessLogRepository = module.get(getRepositoryToken(ApiAccessLogEntity));
     cacheService = module.get(CacheService);
+    openApiScopeRegistry = module.get(OpenApiScopeRegistryService);
   });
 
   afterEach(() => {
@@ -112,6 +154,35 @@ describe('ApiAuthService', () => {
         take: 5,
         order: { createdAt: 'DESC' },
       });
+    });
+  });
+
+  describe('getApiScopes', () => {
+    it('returns API scope groups and endpoint docs from the registry', () => {
+      const scopes = service.getApiScopes();
+
+      expect(scopes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: 'open-user',
+            title: '用户公开资料',
+            scopes: expect.arrayContaining([
+              expect.objectContaining({
+                code: 'read:users',
+                label: '读取用户公开资料',
+              }),
+            ]),
+            endpoints: expect.arrayContaining([
+              expect.objectContaining({
+                scope: 'read:users',
+                method: 'GET',
+                path: '/api/v1/open/users',
+              }),
+            ]),
+          }),
+        ]),
+      );
+      expect(openApiScopeRegistry.getApiScopeGroups).toHaveBeenCalled();
     });
   });
 
@@ -167,6 +238,24 @@ describe('ApiAuthService', () => {
       await expect(service.createApp({ name: 'Existing App' })).rejects.toThrow(
         BadRequestException,
       );
+      expect(appRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects unknown scopes when creating an API app', async () => {
+      await expect(
+        service.createApp({ name: 'Unknown Scope App', scopes: ['read:unknown'] }),
+      ).rejects.toThrow('未知API权限范围: read:unknown');
+
+      expect(appRepository.create).not.toHaveBeenCalled();
+      expect(appRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects wildcard scopes when creating an API app', async () => {
+      await expect(service.createApp({ name: 'Wildcard App', scopes: ['*'] })).rejects.toThrow(
+        '不支持配置API通配符权限: *',
+      );
+
+      expect(appRepository.create).not.toHaveBeenCalled();
       expect(appRepository.save).not.toHaveBeenCalled();
     });
   });
@@ -227,6 +316,28 @@ describe('ApiAuthService', () => {
       });
       expect(cacheService.del).toHaveBeenCalledWith('api_key:hash-11');
     });
+
+    it('rejects unknown scopes when updating an API app', async () => {
+      appRepository.findOne.mockResolvedValue(createMockApp({ id: 1 }));
+
+      await expect(service.updateApp(1, { scopes: ['read:unknown'] })).rejects.toThrow(
+        '未知API权限范围: read:unknown',
+      );
+
+      expect(appRepository.save).not.toHaveBeenCalled();
+      expect(cacheService.del).not.toHaveBeenCalled();
+    });
+
+    it('rejects wildcard scopes when updating an API app', async () => {
+      appRepository.findOne.mockResolvedValue(createMockApp({ id: 1 }));
+
+      await expect(service.updateApp(1, { scopes: ['*'] })).rejects.toThrow(
+        '不支持配置API通配符权限: *',
+      );
+
+      expect(appRepository.save).not.toHaveBeenCalled();
+      expect(cacheService.del).not.toHaveBeenCalled();
+    });
   });
 
   describe('generateApiKey', () => {
@@ -284,6 +395,38 @@ describe('ApiAuthService', () => {
       ).rejects.toThrow(BadRequestException);
       expect(keyRepository.save).not.toHaveBeenCalled();
     });
+
+    it('rejects unknown scopes when generating an API key', async () => {
+      appRepository.findOne.mockResolvedValue(createMockApp());
+
+      await expect(
+        service.generateApiKey({
+          appId: 1,
+          name: 'Test Key',
+          environment: ApiKeyEnvironment.TEST,
+          scopes: ['read:unknown'],
+        }),
+      ).rejects.toThrow('未知API权限范围: read:unknown');
+
+      expect(keyRepository.create).not.toHaveBeenCalled();
+      expect(keyRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects wildcard scopes when generating an API key', async () => {
+      appRepository.findOne.mockResolvedValue(createMockApp());
+
+      await expect(
+        service.generateApiKey({
+          appId: 1,
+          name: 'Test Key',
+          environment: ApiKeyEnvironment.TEST,
+          scopes: ['*'],
+        }),
+      ).rejects.toThrow('不支持配置API通配符权限: *');
+
+      expect(keyRepository.create).not.toHaveBeenCalled();
+      expect(keyRepository.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('deleteApp', () => {
@@ -304,7 +447,7 @@ describe('ApiAuthService', () => {
   });
 
   describe('validateApiKey', () => {
-    it('returns cached app', async () => {
+    it('returns cached app with key id fallback for legacy cached payloads', async () => {
       const apiKey = 'sk_live_testkey123';
       const cachedAuth = {
         id: 1,
@@ -320,7 +463,10 @@ describe('ApiAuthService', () => {
 
       const result = await service.validateApiKey(apiKey);
 
-      expect(result).toEqual(cachedAuth);
+      expect(result).toEqual({
+        ...cachedAuth,
+        keyId: 9,
+      });
       expect(cacheService.get).toHaveBeenCalledWith(`api_key:${keyHash}`);
       expect(keyRepository.increment).toHaveBeenCalledWith({ id: 9 }, 'usageCount', 1);
       expect(keyRepository.findOne).not.toHaveBeenCalled();
@@ -345,6 +491,10 @@ describe('ApiAuthService', () => {
         name: mockApp.name,
         ownerId: mockApp.ownerId,
         scopes: ['read:users'],
+        keyId: mockKey.id,
+        keyName: mockKey.name,
+        keyPrefix: mockKey.prefix,
+        keySuffix: mockKey.suffix,
         type: 'api-app',
       });
       expect(keyRepository.findOne).toHaveBeenCalledWith({
@@ -360,6 +510,10 @@ describe('ApiAuthService', () => {
             name: mockApp.name,
             ownerId: mockApp.ownerId,
             scopes: ['read:users'],
+            keyId: mockKey.id,
+            keyName: mockKey.name,
+            keyPrefix: mockKey.prefix,
+            keySuffix: mockKey.suffix,
             type: 'api-app',
           },
         },
@@ -469,6 +623,78 @@ describe('ApiAuthService', () => {
 
       await expect(service.getAppKeys(404)).rejects.toThrow(NotFoundException);
       expect(keyRepository.find).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('access logs', () => {
+    it('records API access logs with key snapshot fields', async () => {
+      const log = {
+        appId: 1,
+        keyId: 2,
+        keyName: 'Production Key',
+        keyPrefix: 'sk_live',
+        keySuffix: 'abcd',
+        method: 'GET',
+        path: '/api/v1/open/users?page=1',
+        statusCode: 200,
+        durationMs: 25,
+        ip: '127.0.0.1',
+        userAgent: 'curl/8.0',
+      };
+      accessLogRepository.create.mockReturnValue(log);
+      accessLogRepository.save.mockResolvedValue({ id: 9, ...log });
+
+      await service.recordAccessLog(log);
+
+      expect(accessLogRepository.create).toHaveBeenCalledWith(log);
+      expect(accessLogRepository.save).toHaveBeenCalledWith(log);
+    });
+
+    it('filters API access logs by key, path, and status code', async () => {
+      const logs = [
+        {
+          id: 11,
+          appId: 1,
+          keyId: 2,
+          path: '/api/v1/open/users?page=1',
+          statusCode: 403,
+        },
+      ];
+      appRepository.findOne.mockResolvedValue(createMockApp({ id: 1 }));
+      accessLogRepository.findAndCount.mockResolvedValue([logs, 1]);
+
+      await expect(
+        service.getAccessLogs(1, {
+          keyId: 2,
+          path: '/open/users',
+          statusCode: 403,
+          page: 2,
+          limit: 20,
+        }),
+      ).resolves.toEqual({
+        items: logs,
+        meta: {
+          totalItems: 1,
+          itemCount: 1,
+          itemsPerPage: 20,
+          totalPages: 1,
+          currentPage: 2,
+        },
+      });
+
+      expect(accessLogRepository.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            appId: 1,
+            keyId: 2,
+            statusCode: 403,
+            path: expect.any(Object),
+          }),
+          skip: 20,
+          take: 20,
+          order: { createdAt: 'DESC' },
+        }),
+      );
     });
   });
 });

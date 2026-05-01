@@ -1,13 +1,17 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
+import { FindOptionsWhere, Like, Not, Repository } from 'typeorm';
 import { ApiAppEntity } from '../entities/api-app.entity';
 import { ApiKeyEntity } from '../entities/api-key.entity';
+import { ApiAccessLogEntity } from '../entities/api-access-log.entity';
 import { CacheService } from '~/shared/cache/cache.service';
 import { CreateApiAppDto } from '../dto/create-api-app.dto';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 import { UpdateApiAppDto } from '../dto/update-api-app.dto';
 import { QueryApiAppsDto } from '../dto/query-api-apps.dto';
+import { QueryApiAccessLogsDto } from '../dto/query-api-access-logs.dto';
+import { ApiScopeGroup } from '../constants/api-scopes.constant';
+import { OpenApiScopeRegistryService } from './open-api-scope-registry.service';
 import { PaginationOptions, PaginationResult } from '~/common/types/pagination.types';
 
 // 配置常量
@@ -22,8 +26,27 @@ export interface ValidatedApiApp {
   name: string;
   ownerId?: number;
   scopes: string[];
+  keyId?: number;
+  keyName?: string;
+  keyPrefix?: string;
+  keySuffix?: string;
   type: 'api-app';
 }
+
+export type RecordApiAccessLogInput = Pick<
+  ApiAccessLogEntity,
+  | 'appId'
+  | 'keyId'
+  | 'keyName'
+  | 'keyPrefix'
+  | 'keySuffix'
+  | 'method'
+  | 'path'
+  | 'statusCode'
+  | 'durationMs'
+  | 'ip'
+  | 'userAgent'
+>;
 
 interface ApiKeyCacheEntry {
   keyId: number;
@@ -37,8 +60,18 @@ export class ApiAuthService {
     private readonly appRepository: Repository<ApiAppEntity>,
     @InjectRepository(ApiKeyEntity)
     private readonly keyRepository: Repository<ApiKeyEntity>,
+    @InjectRepository(ApiAccessLogEntity)
+    private readonly accessLogRepository: Repository<ApiAccessLogEntity>,
     private readonly cacheService: CacheService,
+    private readonly openApiScopeRegistry: OpenApiScopeRegistryService,
   ) {}
+
+  /**
+   * 获取开放 API 权限范围定义
+   */
+  getApiScopes(): ApiScopeGroup[] {
+    return this.openApiScopeRegistry.getApiScopeGroups();
+  }
 
   /**
    * 获取API应用列表
@@ -79,6 +112,8 @@ export class ApiAuthService {
    * 创建API应用
    */
   async createApp(dto: CreateApiAppDto, ownerId?: number): Promise<ApiAppEntity> {
+    this.validateRegisteredScopes(dto.scopes);
+
     // 检查名称是否存在
     if (await this.isAppNameExist(dto.name)) {
       throw new BadRequestException('应用名称已存在');
@@ -94,6 +129,7 @@ export class ApiAuthService {
   async updateApp(appId: number, dto: UpdateApiAppDto): Promise<ApiAppEntity> {
     const app = await this.getApp(appId);
     const nameChanged = dto.name !== undefined && dto.name !== app.name;
+    this.validateRegisteredScopes(dto.scopes);
 
     if (dto.name && nameChanged && (await this.isAppNameExist(dto.name, appId))) {
       throw new BadRequestException('应用名称已存在');
@@ -140,6 +176,8 @@ export class ApiAuthService {
       throw new BadRequestException('应用不存在或已禁用');
     }
 
+    this.validateRegisteredScopes(dto.scopes);
+
     // 检查密钥数量限制
     const activeKeys = await this.keyRepository.find({
       where: { appId: dto.appId, isActive: true },
@@ -177,7 +215,10 @@ export class ApiAuthService {
     const cached = await this.cacheService.get<ApiKeyCacheEntry>(cacheKey);
     if (cached) {
       await this.recordKeyUsage(cached.keyId);
-      return cached.app;
+      return {
+        ...cached.app,
+        keyId: cached.app.keyId ?? cached.keyId,
+      };
     }
 
     // 查询密钥
@@ -205,6 +246,10 @@ export class ApiAuthService {
       name: key.app.name,
       ownerId: key.app.ownerId,
       scopes: key.scopes ?? key.app.scopes ?? [],
+      keyId: key.id,
+      keyName: key.name,
+      keyPrefix: key.prefix,
+      keySuffix: key.suffix,
       type: 'api-app',
     };
 
@@ -243,6 +288,40 @@ export class ApiAuthService {
     return this.findAppKeys(appId);
   }
 
+  async recordAccessLog(input: RecordApiAccessLogInput): Promise<ApiAccessLogEntity> {
+    const log = this.accessLogRepository.create(input);
+    return this.accessLogRepository.save(log);
+  }
+
+  async getAccessLogs(
+    appId: number,
+    query: QueryApiAccessLogsDto = {},
+  ): Promise<PaginationResult<ApiAccessLogEntity>> {
+    await this.getApp(appId);
+
+    const where: FindOptionsWhere<ApiAccessLogEntity> = { appId };
+    if (query.keyId !== undefined) {
+      where.keyId = query.keyId;
+    }
+    if (query.statusCode !== undefined) {
+      where.statusCode = query.statusCode;
+    }
+    if (query.path?.trim()) {
+      where.path = Like(`%${query.path.trim()}%`);
+    }
+
+    return this.paginateAccessLogs(
+      {
+        page: query.page ?? 1,
+        limit: query.limit ?? 10,
+      },
+      {
+        where,
+        order: { createdAt: 'DESC' },
+      },
+    );
+  }
+
   private getApiKeyCacheTtl(expiresAt?: Date): number {
     if (!expiresAt) {
       return API_AUTH_CONSTANTS.KEY_CACHE_TTL;
@@ -257,6 +336,23 @@ export class ApiAuthService {
       where: { appId },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  private validateRegisteredScopes(scopes?: string[]): void {
+    if (!scopes?.length) {
+      return;
+    }
+
+    if (scopes.includes('*')) {
+      throw new BadRequestException('不支持配置API通配符权限: *');
+    }
+
+    const registeredScopes = this.openApiScopeRegistry.getRegisteredScopeCodes();
+    const invalidScopes = scopes.filter((scope) => !registeredScopes.has(scope));
+
+    if (invalidScopes.length > 0) {
+      throw new BadRequestException(`未知API权限范围: ${invalidScopes.join(', ')}`);
+    }
   }
 
   private async clearAppKeyCache(appId: number): Promise<void> {
@@ -288,6 +384,33 @@ export class ApiAuthService {
             Parameters<Repository<ApiAppEntity>['findAndCount']>[0]
           >['order'])
         : findOptions?.order,
+    });
+
+    return {
+      items,
+      meta: {
+        totalItems,
+        itemCount: items.length,
+        itemsPerPage: limit,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+      },
+    };
+  }
+
+  private async paginateAccessLogs(
+    options: PaginationOptions,
+    findOptions?: Parameters<Repository<ApiAccessLogEntity>['findAndCount']>[0],
+  ): Promise<PaginationResult<ApiAccessLogEntity>> {
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.min(100, Math.max(1, options.limit || 10));
+    const skip = (page - 1) * limit;
+
+    const [items, totalItems] = await this.accessLogRepository.findAndCount({
+      ...findOptions,
+      skip,
+      take: limit,
+      order: findOptions?.order,
     });
 
     return {

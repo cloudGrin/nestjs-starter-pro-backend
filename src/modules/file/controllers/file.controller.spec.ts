@@ -5,6 +5,31 @@ import { FileController } from './file.controller';
 import { UploadFileDto } from '../dto/upload-file.dto';
 
 describe('FileController', () => {
+  const createController = () => {
+    const fileService = {
+      upload: jest.fn().mockResolvedValue({ id: 1 }),
+    };
+
+    return {
+      controller: new FileController(fileService as any),
+      fileService,
+    };
+  };
+
+  const createUploadFile = (originalname: string): Express.Multer.File =>
+    ({
+      fieldname: 'file',
+      originalname,
+      encoding: '7bit',
+      mimetype: 'text/plain',
+      size: 4,
+      buffer: Buffer.from('test'),
+      destination: '',
+      filename: originalname,
+      path: '',
+      stream: undefined as any,
+    }) as Express.Multer.File;
+
   it('uses UploadFileDto for upload body validation', () => {
     const paramTypes = Reflect.getMetadata('design:paramtypes', FileController.prototype, 'upload');
 
@@ -33,5 +58,32 @@ describe('FileController', () => {
     expect(source).not.toContain('DEFAULT_FILE_MAX_SIZE');
     expect(source).not.toContain('limits:');
     expect(source).not.toContain('最大100MB');
+  });
+
+  it('does not corrupt filenames that are already decoded as UTF-8', async () => {
+    const { controller, fileService } = createController();
+    const file = createUploadFile('测试文件.txt');
+
+    await controller.upload(file, {}, { id: 1 } as any);
+
+    expect(fileService.upload).toHaveBeenCalledWith(
+      expect.objectContaining({ originalname: '测试文件.txt' }),
+      {},
+      1,
+    );
+  });
+
+  it('decodes latin1 mojibake filenames produced by multipart parsers', async () => {
+    const { controller, fileService } = createController();
+    const mojibakeName = Buffer.from('测试文件.txt', 'utf8').toString('latin1');
+    const file = createUploadFile(mojibakeName);
+
+    await controller.upload(file, {}, { id: 1 } as any);
+
+    expect(fileService.upload).toHaveBeenCalledWith(
+      expect.objectContaining({ originalname: '测试文件.txt' }),
+      {},
+      1,
+    );
   });
 });

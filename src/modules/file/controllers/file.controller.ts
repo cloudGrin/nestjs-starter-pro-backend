@@ -38,6 +38,19 @@ import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
 
+function normalizeMulterOriginalName(originalName: string): string {
+  if (!/[\u0080-\u00ff]/.test(originalName)) {
+    return originalName;
+  }
+
+  const decoded = Buffer.from(originalName, 'latin1').toString('utf8');
+  if (!decoded || decoded.includes('\uFFFD')) {
+    return originalName;
+  }
+
+  return decoded;
+}
+
 @ApiTags('文件管理')
 @ApiBearerAuth()
 @Controller('files')
@@ -100,14 +113,9 @@ export class FileController {
       throw BusinessException.validationFailed('请选择要上传的文件');
     }
 
-    // 修复中文文件名编码问题：multer 将 UTF-8 文件名错误地当作 Latin-1 解析
-    // 需要重新以正确的编码解码文件名
+    // multer 在部分 multipart 客户端下会把 UTF-8 文件名当成 Latin-1。
     if (file.originalname) {
-      try {
-        file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
-      } catch {
-        // 如果转换失败，保持原始文件名
-      }
+      file.originalname = normalizeMulterOriginalName(file.originalname);
     }
 
     return this.fileService.upload(file, dto, user?.id);

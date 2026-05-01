@@ -1,5 +1,6 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { SoftDeleteBaseEntity } from '~/core/base/base.entity';
+import { UserEntity } from '~/modules/user/entities/user.entity';
 
 export enum FileStorageType {
   LOCAL = 'local',
@@ -122,4 +123,8 @@ export class FileEntity extends SoftDeleteBaseEntity {
     comment: '上传者ID',
   })
   uploaderId?: number;
+
+  @ManyToOne(() => UserEntity, { nullable: true, createForeignKeyConstraints: false })
+  @JoinColumn({ name: 'uploaderId' })
+  uploader?: UserEntity;
 }

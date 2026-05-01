@@ -19,3 +19,17 @@ export function toOptionalBoolean(value: unknown): unknown {
 
   return value;
 }
+
+export function toOptionalBooleanFromTransform({
+  value,
+  obj,
+  key,
+}: {
+  value: unknown;
+  obj?: Record<string, unknown>;
+  key?: string;
+}): unknown {
+  const rawValue = key && obj && Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : value;
+
+  return toOptionalBoolean(rawValue);
+}

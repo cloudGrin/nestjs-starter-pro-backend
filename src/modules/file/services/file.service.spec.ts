@@ -126,6 +126,7 @@ describe('FileService', () => {
   describe('findFiles', () => {
     it('应该成功分页查询文件', async () => {
       const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
@@ -140,8 +141,25 @@ describe('FileService', () => {
       expect(repository.createQueryBuilder).toHaveBeenCalledWith('file');
     });
 
+    it('loads uploader information for list display', async () => {
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      };
+      repository.createQueryBuilder.mockReturnValue(qb as any);
+
+      await service.findFiles({ page: 1, limit: 10 });
+
+      expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('file.uploader', 'uploader');
+    });
+
     it('ignores unsupported sort fields and falls back to createdAt ordering', async () => {
       const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),

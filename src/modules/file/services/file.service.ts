@@ -405,6 +405,7 @@ export class FileService {
     query: FileQueryOptions,
   ): Promise<PaginationResult<FileEntity>> {
     const qb = this.fileRepository.createQueryBuilder('file');
+    qb.leftJoinAndSelect('file.uploader', 'uploader');
 
     if (query.keyword) {
       qb.andWhere('(file.originalName LIKE :keyword OR file.filename LIKE :keyword)', {

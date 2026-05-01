@@ -37,6 +37,14 @@ describe('configuration', () => {
     expect(config.extra).not.toHaveProperty('timeout');
   });
 
+  it('excludes migration spec files from TypeORM CLI migration loading', () => {
+    const config = getDatabaseConfig({ NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const migrations = config.migrations as string[];
+
+    expect(migrations.length).toBeGreaterThan(0);
+    expect(migrations.some((migration) => migration.includes('.spec.'))).toBe(false);
+  });
+
   it('disables Swagger by default in production', () => {
     process.env = { NODE_ENV: 'production' } as NodeJS.ProcessEnv;
 

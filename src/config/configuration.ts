@@ -1,5 +1,6 @@
-import { DataSourceOptions } from 'typeorm';
+import { readdirSync } from 'fs';
 import { join } from 'path';
+import { DataSourceOptions } from 'typeorm';
 import type { Configuration } from './config.types';
 import { DEFAULT_FILE_MAX_SIZE } from './constants';
 
@@ -19,6 +20,17 @@ function parseCorsOrigin(origin?: string): string | string[] {
   }
 
   return origins.length === 1 ? origins[0] : origins;
+}
+
+function resolveMigrationFiles(): string[] {
+  const migrationsDir = join(__dirname, '..', 'migrations');
+
+  return readdirSync(migrationsDir)
+    .filter((file) => /\.(ts|js)$/.test(file))
+    .filter((file) => !/\.spec\.(ts|js)$/.test(file))
+    .filter((file) => !/\.d\.ts$/.test(file))
+    .sort()
+    .map((file) => join(migrationsDir, file));
 }
 
 /**
@@ -42,7 +54,7 @@ export function getDatabaseConfig(env: NodeJS.ProcessEnv = process.env): DataSou
 
     // 实体和迁移路径配置
     entities: [join(__dirname, '..', '**', '*.entity.{ts,js}')],
-    migrations: [join(__dirname, '..', 'migrations', '*.{ts,js}')],
+    migrations: resolveMigrationFiles(),
     migrationsTableName: 'migrations',
 
     // 同步配置：所有环境都禁用，使用migration管理数据库结构

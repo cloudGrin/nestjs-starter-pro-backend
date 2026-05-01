@@ -258,6 +258,7 @@ export class PermissionService {
       file: '文件管理',
       notification: '通知中心',
       'api-auth': 'API认证',
+      automation: '自动化任务',
       'open-api': '开放API',
       health: '健康检查',
     };

@@ -52,6 +52,9 @@ const DEFAULT_SYSTEM_PERMISSIONS = [
   { code: 'task:delete', name: '删除任务', module: 'task', sort: 40 },
   { code: 'task:complete', name: '完成任务', module: 'task', sort: 50 },
   { code: 'task-list:manage', name: '管理任务清单', module: 'task', sort: 60 },
+  { code: 'automation:read', name: '查看自动化任务', module: 'automation', sort: 10 },
+  { code: 'automation:update', name: '更新自动化任务配置', module: 'automation', sort: 20 },
+  { code: 'automation:execute', name: '执行自动化任务', module: 'automation', sort: 30 },
 ] as const;
 
 @Injectable()
@@ -147,20 +150,11 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     const menuCount = await this.menuRepository.count();
     if (menuCount > 0) {
       await this.ensureTaskCenterMenu();
+      await this.ensureAutomationMenu();
       return;
     }
 
-    const systemMenu = this.menuRepository.create({
-      name: '系统管理',
-      path: '/system',
-      type: MenuType.DIRECTORY,
-      icon: 'setting',
-      sort: 10,
-      isVisible: true,
-      isActive: true,
-      meta: { title: '系统管理', icon: 'setting' },
-    });
-    const savedSystemMenu = await this.menuRepository.save(systemMenu);
+    const savedSystemMenu = await this.ensureSystemMenu();
 
     const menus = this.menuRepository.create([
       this.createTaskCenterMenu(),
@@ -225,13 +219,16 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         meta: { title: 'API应用', icon: 'api' },
       },
       {
+        ...this.createAutomationMenu(savedSystemMenu.id),
+      },
+      {
         name: '文件管理',
         path: '/system/files',
         type: MenuType.MENU,
         icon: 'folder',
         component: 'system/files',
         parentId: savedSystemMenu.id,
-        sort: 70,
+        sort: 80,
         isVisible: true,
         isActive: true,
         meta: { title: '文件管理', icon: 'folder' },
@@ -243,7 +240,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         icon: 'notification',
         component: 'system/notifications',
         parentId: savedSystemMenu.id,
-        sort: 80,
+        sort: 90,
         isVisible: true,
         isActive: true,
         meta: { title: '通知中心', icon: 'notification' },
@@ -265,6 +262,44 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     await this.menuRepository.save(this.menuRepository.create(this.createTaskCenterMenu()));
   }
 
+  private async ensureAutomationMenu(): Promise<void> {
+    const existing = await this.menuRepository.findOne({
+      where: { path: '/system/automation' },
+    });
+
+    if (existing) {
+      return;
+    }
+
+    const systemMenu = await this.ensureSystemMenu();
+    await this.menuRepository.save(
+      this.menuRepository.create(this.createAutomationMenu(systemMenu.id)),
+    );
+  }
+
+  private async ensureSystemMenu(): Promise<MenuEntity> {
+    const existing = await this.menuRepository.findOne({
+      where: { path: '/system' },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.menuRepository.save(
+      this.menuRepository.create({
+        name: '系统管理',
+        path: '/system',
+        type: MenuType.DIRECTORY,
+        icon: 'setting',
+        sort: 10,
+        isVisible: true,
+        isActive: true,
+        meta: { title: '系统管理', icon: 'setting' },
+      }),
+    );
+  }
+
   private createTaskCenterMenu(): Partial<MenuEntity> {
     return {
       name: '任务中心',
@@ -277,6 +312,21 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       isVisible: true,
       isActive: true,
       meta: { title: '任务中心', icon: 'check-square' },
+    };
+  }
+
+  private createAutomationMenu(parentId: number): Partial<MenuEntity> {
+    return {
+      name: '自动化任务',
+      path: '/system/automation',
+      type: MenuType.MENU,
+      icon: 'clock-circle',
+      component: 'system/automation',
+      parentId,
+      sort: 70,
+      isVisible: true,
+      isActive: true,
+      meta: { title: '自动化任务', icon: 'clock-circle' },
     };
   }
 

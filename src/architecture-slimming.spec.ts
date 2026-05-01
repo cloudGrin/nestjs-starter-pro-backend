@@ -28,13 +28,16 @@ describe('architecture slimming', () => {
     expect(existsInSource('modules/config')).toBe(false);
   });
 
-  it('keeps task scheduling as code cron only, not a database task platform', () => {
+  it('keeps task scheduling as registered code tasks, not a workflow platform', () => {
     const appModule = readSource('app.module.ts');
+    const registry = readSource('modules/automation/services/automation-task-registry.service.ts');
     const migrations = readAllMigrations();
 
-    expect(appModule).toContain('CronModule');
+    expect(appModule).toContain('AutomationModule');
+    expect(registry).toContain('this.register({');
+    expect(migrations).toContain('automation_task_configs');
+    expect(migrations).toContain('automation_task_logs');
     expect(migrations).not.toContain('task_definitions');
-    expect(migrations).not.toContain('task_logs');
     expect(existsInSource('modules/workflow')).toBe(false);
   });
 

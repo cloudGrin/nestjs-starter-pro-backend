@@ -145,6 +145,27 @@ describe('AuthService', () => {
     jest.clearAllMocks();
   });
 
+  describe('cleanupExpiredTokens', () => {
+    it('returns the number of deleted expired refresh tokens', async () => {
+      refreshTokenRepository.delete.mockResolvedValue({ affected: 3 });
+
+      await expect(service.cleanupExpiredTokens()).resolves.toBe(3);
+
+      expect(refreshTokenRepository.delete).toHaveBeenCalledWith({
+        expiresAt: expect.any(Object),
+      });
+      expect(logger.log).toHaveBeenCalledWith('Cleaned up 3 expired refresh tokens');
+    });
+
+    it('rethrows cleanup errors so automation can record a failed run', async () => {
+      const error = new Error('database unavailable');
+      refreshTokenRepository.delete.mockRejectedValue(error);
+
+      await expect(service.cleanupExpiredTokens()).rejects.toThrow('database unavailable');
+      expect(logger.error).toHaveBeenCalledWith('Failed to cleanup expired tokens', error.stack);
+    });
+  });
+
   describe('login', () => {
     const mockLoginDto: LoginDto = {
       account: 'testuser',

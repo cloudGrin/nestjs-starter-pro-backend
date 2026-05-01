@@ -19,7 +19,7 @@ import { UserModule } from './modules/user/user.module';
 import { RoleModule } from './modules/role/role.module';
 import { FileModule } from './modules/file/file.module';
 import { NotificationModule } from './modules/notification/notification.module';
-import { CronModule } from './modules/cron/cron.module';
+import { AutomationModule } from './modules/automation/automation.module';
 import { ApiAuthModule } from './modules/api-auth/api-auth.module';
 import { OpenApiModule } from './modules/open-api/open-api.module';
 import { HealthModule } from './modules/health/health.module';
@@ -74,7 +74,7 @@ import { TaskModule } from './modules/task/task.module';
     FileModule,
     NotificationModule,
     TaskModule,
-    CronModule,
+    AutomationModule,
     ApiAuthModule,
     OpenApiModule,
     HealthModule,

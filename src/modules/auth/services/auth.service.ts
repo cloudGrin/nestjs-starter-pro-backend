@@ -472,7 +472,7 @@ export class AuthService {
   /**
    * 清理过期的刷新令牌
    */
-  async cleanupExpiredTokens(): Promise<void> {
+  async cleanupExpiredTokens(): Promise<number> {
     try {
       const result = await this.refreshTokenRepository.delete({
         expiresAt: LessThan(new Date()),
@@ -482,8 +482,11 @@ export class AuthService {
       if (count > 0) {
         this.logger.log(`Cleaned up ${count} expired refresh tokens`);
       }
+
+      return count;
     } catch (error) {
       this.logger.error('Failed to cleanup expired tokens', error.stack);
+      throw error;
     }
   }
 

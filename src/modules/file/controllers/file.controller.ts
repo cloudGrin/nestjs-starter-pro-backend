@@ -32,8 +32,10 @@ import { StreamableFile } from '@nestjs/common';
 import { FileService } from '../services/file.service';
 import { UploadFileDto } from '../dto/upload-file.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
+import { CompleteDirectUploadDto, CreateDirectUploadDto } from '../dto/direct-upload.dto';
+import { CreateFileAccessLinkDto } from '../dto/file-access-link.dto';
 import { RequirePermissions, CurrentUser, Public } from '~/core/decorators';
-import { FileEntity } from '../entities/file.entity';
+import { FileEntity, FileStorageType } from '../entities/file.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
@@ -94,6 +96,11 @@ export class FileController {
           description: '备注信息',
           maxLength: 500,
         },
+        storage: {
+          type: 'string',
+          enum: Object.values(FileStorageType),
+          description: '目标存储类型。不传时使用系统默认存储。',
+        },
       },
       required: ['file'],
     },
@@ -119,6 +126,35 @@ export class FileController {
     }
 
     return this.fileService.upload(file, dto, user?.id);
+  }
+
+  @Get('storage-options')
+  @RequirePermissions('file:read')
+  @ApiOperation({ summary: '获取可用文件存储选项' })
+  @ApiOkResponse({ description: '获取文件存储选项成功' })
+  async getStorageOptions() {
+    return this.fileService.getStorageOptions();
+  }
+
+  @Post('direct-upload/initiate')
+  @RequirePermissions('file:upload')
+  @ApiOperation({ summary: '初始化 OSS 直传' })
+  @ApiCreatedResponse({ description: '创建 OSS 直传签名成功' })
+  @ApiBadRequestResponse({ description: '参数验证失败或 OSS 未启用' })
+  async createDirectUpload(
+    @Body() dto: CreateDirectUploadDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.fileService.createDirectUpload(dto, user?.id);
+  }
+
+  @Post('direct-upload/complete')
+  @RequirePermissions('file:upload')
+  @ApiOperation({ summary: '完成 OSS 直传并创建文件记录' })
+  @ApiCreatedResponse({ type: FileEntity })
+  @ApiBadRequestResponse({ description: '上传令牌无效或 OSS 对象校验失败' })
+  async completeDirectUpload(@Body() dto: CompleteDirectUploadDto) {
+    return this.fileService.completeDirectUpload(dto);
   }
 
   @Get()
@@ -170,6 +206,47 @@ export class FileController {
     );
 
     return new StreamableFile(stream as any);
+  }
+
+  @Post(':id/access-link')
+  @RequirePermissions('file:download')
+  @ApiOperation({ summary: '创建文件临时访问链接' })
+  @ApiParam({ name: 'id', description: '文件ID' })
+  @ApiOkResponse({ description: '创建文件临时访问链接成功' })
+  async createAccessLink(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateFileAccessLinkDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.fileService.createAccessLink(id, user, dto);
+  }
+
+  @Get(':id/access')
+  @Public()
+  @ApiOperation({ summary: '通过临时访问链接访问文件' })
+  @ApiParam({ name: 'id', description: '文件ID' })
+  async accessByLink(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('token') token: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!token) {
+      throw BusinessException.forbidden('访问链接无效或已过期');
+    }
+
+    const result = await this.fileService.resolveAccessLink(id, token);
+    if (result.redirectUrl) {
+      res.redirect(302, result.redirectUrl);
+      return;
+    }
+
+    res.setHeader('Content-Type', result.file.mimeType || 'application/octet-stream');
+    res.setHeader(
+      'Content-Disposition',
+      `${result.disposition}; filename*=UTF-8''${encodeURIComponent(result.file.originalName)}`,
+    );
+
+    return new StreamableFile(result.stream as any);
   }
 
   @Get(':id/download')

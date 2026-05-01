@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { UploadFileDto } from './upload-file.dto';
+import { FileStorageType } from '../entities/file.entity';
 
 const pipe = new ValidationPipe({
   whitelist: true,
@@ -27,5 +28,15 @@ describe('UploadFileDto', () => {
     const dto = await transformBody({ isPublic: 'true' });
 
     expect(dto.isPublic).toBe(true);
+  });
+
+  it('accepts an explicit storage target for local or OSS uploads', async () => {
+    const dto = await transformBody({ storage: FileStorageType.OSS });
+
+    expect(dto.storage).toBe(FileStorageType.OSS);
+  });
+
+  it('rejects unsupported storage targets', async () => {
+    await expect(transformBody({ storage: 's3' })).rejects.toThrow();
   });
 });

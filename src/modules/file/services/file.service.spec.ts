@@ -32,11 +32,17 @@ describe('FileService', () => {
   beforeEach(async () => {
     const mockRepository = createMockRepository<FileEntity>();
     const mockConfigService = createMockConfigService({
+      jwt: {
+        secret: 'test-secret-for-file-links',
+      },
       file: {
         storage: FileStorageType.LOCAL,
         uploadDir: 'uploads',
+        baseUrl: '/api/v1/files',
         maxSize: 50 * 1024 * 1024,
         allowedTypes: ['.jpg', '.jpeg', '.png', '.pdf', '.txt'],
+        privateLinkTtlSeconds: 86400,
+        ossDirectUploadTtlSeconds: 900,
       },
     });
     const mockStorageStrategy = {
@@ -48,9 +54,32 @@ describe('FileService', () => {
       }),
       delete: jest.fn().mockResolvedValue(undefined),
       getStream: jest.fn().mockReturnValue({} as any),
+      isEnabled: jest.fn().mockReturnValue(true),
+      buildObjectKey: jest.fn().mockReturnValue('avatar/2024/01/20/test_123.jpg'),
+      buildPublicUrl: jest.fn().mockReturnValue('https://cdn.example.com/test_123.jpg'),
+      createSignedUploadUrl: jest.fn().mockResolvedValue({
+        url: 'https://oss.example.com/upload-signature',
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'x-oss-forbid-overwrite': 'true',
+        },
+      }),
+      createSignedDownloadUrl: jest
+        .fn()
+        .mockReturnValue('https://oss.example.com/download-signature'),
+      headObject: jest.fn().mockResolvedValue({
+        contentLength: 1024 * 100,
+        contentType: 'image/jpeg',
+        etag: 'etag-1',
+      }),
     };
     const mockStorageFactory = {
       getStrategy: jest.fn().mockReturnValue(mockStorageStrategy),
+      getOssStrategy: jest.fn().mockReturnValue(mockStorageStrategy),
+      getAvailableStorageTypes: jest
+        .fn()
+        .mockReturnValue([FileStorageType.LOCAL, FileStorageType.OSS]),
+      normalizeDefaultStorage: jest.fn().mockReturnValue(FileStorageType.LOCAL),
     } as unknown as jest.Mocked<FileStorageFactory>;
     const mockLogger = createMockLogger();
 
@@ -120,6 +149,211 @@ describe('FileService', () => {
 
       await expect(service.upload(file, { module: 'avatar' }, 1)).rejects.toThrow('db unavailable');
       expect(storage.delete).toHaveBeenCalledWith('uploads/2024/01/20/test_123.jpg');
+    });
+
+    it('使用调用方指定的存储类型，而不是全局默认存储', async () => {
+      const file = createMockFile();
+      const entity = {
+        id: 1,
+        originalName: file.originalname,
+        storage: FileStorageType.OSS,
+      } as FileEntity;
+      repository.create.mockReturnValue(entity);
+      repository.save.mockResolvedValue(entity);
+
+      await service.upload(file, { module: 'avatar', storage: FileStorageType.OSS }, 1);
+
+      expect(storageFactory.getStrategy).toHaveBeenCalledWith(FileStorageType.OSS);
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          storage: FileStorageType.OSS,
+        }),
+      );
+    });
+
+    it('私有 OSS 文件不保存公开访问 URL', async () => {
+      const file = createMockFile();
+      const storage = storageFactory.getStrategy(FileStorageType.OSS);
+      (storage.saveFile as jest.Mock).mockResolvedValueOnce({
+        filename: 'test_123.jpg',
+        path: 'avatar/2024/01/20/test_123.jpg',
+        size: file.size,
+        url: 'https://cdn.example.com/test_123.jpg',
+        metadata: {},
+      });
+      const entity = { id: 1, originalName: file.originalname } as FileEntity;
+      repository.create.mockReturnValue(entity);
+      repository.save.mockResolvedValue(entity);
+
+      await service.upload(
+        file,
+        { module: 'avatar', storage: FileStorageType.OSS, isPublic: false },
+        1,
+      );
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isPublic: false,
+          url: undefined,
+        }),
+      );
+    });
+  });
+
+  describe('getStorageOptions', () => {
+    it('返回当前可用的存储选项和默认存储', () => {
+      expect(service.getStorageOptions()).toEqual({
+        defaultStorage: FileStorageType.LOCAL,
+        options: [
+          { value: FileStorageType.LOCAL, label: '本地存储' },
+          { value: FileStorageType.OSS, label: '阿里云 OSS' },
+        ],
+      });
+    });
+  });
+
+  describe('createDirectUpload', () => {
+    it('为 OSS 直传创建签名 PUT URL 和上传令牌', async () => {
+      const result = await service.createDirectUpload(
+        {
+          originalName: 'test.jpg',
+          mimeType: 'image/jpeg',
+          size: 1024 * 100,
+          module: 'avatar',
+          isPublic: true,
+          tags: 'profile',
+        },
+        1,
+      );
+
+      expect(storageFactory.getOssStrategy).toHaveBeenCalled();
+      expect(result).toEqual(
+        expect.objectContaining({
+          method: 'PUT',
+          uploadUrl: 'https://oss.example.com/upload-signature',
+          headers: {
+            'Content-Type': 'image/jpeg',
+            'x-oss-forbid-overwrite': 'true',
+          },
+        }),
+      );
+      expect(storageFactory.getOssStrategy().createSignedUploadUrl).toHaveBeenCalledWith(
+        'avatar/2024/01/20/test_123.jpg',
+        900,
+        {
+          contentType: 'image/jpeg',
+          contentLength: 1024 * 100,
+        },
+      );
+      expect(result.uploadToken).toEqual(expect.any(String));
+      expect(result.expiresAt).toEqual(expect.any(String));
+    });
+
+    it('完成 OSS 直传后校验对象大小并写入文件记录', async () => {
+      const initiate = await service.createDirectUpload(
+        {
+          originalName: 'test.jpg',
+          mimeType: 'image/jpeg',
+          size: 1024 * 100,
+          module: 'avatar',
+          isPublic: false,
+        },
+        1,
+      );
+      const entity = {
+        id: 1,
+        originalName: 'test.jpg',
+        storage: FileStorageType.OSS,
+      } as FileEntity;
+      repository.create.mockReturnValue(entity);
+      repository.save.mockResolvedValue(entity);
+
+      const result = await service.completeDirectUpload({ uploadToken: initiate.uploadToken });
+
+      expect(result).toBe(entity);
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          originalName: 'test.jpg',
+          storage: FileStorageType.OSS,
+          isPublic: false,
+          url: undefined,
+          uploaderId: 1,
+          metadata: expect.objectContaining({ directUpload: true, etag: 'etag-1' }),
+        }),
+      );
+    });
+
+    it('重复完成同一个 OSS 直传令牌时返回已有记录，避免创建重复文件记录', async () => {
+      const initiate = await service.createDirectUpload(
+        {
+          originalName: 'test.jpg',
+          mimeType: 'image/jpeg',
+          size: 1024 * 100,
+          module: 'avatar',
+          isPublic: false,
+        },
+        1,
+      );
+      const existing = {
+        id: 9,
+        originalName: 'test.jpg',
+        path: 'avatar/2024/01/20/test_123.jpg',
+        storage: FileStorageType.OSS,
+      } as FileEntity;
+      repository.findOne.mockResolvedValue(existing);
+
+      const result = await service.completeDirectUpload({ uploadToken: initiate.uploadToken });
+
+      expect(result).toBe(existing);
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: {
+          path: 'avatar/2024/01/20/test_123.jpg',
+          storage: FileStorageType.OSS,
+        },
+      });
+      expect(repository.create).not.toHaveBeenCalled();
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(storageFactory.getOssStrategy().headObject).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createAccessLink', () => {
+    it('为有权限的私有文件创建临时访问链接', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 3,
+        originalName: 'secret.txt',
+        isPublic: false,
+        uploaderId: 1,
+      } as FileEntity);
+
+      const result = await service.createAccessLink(3, { id: 1 }, { disposition: 'inline' });
+
+      expect(result.url).toContain('/api/v1/files/3/access?token=');
+      expect(result.expiresAt).toEqual(expect.any(String));
+    });
+
+    it('解析 OSS 私有链接时返回短期 OSS 下载地址', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 3,
+        originalName: 'secret.txt',
+        path: 'private/secret.txt',
+        mimeType: 'text/plain',
+        storage: FileStorageType.OSS,
+        isPublic: false,
+        uploaderId: 1,
+      } as FileEntity);
+      const link = await service.createAccessLink(3, { id: 1 }, { disposition: 'attachment' });
+
+      const result = await service.resolveAccessLink(3, link.token);
+
+      expect(storageFactory.getOssStrategy).toHaveBeenCalled();
+      expect(result).toEqual(
+        expect.objectContaining({
+          file: expect.objectContaining({ id: 3 }),
+          redirectUrl: 'https://oss.example.com/download-signature',
+          disposition: 'attachment',
+        }),
+      );
     });
   });
 

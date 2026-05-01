@@ -33,4 +33,29 @@ export class FileStorageFactory {
         return this.localStorageStrategy;
     }
   }
+
+  getOssStrategy(): OssStorageStrategy {
+    if (!this.ossStorageStrategy.isEnabled()) {
+      throw BusinessException.validationFailed('OSS 存储未启用，请检查配置');
+    }
+    return this.ossStorageStrategy;
+  }
+
+  getAvailableStorageTypes(): FileStorageType[] {
+    const types = [FileStorageType.LOCAL];
+    if (this.ossStorageStrategy.isEnabled()) {
+      types.push(FileStorageType.OSS);
+    }
+    return types;
+  }
+
+  normalizeDefaultStorage(): FileStorageType {
+    const configured = this.configService.get<FileStorageType>(
+      'file.storage',
+      FileStorageType.LOCAL,
+    );
+    return this.getAvailableStorageTypes().includes(configured)
+      ? configured
+      : FileStorageType.LOCAL;
+  }
 }

@@ -172,6 +172,9 @@ export const configValidationSchema = Joi.object({
     '.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip',
   ),
 
+  FILE_PRIVATE_LINK_TTL_SECONDS: Joi.number().min(60).default(86400),
+  FILE_OSS_DIRECT_UPLOAD_TTL_SECONDS: Joi.number().min(60).max(3600).default(900),
+
   // OSS 配置（可选）
   FILE_OSS_ENABLE: Joi.boolean().default(false),
   FILE_OSS_REGION: optionalEmptyString,

@@ -78,6 +78,8 @@ export interface FileConfig {
   baseUrl: string;
   maxSize: number;
   allowedTypes: string[];
+  privateLinkTtlSeconds: number;
+  ossDirectUploadTtlSeconds: number;
 
   external: {
     oss: {

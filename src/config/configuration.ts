@@ -190,6 +190,13 @@ export const configuration = (): Configuration => ({
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean),
+    /** 私有文件访问链接有效期（秒），默认 24 小时 */
+    privateLinkTtlSeconds: parseInt(process.env.FILE_PRIVATE_LINK_TTL_SECONDS || '86400', 10),
+    /** OSS 浏览器直传签名有效期（秒），默认 15 分钟 */
+    ossDirectUploadTtlSeconds: parseInt(
+      process.env.FILE_OSS_DIRECT_UPLOAD_TTL_SECONDS || '900',
+      10,
+    ),
 
     /**
      * 外部存储服务配置

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { createHash } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { Repository } from 'typeorm';
 import dayjs from 'dayjs';
 import { LoggerService } from '~/shared/logger/logger.service';
@@ -12,6 +12,8 @@ import { DEFAULT_FILE_MAX_SIZE } from '~/config/constants';
 import { FileEntity, FileStorageType } from '../entities/file.entity';
 import { UploadFileDto } from '../dto/upload-file.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
+import { CompleteDirectUploadDto, CreateDirectUploadDto } from '../dto/direct-upload.dto';
+import { CreateFileAccessLinkDto, FileAccessDisposition } from '../dto/file-access-link.dto';
 import { FileStorageFactory } from '../storage/storage.factory';
 import { FileStorageStrategy } from '../storage/file-storage.interface';
 
@@ -28,7 +30,47 @@ interface FileQueryOptions {
   isPublic?: boolean;
 }
 
+export interface StorageOptionItem {
+  value: FileStorageType;
+  label: string;
+}
+
+export interface StorageOptionsResponse {
+  defaultStorage: FileStorageType;
+  options: StorageOptionItem[];
+}
+
+interface BaseTokenPayload {
+  type: 'oss-upload' | 'file-access';
+  exp: number;
+}
+
+interface DirectUploadTokenPayload extends BaseTokenPayload {
+  type: 'oss-upload';
+  key: string;
+  originalName: string;
+  filename: string;
+  size: number;
+  mimeType: string;
+  category: string;
+  module?: string;
+  tags?: string;
+  isPublic: boolean;
+  remark?: string;
+  uploaderId?: number;
+}
+
+interface FileAccessTokenPayload extends BaseTokenPayload {
+  type: 'file-access';
+  fileId: number;
+  disposition: FileAccessDisposition;
+}
+
 const FILE_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'originalName', 'filename', 'size']);
+const STORAGE_OPTION_LABELS: Record<FileStorageType, string> = {
+  [FileStorageType.LOCAL]: '本地存储',
+  [FileStorageType.OSS]: '阿里云 OSS',
+};
 
 @Injectable()
 export class FileService {
@@ -36,6 +78,9 @@ export class FileService {
   private readonly maxFileSize: number;
   private readonly allowedTypes: string[];
   private readonly publicFileBaseUrl: string;
+  private readonly privateLinkTtlSeconds: number;
+  private readonly ossDirectUploadTtlSeconds: number;
+  private readonly signedOssDownloadTtlSeconds = 300;
 
   constructor(
     @InjectRepository(FileEntity)
@@ -50,6 +95,8 @@ export class FileService {
     );
     this.publicFileBaseUrl = this.configService.get<string>('file.baseUrl', '/api/v1/files');
     this.maxFileSize = this.getNumber('file.maxSize', DEFAULT_FILE_MAX_SIZE);
+    this.privateLinkTtlSeconds = this.getNumber('file.privateLinkTtlSeconds', 86400);
+    this.ossDirectUploadTtlSeconds = this.getNumber('file.ossDirectUploadTtlSeconds', 900);
     this.allowedTypes = this.normalizeAllowedTypes(
       this.configService.get<string | string[]>('file.allowedTypes', [
         '.jpg',
@@ -85,7 +132,8 @@ export class FileService {
       `[FileUpload] Receive file "${file.originalname}" (${FileUtil.formatSize(file.size)})`,
     );
 
-    const storage = this.getStorageStrategy();
+    const targetStorage = options.storage ?? this.storageType;
+    const storage = this.getStorageStrategy(targetStorage);
     const relativePath = this.buildRelativePath(options.module);
     const uniqueFilename = FileUtil.generateUniqueFilename(file.originalname);
 
@@ -102,7 +150,7 @@ export class FileService {
         isPublic: options.isPublic ?? false,
       });
       this.logger?.log(
-        `[FileUpload] Stored file "${stored.filename}" via ${this.storageType} (path=${stored.path})`,
+        `[FileUpload] Stored file "${stored.filename}" via ${targetStorage} (path=${stored.path})`,
       );
 
       entity = await this.fileRepository.save(
@@ -110,11 +158,11 @@ export class FileService {
           originalName: file.originalname,
           filename: stored.filename,
           path: stored.path,
-          url: stored.url,
+          url: options.isPublic ? stored.url : undefined,
           mimeType: file.mimetype,
           size: stored.size,
           category,
-          storage: this.storageType,
+          storage: targetStorage,
           hash,
           module: options.module,
           tags: options.tags,
@@ -154,6 +202,131 @@ export class FileService {
     }
 
     return entity!;
+  }
+
+  getStorageOptions(): StorageOptionsResponse {
+    const options = this.storageFactory.getAvailableStorageTypes().map((type) => ({
+      value: type,
+      label: STORAGE_OPTION_LABELS[type],
+    }));
+
+    return {
+      defaultStorage: this.storageFactory.normalizeDefaultStorage(),
+      options,
+    };
+  }
+
+  async createDirectUpload(
+    dto: CreateDirectUploadDto,
+    uploaderId?: number,
+  ): Promise<{
+    method: 'PUT';
+    uploadUrl: string;
+    uploadToken: string;
+    expiresAt: string;
+    headers: Record<string, string>;
+  }> {
+    this.validateFileMetadata(dto.originalName, dto.mimeType, dto.size);
+
+    const oss = this.storageFactory.getOssStrategy();
+    const filename = FileUtil.generateUniqueFilename(dto.originalName);
+    const relativePath = this.buildRelativePath(dto.module);
+    const key = oss.buildObjectKey({ filename, relativePath, isPublic: dto.isPublic ?? false });
+    const expiresAt = this.getExpiresAt(this.ossDirectUploadTtlSeconds);
+    const contentType = dto.mimeType || 'application/octet-stream';
+    const signedUpload = await oss.createSignedUploadUrl(key, this.ossDirectUploadTtlSeconds, {
+      contentType,
+      contentLength: dto.size,
+    });
+    const tokenPayload: DirectUploadTokenPayload = {
+      type: 'oss-upload',
+      key,
+      originalName: dto.originalName,
+      filename,
+      size: dto.size,
+      mimeType: contentType,
+      category: FileUtil.getFileCategory(dto.originalName),
+      module: dto.module,
+      tags: dto.tags,
+      isPublic: dto.isPublic ?? false,
+      remark: dto.remark,
+      uploaderId,
+      exp: expiresAt.unix,
+    };
+
+    return {
+      method: 'PUT',
+      uploadUrl: signedUpload.url,
+      uploadToken: this.signToken(tokenPayload),
+      expiresAt: expiresAt.iso,
+      headers: signedUpload.headers,
+    };
+  }
+
+  async completeDirectUpload(dto: CompleteDirectUploadDto): Promise<FileEntity> {
+    const payload = this.verifyToken<DirectUploadTokenPayload>(
+      dto.uploadToken,
+      '上传令牌无效或已过期',
+    );
+    if (payload.type !== 'oss-upload') {
+      throw BusinessException.validationFailed('上传令牌无效或已过期');
+    }
+
+    const existing = await this.fileRepository.findOne({
+      where: {
+        path: payload.key,
+        storage: FileStorageType.OSS,
+      },
+    });
+    if (existing) {
+      return existing;
+    }
+
+    const oss = this.storageFactory.getOssStrategy();
+    const objectMeta = await oss.headObject(payload.key);
+    if (objectMeta.contentLength !== payload.size) {
+      await oss.delete(payload.key).catch((error) => {
+        this.logger?.error(
+          `[FileUpload] Failed to delete mismatched OSS object: ${payload.key}`,
+          error.stack,
+        );
+      });
+      throw BusinessException.validationFailed('OSS 文件大小与上传令牌不匹配');
+    }
+
+    const url = payload.isPublic ? oss.buildPublicUrl(payload.key) : undefined;
+
+    try {
+      return await this.fileRepository.save(
+        this.fileRepository.create({
+          originalName: payload.originalName,
+          filename: payload.filename,
+          path: payload.key,
+          url,
+          mimeType: objectMeta.contentType || payload.mimeType,
+          size: payload.size,
+          category: payload.category,
+          storage: FileStorageType.OSS,
+          module: payload.module,
+          tags: payload.tags,
+          isPublic: payload.isPublic,
+          remark: payload.remark,
+          metadata: {
+            directUpload: true,
+            etag: objectMeta.etag,
+          },
+          uploaderId: payload.uploaderId,
+        }),
+      );
+    } catch (error) {
+      await oss.delete(payload.key).catch((deleteError) => {
+        this.logger?.error(
+          `[FileUpload] Failed to remove OSS object after database error: ${payload.key}`,
+          deleteError.stack,
+        );
+      });
+      throw error;
+    }
   }
 
   /**
@@ -267,6 +440,70 @@ export class FileService {
     };
   }
 
+  async createAccessLink(
+    id: number,
+    user: UserWithRoles,
+    dto: CreateFileAccessLinkDto,
+  ): Promise<{
+    url: string;
+    token: string;
+    expiresAt: string;
+  }> {
+    const file = await this.findById(id);
+    this.checkDownloadPermission(file, user);
+
+    const expiresAt = this.getExpiresAt(this.privateLinkTtlSeconds);
+    const disposition = dto.disposition ?? 'attachment';
+    const tokenPayload: FileAccessTokenPayload = {
+      type: 'file-access',
+      fileId: id,
+      disposition,
+      exp: expiresAt.unix,
+    };
+    const token = this.signToken(tokenPayload);
+
+    return {
+      url: this.buildAccessUrl(id, token),
+      token,
+      expiresAt: expiresAt.iso,
+    };
+  }
+
+  async resolveAccessLink(
+    id: number,
+    token: string,
+  ): Promise<{
+    file: FileEntity;
+    disposition: FileAccessDisposition;
+    stream?: NodeJS.ReadableStream;
+    redirectUrl?: string;
+  }> {
+    const payload = this.verifyToken<FileAccessTokenPayload>(token, '访问链接无效或已过期');
+    if (payload.type !== 'file-access' || payload.fileId !== id) {
+      throw BusinessException.forbidden('访问链接无效或已过期');
+    }
+
+    const file = await this.findById(id);
+    if (file.storage === FileStorageType.OSS) {
+      const oss = this.storageFactory.getOssStrategy();
+      return {
+        file,
+        disposition: payload.disposition,
+        redirectUrl: oss.createSignedDownloadUrl(file.path, this.signedOssDownloadTtlSeconds, {
+          contentType: file.mimeType || 'application/octet-stream',
+          contentDisposition: this.buildContentDisposition(file, payload.disposition),
+        }),
+      };
+    }
+
+    const storage = this.getStorageStrategy(file.storage);
+    return {
+      file,
+      disposition: payload.disposition,
+      stream: await storage.getStream(file.path),
+    };
+  }
+
   /**
    * 构建相对路径
    */
@@ -286,44 +523,60 @@ export class FileService {
   }
 
   private buildPublicDownloadUrl(fileId: number): string {
+    const base = this.getPublicFileBaseUrl();
+    return `${base}/${fileId}/public`;
+  }
+
+  private buildAccessUrl(fileId: number, token: string): string {
+    const base = this.getPublicFileBaseUrl();
+    return `${base}/${fileId}/access?token=${encodeURIComponent(token)}`;
+  }
+
+  private getPublicFileBaseUrl(): string {
     const base = this.publicFileBaseUrl.endsWith('/')
       ? this.publicFileBaseUrl.slice(0, -1)
       : this.publicFileBaseUrl;
-    return `${base}/${fileId}/public`;
+    return base;
   }
 
   /**
    * 验证文件合法性
    */
   private validateFile(file: Express.Multer.File): void {
+    this.validateFileMetadata(file.originalname, file.mimetype, file.size);
+  }
+
+  private validateFileMetadata(
+    originalName: string,
+    mimeType: string | undefined,
+    size: number,
+  ): void {
     // 1. 验证文件大小
-    if (!FileUtil.validateFileSize(file.size, this.maxFileSize)) {
+    if (!FileUtil.validateFileSize(size, this.maxFileSize)) {
       throw BusinessException.validationFailed(
         `文件大小超出限制（最大 ${FileUtil.formatSize(this.maxFileSize)}）`,
       );
     }
 
     // 2. 验证文件扩展名
-    if (!FileUtil.validateFileType(file.originalname, this.allowedTypes)) {
+    if (!FileUtil.validateFileType(originalName, this.allowedTypes)) {
       throw BusinessException.validationFailed(
         `不支持的文件类型，仅允许：${this.allowedTypes.join(', ')}`,
       );
     }
 
     // 3. 验证MIME类型
-    if (file.mimetype) {
+    if (mimeType) {
       const allowedMimeTypes = this.getAllowedMimeTypes();
-      if (!allowedMimeTypes.includes(file.mimetype)) {
-        this.logger?.warn(
-          `Rejected file with MIME type "${file.mimetype}" for "${file.originalname}"`,
-        );
-        throw BusinessException.validationFailed(`文件MIME类型不匹配: ${file.mimetype}`);
+      if (!allowedMimeTypes.includes(mimeType)) {
+        this.logger?.warn(`Rejected file with MIME type "${mimeType}" for "${originalName}"`);
+        throw BusinessException.validationFailed(`文件MIME类型不匹配: ${mimeType}`);
       }
     }
 
     // 4. 对于可执行文件和脚本文件，做额外检查
     const dangerousExtensions = ['.exe', '.bat', '.cmd', '.sh', '.ps1', '.vbs', '.js', '.jar'];
-    const ext = FileUtil.getExtension(file.originalname).toLowerCase();
+    const ext = FileUtil.getExtension(originalName).toLowerCase();
     if (dangerousExtensions.includes(ext)) {
       throw BusinessException.validationFailed(`出于安全考虑，不允许上传 ${ext} 文件`);
     }
@@ -390,6 +643,58 @@ export class FileService {
     }
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : defaultValue;
+  }
+
+  private getExpiresAt(ttlSeconds: number): { unix: number; iso: string } {
+    const unix = Math.floor(Date.now() / 1000) + ttlSeconds;
+    return {
+      unix,
+      iso: new Date(unix * 1000).toISOString(),
+    };
+  }
+
+  private signToken(payload: BaseTokenPayload): string {
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = createHmac('sha256', this.getTokenSecret()).update(body).digest('base64url');
+    return `${body}.${signature}`;
+  }
+
+  private verifyToken<T extends BaseTokenPayload>(token: string, message: string): T {
+    const [body, signature] = token.split('.');
+    if (!body || !signature) {
+      throw BusinessException.forbidden(message);
+    }
+
+    const expected = createHmac('sha256', this.getTokenSecret()).update(body).digest('base64url');
+    const actualBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+    if (
+      actualBuffer.length !== expectedBuffer.length ||
+      !timingSafeEqual(actualBuffer, expectedBuffer)
+    ) {
+      throw BusinessException.forbidden(message);
+    }
+
+    let payload: T;
+    try {
+      payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as T;
+    } catch {
+      throw BusinessException.forbidden(message);
+    }
+
+    if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) {
+      throw BusinessException.forbidden(message);
+    }
+
+    return payload;
+  }
+
+  private getTokenSecret(): string {
+    return this.configService.get<string>('jwt.secret', 'dev-secret-key-change-this');
+  }
+
+  private buildContentDisposition(file: FileEntity, disposition: FileAccessDisposition): string {
+    return `${disposition}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`;
   }
 
   private async findByIdOrFail(id: number): Promise<FileEntity> {

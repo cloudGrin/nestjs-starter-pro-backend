@@ -1,10 +1,13 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '~/core/base/base.entity';
+import { ApiAppEntity } from './api-app.entity';
+import { ApiKeyEntity } from './api-key.entity';
 
 @Entity('api_access_logs')
 @Index('IDX_api_access_logs_app_created_at', ['appId', 'createdAt'])
 @Index('IDX_api_access_logs_app_key_created_at', ['appId', 'keyId', 'createdAt'])
 @Index('IDX_api_access_logs_app_status_created_at', ['appId', 'statusCode', 'createdAt'])
+@Index('IDX_api_access_logs_path', ['path'])
 export class ApiAccessLogEntity extends BaseEntity {
   @Column({ type: 'int' })
   appId: number;
@@ -38,4 +41,12 @@ export class ApiAccessLogEntity extends BaseEntity {
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   userAgent?: string;
+
+  @ManyToOne(() => ApiAppEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'appId', foreignKeyConstraintName: 'FK_api_access_logs_app' })
+  app?: ApiAppEntity;
+
+  @ManyToOne(() => ApiKeyEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'keyId', foreignKeyConstraintName: 'FK_api_access_logs_key' })
+  key?: ApiKeyEntity;
 }

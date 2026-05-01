@@ -43,9 +43,7 @@ export class ApiKeyGuard extends AuthGuard('api-key') {
     }
 
     // 检查是否有所需的scope
-    const hasScope = requiredScopes.some(
-      (scope) => app.scopes.includes(scope) || app.scopes.includes('*'),
-    );
+    const hasScope = requiredScopes.some((scope) => app.scopes.includes(scope));
 
     if (!hasScope) {
       await this.recordRejectedAccess(context);

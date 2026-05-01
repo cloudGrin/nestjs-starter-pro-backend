@@ -100,4 +100,11 @@ describe('ApiKeyGuard', () => {
       mockContext.getClass(),
     ]);
   });
+
+  it('不应该把历史通配符 scope 当作全权限放行', async () => {
+    reflector.getAllAndOverride.mockReturnValue(['read:users']);
+    mockRequest.user.scopes = ['*'];
+
+    await expect(guard.canActivate(mockContext)).rejects.toThrow('需要以下权限之一: read:users');
+  });
 });

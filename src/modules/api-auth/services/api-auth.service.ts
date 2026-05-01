@@ -177,6 +177,7 @@ export class ApiAuthService {
     }
 
     this.validateRegisteredScopes(dto.scopes);
+    this.validateKeyScopesWithinApp(dto.scopes, app.scopes);
 
     // 检查密钥数量限制
     const activeKeys = await this.keyRepository.find({
@@ -241,11 +242,12 @@ export class ApiAuthService {
       return null;
     }
 
+    const effectiveScopes = this.resolveEffectiveScopes(key.scopes, key.app.scopes);
     const validatedApp: ValidatedApiApp = {
       id: key.app.id,
       name: key.app.name,
       ownerId: key.app.ownerId,
-      scopes: key.scopes ?? key.app.scopes ?? [],
+      scopes: effectiveScopes,
       keyId: key.id,
       keyName: key.name,
       keyPrefix: key.prefix,
@@ -353,6 +355,33 @@ export class ApiAuthService {
     if (invalidScopes.length > 0) {
       throw new BadRequestException(`未知API权限范围: ${invalidScopes.join(', ')}`);
     }
+  }
+
+  private validateKeyScopesWithinApp(keyScopes?: string[], appScopes?: string[]): void {
+    if (!keyScopes?.length) {
+      return;
+    }
+
+    const allowedScopes = new Set(appScopes ?? []);
+    const outOfRangeScopes = keyScopes.filter((scope) => !allowedScopes.has(scope));
+
+    if (outOfRangeScopes.length > 0) {
+      throw new BadRequestException(
+        `API密钥权限不能超出应用权限范围: ${outOfRangeScopes.join(', ')}`,
+      );
+    }
+  }
+
+  private resolveEffectiveScopes(
+    keyScopes?: string[] | null,
+    appScopes?: string[] | null,
+  ): string[] {
+    if (!keyScopes?.length) {
+      return appScopes ?? [];
+    }
+
+    const allowedScopes = new Set(appScopes ?? []);
+    return keyScopes.filter((scope) => allowedScopes.has(scope));
   }
 
   private async clearAppKeyCache(appId: number): Promise<void> {

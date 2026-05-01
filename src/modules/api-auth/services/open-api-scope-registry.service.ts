@@ -18,6 +18,13 @@ interface RegisteredScopeDefinition {
   description: string;
 }
 
+interface ControllerWrapper {
+  instance?: object;
+  host?: {
+    name?: string;
+  };
+}
+
 @Injectable()
 export class OpenApiScopeRegistryService {
   constructor(
@@ -66,7 +73,7 @@ export class OpenApiScopeRegistryService {
           continue;
         }
 
-        this.assertOpenApiControllerBoundary(instance, methodName);
+        this.assertOpenApiControllerBoundary(wrapper, methodName);
         this.assertScopeDefinitionConsistent(registeredScopes, metadata);
 
         const group = this.getOrCreateGroup(groups, metadata);
@@ -100,6 +107,10 @@ export class OpenApiScopeRegistryService {
   ): ApiScopeGroup & { scopeCodes: Set<string> } {
     const current = groups.get(metadata.group.key);
     if (current) {
+      if (current.title !== metadata.group.title) {
+        throw new Error(`开放API权限分组定义冲突: ${metadata.group.key}`);
+      }
+
       return current;
     }
 
@@ -115,15 +126,22 @@ export class OpenApiScopeRegistryService {
     return group;
   }
 
-  private assertOpenApiControllerBoundary(instance: object, methodName: string): void {
-    const controllerClass = instance.constructor;
-    if (Reflect.getMetadata(OPEN_API_CONTROLLER_KEY, controllerClass)) {
+  private assertOpenApiControllerBoundary(wrapper: ControllerWrapper, methodName: string): void {
+    const instance = wrapper.instance;
+    if (!instance) {
       return;
     }
 
-    throw new Error(
-      `开放API接口必须使用 OpenApiResourceController: ${controllerClass.name}.${methodName}`,
-    );
+    const controllerClass = instance.constructor;
+    if (!Reflect.getMetadata(OPEN_API_CONTROLLER_KEY, controllerClass)) {
+      throw new Error(
+        `开放API接口必须使用 OpenApiResourceController: ${controllerClass.name}.${methodName}`,
+      );
+    }
+
+    if (wrapper.host?.name !== 'OpenApiModule') {
+      throw new Error(`开放API接口必须注册在 OpenApiModule: ${controllerClass.name}.${methodName}`);
+    }
   }
 
   private assertScopeDefinitionConsistent(

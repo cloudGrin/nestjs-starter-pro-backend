@@ -1,4 +1,13 @@
-import { IsNumber, IsString, IsOptional, IsArray, IsDate, IsEnum } from 'class-validator';
+import {
+  IsNumber,
+  IsString,
+  IsOptional,
+  IsArray,
+  IsDate,
+  IsEnum,
+  MaxLength,
+  MinDate,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -21,6 +30,7 @@ export class CreateApiKeyDto {
     example: 'Production Key',
   })
   @IsString()
+  @MaxLength(100)
   name: string;
 
   @ApiProperty({
@@ -33,7 +43,7 @@ export class CreateApiKeyDto {
 
   @ApiPropertyOptional({
     description: '自定义权限范围（覆盖应用级别）',
-    example: ['read:users', 'read:orders'],
+    example: ['read:users'],
   })
   @IsOptional()
   @IsArray()
@@ -46,6 +56,7 @@ export class CreateApiKeyDto {
   })
   @IsOptional()
   @IsDate()
+  @MinDate(() => new Date())
   @Type(() => Date)
   expiresAt?: Date;
 }

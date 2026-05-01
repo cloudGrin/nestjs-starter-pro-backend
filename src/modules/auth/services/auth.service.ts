@@ -562,7 +562,7 @@ export class AuthService {
       phone: user.phone,
       status: user.status,
       roles,
-      permissions: this.collectActivePermissionCodes(user),
+      permissions: isSuperAdmin ? ['*'] : this.collectActivePermissionCodes(user),
       isSuperAdmin,
       roleCode: isSuperAdmin ? 'super_admin' : roleCodes[0],
     };

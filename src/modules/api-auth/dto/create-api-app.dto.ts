@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsArray, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateApiAppDto {
@@ -7,6 +7,7 @@ export class CreateApiAppDto {
     example: 'personal-mini-program',
   })
   @IsString()
+  @MaxLength(100)
   name: string;
 
   @ApiPropertyOptional({
@@ -19,7 +20,7 @@ export class CreateApiAppDto {
 
   @ApiPropertyOptional({
     description: 'API权限范围',
-    example: ['read:users', 'read:orders', 'write:orders'],
+    example: ['read:users'],
   })
   @IsOptional()
   @IsArray()

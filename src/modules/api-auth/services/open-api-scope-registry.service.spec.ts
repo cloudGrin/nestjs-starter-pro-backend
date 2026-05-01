@@ -51,6 +51,36 @@ class ConflictingScopeController {
   }
 }
 
+@OpenApiResourceController('open')
+class InconsistentGroupController {
+  @Get('profiles')
+  @OpenApiEndpoint({
+    scope: 'read:profiles',
+    label: '读取资料',
+    description: '读取资料',
+    group: { key: 'open-user', title: '账户公开资料' },
+    summary: '获取资料列表',
+  })
+  listProfiles() {
+    return undefined;
+  }
+}
+
+@OpenApiResourceController('open')
+class OutOfModuleOpenController {
+  @Get('users')
+  @OpenApiEndpoint({
+    scope: 'read:external-users',
+    label: '读取外部用户',
+    description: '读取外部用户',
+    group: { key: 'open-external-user', title: '外部用户' },
+    summary: '获取外部用户列表',
+  })
+  listUsers() {
+    return undefined;
+  }
+}
+
 @Controller('misconfigured-open')
 class MisconfiguredOpenController {
   @Get('users')
@@ -67,9 +97,24 @@ class MisconfiguredOpenController {
 }
 
 describe('OpenApiScopeRegistryService', () => {
-  function createRegistry(controllers = [new TestOpenController()]) {
+  function createRegistry(
+    controllers: Array<object | { instance: object; moduleName?: string }> = [
+      new TestOpenController(),
+    ],
+  ) {
+    const controllerWrappers = controllers.map((controller) => {
+      if ('instance' in controller) {
+        return {
+          instance: controller.instance,
+          host: { name: controller.moduleName ?? 'OpenApiModule' },
+        };
+      }
+
+      return { instance: controller, host: { name: 'OpenApiModule' } };
+    });
+
     const discoveryService = {
-      getControllers: jest.fn().mockReturnValue(controllers.map((instance) => ({ instance }))),
+      getControllers: jest.fn().mockReturnValue(controllerWrappers),
     } as unknown as DiscoveryService;
     const configService = {
       get: jest.fn((key: string, fallback?: string) => {
@@ -137,5 +182,22 @@ describe('OpenApiScopeRegistryService', () => {
     expect(() => createRegistry([new MisconfiguredOpenController()]).getApiScopeGroups()).toThrow(
       '开放API接口必须使用 OpenApiResourceController: MisconfiguredOpenController.listUsers',
     );
+  });
+
+  it('rejects OpenAPI controllers registered outside OpenApiModule', () => {
+    expect(() =>
+      createRegistry([
+        { instance: new OutOfModuleOpenController(), moduleName: 'UserModule' },
+      ]).getApiScopeGroups(),
+    ).toThrow('开放API接口必须注册在 OpenApiModule: OutOfModuleOpenController.listUsers');
+  });
+
+  it('rejects conflicting titles for the same scope group key', () => {
+    expect(() =>
+      createRegistry([
+        new TestOpenController(),
+        new InconsistentGroupController(),
+      ]).getApiScopeGroups(),
+    ).toThrow('开放API权限分组定义冲突: open-user');
   });
 });

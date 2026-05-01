@@ -38,7 +38,7 @@ describe('API认证模块 (e2e)', () => {
       const appData = {
         name: `Test App ${Date.now()}`,
         description: 'E2E Test Application',
-        scopes: ['read:users', 'read:orders'],
+        scopes: ['read:users'],
       };
 
       const response = await request(app.getHttpServer())

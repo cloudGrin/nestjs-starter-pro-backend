@@ -427,6 +427,23 @@ describe('ApiAuthService', () => {
       expect(keyRepository.create).not.toHaveBeenCalled();
       expect(keyRepository.save).not.toHaveBeenCalled();
     });
+
+    it('rejects key scopes outside the parent API app scopes', async () => {
+      appRepository.findOne.mockResolvedValue(createMockApp({ scopes: ['read:users'] }));
+      keyRepository.find.mockResolvedValue([]);
+
+      await expect(
+        service.generateApiKey({
+          appId: 1,
+          name: 'Privileged Key',
+          environment: ApiKeyEnvironment.TEST,
+          scopes: ['write:users'],
+        }),
+      ).rejects.toThrow('API密钥权限不能超出应用权限范围: write:users');
+
+      expect(keyRepository.create).not.toHaveBeenCalled();
+      expect(keyRepository.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('deleteApp', () => {
@@ -520,6 +537,34 @@ describe('ApiAuthService', () => {
         300,
       );
       expect(keyRepository.increment).toHaveBeenCalledWith({ id: mockKey.id }, 'usageCount', 1);
+    });
+
+    it('narrows stored key scopes to the current app scope limit', async () => {
+      const apiKey = 'sk_live_testkey123';
+      const mockApp = createMockApp({ scopes: ['read:users'] });
+      const mockKey = createMockKey({
+        app: mockApp,
+        scopes: ['read:users', 'write:users'],
+      });
+
+      cacheService.get.mockResolvedValue(null);
+      keyRepository.findOne.mockResolvedValue(mockKey);
+      cacheService.set.mockResolvedValue(undefined);
+      keyRepository.increment.mockResolvedValue(undefined);
+      keyRepository.update.mockResolvedValue(undefined);
+
+      const result = await service.validateApiKey(apiKey);
+
+      expect(result?.scopes).toEqual(['read:users']);
+      expect(cacheService.set).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          app: expect.objectContaining({
+            scopes: ['read:users'],
+          }),
+        }),
+        300,
+      );
     });
 
     it('does not cache API key validation beyond the key expiration time', async () => {

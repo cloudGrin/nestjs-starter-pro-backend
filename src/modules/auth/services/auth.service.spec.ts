@@ -237,6 +237,38 @@ describe('AuthService', () => {
       expect(result.user.permissions).toEqual(['task:read', 'task:create']);
     });
 
+    it('登录响应为超级管理员返回通配符权限', async () => {
+      const role = Object.assign(new RoleEntity(), {
+        id: 1,
+        code: 'super_admin',
+        name: '超级管理员',
+        isActive: true,
+        permissions: [],
+      });
+      const mockUser = createMockUser({
+        username: 'root',
+        status: UserStatus.ACTIVE,
+        roles: [role],
+      });
+      const qb = createUserLoginQueryBuilder();
+      qb.getOne.mockResolvedValue(mockUser);
+      const refreshTokenEntity = createMockRefreshToken();
+
+      userRepository.createQueryBuilder.mockReturnValue(qb);
+      userRepository.update.mockResolvedValue(undefined);
+      jwtService.signAsync
+        .mockResolvedValueOnce('mock-access-token')
+        .mockResolvedValueOnce('mock-refresh-token');
+      refreshTokenRepository.create.mockReturnValue(refreshTokenEntity);
+      refreshTokenRepository.save.mockResolvedValue(refreshTokenEntity);
+
+      const result = await service.login(mockLoginDto, mockIp, mockUserAgent);
+
+      expect(result.user.isSuperAdmin).toBe(true);
+      expect(result.user.roleCode).toBe('super_admin');
+      expect(result.user.permissions).toEqual(['*']);
+    });
+
     it('当用户不存在时应该抛出UnauthorizedException', async () => {
       const qb = createUserLoginQueryBuilder();
       qb.getOne.mockResolvedValue(null);

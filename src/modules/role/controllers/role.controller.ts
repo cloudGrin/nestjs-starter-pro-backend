@@ -16,6 +16,7 @@ import { UpdateRoleDto } from '../dto/update-role.dto';
 import { QueryRoleDto } from '../dto/query-role.dto';
 import { AssignPermissionsDto } from '../dto/assign-permissions.dto';
 import { AssignMenusDto } from '../dto/assign-menus.dto';
+import { AssignRoleAccessDto } from '../dto/assign-role-access.dto';
 import { RevokeMenusDto } from '../dto/revoke-menus.dto';
 import { RequirePermissions } from '~/core/decorators';
 import { RoleEntity } from '../entities/role.entity';
@@ -61,6 +62,14 @@ export class RoleController {
     return this.roleService.findRoleById(id);
   }
 
+  @Get(':id/access')
+  @RequirePermissions('role:read', 'role:access:assign')
+  @ApiOperation({ summary: '获取角色菜单和权限授权' })
+  @ApiParam({ name: 'id', description: '角色ID' })
+  async getAccess(@Param('id', ParseIntPipe) id: number) {
+    return this.roleService.getRoleAccess(id);
+  }
+
   @Put(':id')
   @RequirePermissions('role:update')
   @ApiOperation({ summary: '更新角色' })
@@ -90,6 +99,18 @@ export class RoleController {
     @Body() dto: AssignPermissionsDto,
   ) {
     return this.roleService.assignPermissions(id, dto.permissionIds);
+  }
+
+  @Put(':id/access')
+  @RequirePermissions('role:access:assign')
+  @ApiOperation({
+    summary: '统一分配角色菜单和权限',
+    description: '一次性保存角色可访问菜单和可用操作权限',
+  })
+  @ApiParam({ name: 'id', description: '角色ID' })
+  @ApiOkResponse({ type: RoleEntity })
+  async assignAccess(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignRoleAccessDto) {
+    return this.roleService.assignAccess(id, dto);
   }
 
   @Post(':id/menus')

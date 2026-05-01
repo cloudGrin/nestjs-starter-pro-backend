@@ -20,6 +20,7 @@ const DEFAULT_SYSTEM_PERMISSIONS = [
   { code: 'role:update', name: '更新角色', module: 'role', sort: 30 },
   { code: 'role:delete', name: '删除角色', module: 'role', sort: 40 },
   { code: 'role:assign', name: '分配用户角色', module: 'role', sort: 50 },
+  { code: 'role:access:assign', name: '分配角色授权', module: 'role', sort: 55 },
   { code: 'role:permission:assign', name: '分配角色权限', module: 'role', sort: 60 },
   { code: 'role:menu:assign', name: '分配角色菜单', module: 'role', sort: 70 },
   { code: 'role:menu:read', name: '查看角色菜单', module: 'role', sort: 80 },

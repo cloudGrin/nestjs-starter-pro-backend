@@ -39,7 +39,7 @@ export class PermissionController {
   }
 
   @Get('tree')
-  @RequirePermissions('permission:read')
+  @RequirePermissions('permission:read', 'role:access:assign', 'role:permission:assign')
   @ApiOperation({ summary: '获取权限树（按模块分组）' })
   async getTree() {
     return this.permissionService.getPermissionTree();

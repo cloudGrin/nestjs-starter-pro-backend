@@ -14,6 +14,7 @@ describe('RoleService', () => {
   let roleRepository: jest.Mocked<Repository<RoleEntity>>;
   let permissionRepository: jest.Mocked<Repository<PermissionEntity>>;
   let menuRepository: jest.Mocked<Repository<MenuEntity>>;
+  let cacheService: jest.Mocked<CacheService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -34,6 +35,7 @@ describe('RoleService', () => {
     roleRepository = module.get(getRepositoryToken(RoleEntity));
     permissionRepository = module.get(getRepositoryToken(PermissionEntity));
     menuRepository = module.get(getRepositoryToken(MenuEntity));
+    cacheService = module.get(CacheService);
   });
 
   it('does not persist permissionIds as a role entity field during create', async () => {
@@ -170,5 +172,106 @@ describe('RoleService', () => {
     await expect(service.assignMenus(1, [1])).rejects.toThrow('超级管理员角色菜单不能修改');
     expect(menuRepository.find).not.toHaveBeenCalled();
     expect(roleRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('returns role access ids for the unified authorization modal', async () => {
+    const role = Object.assign(new RoleEntity(), {
+      id: 1,
+      code: 'editor',
+      isSystem: false,
+      permissions: [{ id: 11 }, { id: 12 }],
+      menus: [{ id: 21 }, { id: 22 }],
+    });
+
+    roleRepository.findOne.mockResolvedValue(role);
+
+    await expect(service.getRoleAccess(1)).resolves.toEqual({
+      permissionIds: [11, 12],
+      menuIds: [21, 22],
+    });
+    expect(roleRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 1 },
+      relations: ['permissions', 'menus'],
+    });
+  });
+
+  it('assigns menus and permissions together and clears user permission cache', async () => {
+    const role = Object.assign(new RoleEntity(), {
+      id: 1,
+      code: 'editor',
+      isSystem: false,
+      permissions: [],
+      menus: [],
+    });
+    const permission = Object.assign(new PermissionEntity(), { id: 11, isActive: true });
+    const menu = Object.assign(new MenuEntity(), { id: 21, isActive: true });
+
+    roleRepository.findOne.mockResolvedValue(role);
+    permissionRepository.find.mockResolvedValue([permission]);
+    menuRepository.find.mockResolvedValue([menu]);
+    roleRepository.save.mockImplementation(async (entity) => entity as RoleEntity);
+
+    const result = await service.assignAccess(1, {
+      permissionIds: [11],
+      menuIds: [21],
+    });
+
+    expect(result.permissions).toEqual([permission]);
+    expect(result.menus).toEqual([menu]);
+    expect(roleRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        permissions: [permission],
+        menus: [menu],
+      }),
+    );
+    expect(cacheService.delByPattern).toHaveBeenCalledWith('user:permissions:*');
+  });
+
+  it('allows clearing menus and permissions together', async () => {
+    const role = Object.assign(new RoleEntity(), {
+      id: 1,
+      code: 'editor',
+      isSystem: false,
+      permissions: [{ id: 11 }],
+      menus: [{ id: 21 }],
+    });
+
+    roleRepository.findOne.mockResolvedValue(role);
+    roleRepository.save.mockImplementation(async (entity) => entity as RoleEntity);
+
+    const result = await service.assignAccess(1, {
+      permissionIds: [],
+      menuIds: [],
+    });
+
+    expect(permissionRepository.find).not.toHaveBeenCalled();
+    expect(menuRepository.find).not.toHaveBeenCalled();
+    expect(result.permissions).toEqual([]);
+    expect(result.menus).toEqual([]);
+    expect(cacheService.delByPattern).toHaveBeenCalledWith('user:permissions:*');
+  });
+
+  it('does not partially save unified access when any selected menu is invalid', async () => {
+    const role = Object.assign(new RoleEntity(), {
+      id: 1,
+      code: 'editor',
+      isSystem: false,
+      permissions: [],
+      menus: [],
+    });
+    const permission = Object.assign(new PermissionEntity(), { id: 11, isActive: true });
+
+    roleRepository.findOne.mockResolvedValue(role);
+    permissionRepository.find.mockResolvedValue([permission]);
+    menuRepository.find.mockResolvedValue([]);
+
+    await expect(
+      service.assignAccess(1, {
+        permissionIds: [11],
+        menuIds: [21],
+      }),
+    ).rejects.toThrow('部分菜单不存在或已禁用');
+    expect(roleRepository.save).not.toHaveBeenCalled();
+    expect(cacheService.delByPattern).not.toHaveBeenCalled();
   });
 });

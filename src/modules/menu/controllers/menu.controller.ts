@@ -56,7 +56,7 @@ export class MenuController {
   }
 
   @Get('tree')
-  @RequirePermissions('menu:read')
+  @RequirePermissions('menu:read', 'role:access:assign', 'role:menu:assign')
   @ApiOperation({ summary: '获取菜单树' })
   async getTree() {
     return this.menuService.getMenuTree();

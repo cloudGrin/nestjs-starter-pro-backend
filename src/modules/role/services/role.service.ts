@@ -15,8 +15,14 @@ import { MenuEntity } from '~/modules/menu/entities/menu.entity';
 import { CreateRoleDto } from '../dto/create-role.dto';
 import { UpdateRoleDto } from '../dto/update-role.dto';
 import { QueryRoleDto } from '../dto/query-role.dto';
+import { AssignRoleAccessDto } from '../dto/assign-role-access.dto';
 
 const SUPER_ADMIN_ROLE_CODE = 'super_admin';
+
+export interface RoleAccessIds {
+  menuIds: number[];
+  permissionIds: number[];
+}
 
 @Injectable()
 export class RoleService {
@@ -288,9 +294,12 @@ export class RoleService {
 
     this.ensureRoleMutable(role, '角色菜单');
 
-    const menus = await this.menuRepository.find({
-      where: { id: In(menuIds), isActive: true },
-    });
+    const menus =
+      menuIds.length === 0
+        ? []
+        : await this.menuRepository.find({
+            where: { id: In(menuIds), isActive: true },
+          });
 
     this.logger.debug(
       `角色菜单查询完成 roleId=${roleId}, 请求数量=${menuIds.length}, 查询数量=${menus.length}`,
@@ -306,6 +315,88 @@ export class RoleService {
     this.logger.debug(`角色菜单保存成功 roleId=${roleId}`);
 
     this.logger.log(`分配 ${menus.length} 个菜单给角色 ${roleId}`);
+
+    return updatedRole;
+  }
+
+  /**
+   * 获取角色菜单和权限授权 ID
+   */
+  async getRoleAccess(roleId: number): Promise<RoleAccessIds> {
+    this.logger.debug(`查询角色统一授权 roleId=${roleId}`);
+
+    const role = await this.roleRepository.findOne({
+      where: { id: roleId },
+      relations: ['permissions', 'menus'],
+    });
+
+    if (!role) {
+      this.logger.debug(`查询角色统一授权失败，未找到角色 roleId=${roleId}`);
+      throw new NotFoundException('角色不存在');
+    }
+
+    return {
+      permissionIds: (role.permissions || []).map((permission) => permission.id),
+      menuIds: (role.menus || []).map((menu) => menu.id),
+    };
+  }
+
+  /**
+   * 统一分配角色菜单和权限
+   */
+  async assignAccess(roleId: number, dto: AssignRoleAccessDto): Promise<RoleEntity> {
+    this.logger.debug(
+      `准备统一分配角色授权 roleId=${roleId}, menuIds=${JSON.stringify(dto.menuIds)}, permissionIds=${JSON.stringify(dto.permissionIds)}`,
+    );
+
+    const role = await this.roleRepository.findOne({
+      where: { id: roleId },
+      relations: ['permissions', 'menus'],
+    });
+
+    if (!role) {
+      this.logger.debug(`统一分配角色授权失败，未找到角色 roleId=${roleId}`);
+      throw new NotFoundException('角色不存在');
+    }
+
+    this.ensureRoleMutable(role, '角色授权');
+
+    const permissionIds = Array.from(new Set(dto.permissionIds));
+    const menuIds = Array.from(new Set(dto.menuIds));
+
+    const permissions =
+      permissionIds.length === 0
+        ? []
+        : await this.permissionRepository.find({
+            where: { id: In(permissionIds), isActive: true },
+          });
+
+    if (permissions.length !== permissionIds.length) {
+      this.logger.debug(`统一分配角色授权失败，部分权限不存在或禁用 roleId=${roleId}`);
+      throw new BadRequestException('部分权限不存在或已禁用');
+    }
+
+    const menus =
+      menuIds.length === 0
+        ? []
+        : await this.menuRepository.find({
+            where: { id: In(menuIds), isActive: true },
+          });
+
+    if (menus.length !== menuIds.length) {
+      this.logger.debug(`统一分配角色授权失败，部分菜单不存在或禁用 roleId=${roleId}`);
+      throw new BadRequestException('部分菜单不存在或已禁用');
+    }
+
+    role.permissions = permissions;
+    role.menus = menus;
+    const updatedRole = await this.roleRepository.save(role);
+    this.logger.debug(`统一分配角色授权保存成功 roleId=${roleId}`);
+
+    await this.clearUserPermissionCache();
+    this.logger.debug(`统一分配角色授权后清理用户权限缓存 roleId=${roleId}`);
+
+    this.logger.log(`分配 ${menus.length} 个菜单和 ${permissions.length} 个权限给角色 ${roleId}`);
 
     return updatedRole;
   }

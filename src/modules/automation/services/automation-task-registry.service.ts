@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { AuthService } from '~/modules/auth/services/auth.service';
+import { InsuranceReminderService } from '~/modules/insurance/services/insurance-reminder.service';
 import { TaskReminderService } from '~/modules/task/services/task-reminder.service';
 import { AutomationTaskDefinition, AutomationTaskParams } from '../types/automation-task.types';
 
@@ -18,6 +19,7 @@ export class AutomationTaskRegistryService implements OnModuleInit {
   constructor(
     private readonly authService: AuthService,
     private readonly taskReminderService: TaskReminderService,
+    private readonly insuranceReminderService: InsuranceReminderService,
   ) {}
 
   onModuleInit(): void {
@@ -46,6 +48,20 @@ export class AutomationTaskRegistryService implements OnModuleInit {
       handler: async () => {
         const sent = await this.taskReminderService.sendDueReminders();
         return { message: `发送 ${sent} 条任务提醒` };
+      },
+    });
+
+    this.register({
+      key: 'sendInsuranceReminders',
+      name: '发送保险提醒',
+      description: '扫描到期保险提醒并发送站内或外部通知',
+      defaultCron: '0 8 * * *',
+      defaultEnabled: true,
+      defaultParams: {},
+      validateParams: ensureObjectParams,
+      handler: async () => {
+        const sent = await this.insuranceReminderService.sendDueReminders();
+        return { message: `发送 ${sent} 条保险提醒` };
       },
     });
   }

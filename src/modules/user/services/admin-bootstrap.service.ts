@@ -52,6 +52,11 @@ const DEFAULT_SYSTEM_PERMISSIONS = [
   { code: 'task:delete', name: '删除任务', module: 'task', sort: 40 },
   { code: 'task:complete', name: '完成任务', module: 'task', sort: 50 },
   { code: 'task-list:manage', name: '管理任务清单', module: 'task', sort: 60 },
+  { code: 'insurance:create', name: '创建保单', module: 'insurance', sort: 10 },
+  { code: 'insurance:read', name: '查看保单', module: 'insurance', sort: 20 },
+  { code: 'insurance:update', name: '更新保单', module: 'insurance', sort: 30 },
+  { code: 'insurance:delete', name: '删除保单', module: 'insurance', sort: 40 },
+  { code: 'insurance-member:manage', name: '管理保险成员', module: 'insurance', sort: 50 },
   { code: 'automation:read', name: '查看自动化任务', module: 'automation', sort: 10 },
   { code: 'automation:update', name: '更新自动化任务配置', module: 'automation', sort: 20 },
   { code: 'automation:execute', name: '执行自动化任务', module: 'automation', sort: 30 },
@@ -150,6 +155,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     const menuCount = await this.menuRepository.count();
     if (menuCount > 0) {
       await this.ensureTaskCenterMenu();
+      await this.ensureInsuranceMenu();
       await this.ensureAutomationMenu();
       return;
     }
@@ -158,6 +164,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
 
     const menus = this.menuRepository.create([
       this.createTaskCenterMenu(),
+      this.createInsuranceMenu(),
       {
         name: '用户管理',
         path: '/system/users',
@@ -262,6 +269,18 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     await this.menuRepository.save(this.menuRepository.create(this.createTaskCenterMenu()));
   }
 
+  private async ensureInsuranceMenu(): Promise<void> {
+    const existing = await this.menuRepository.findOne({
+      where: { path: '/insurance' },
+    });
+
+    if (existing) {
+      return;
+    }
+
+    await this.menuRepository.save(this.menuRepository.create(this.createInsuranceMenu()));
+  }
+
   private async ensureAutomationMenu(): Promise<void> {
     const existing = await this.menuRepository.findOne({
       where: { path: '/system/automation' },
@@ -312,6 +331,21 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       isVisible: true,
       isActive: true,
       meta: { title: '任务中心', icon: 'check-square' },
+    };
+  }
+
+  private createInsuranceMenu(): Partial<MenuEntity> {
+    return {
+      name: '家庭保险',
+      path: '/insurance',
+      type: MenuType.MENU,
+      icon: 'safety',
+      component: 'InsurancePage',
+      parentId: null,
+      sort: 16,
+      isVisible: true,
+      isActive: true,
+      meta: { title: '家庭保险', icon: 'safety' },
     };
   }
 

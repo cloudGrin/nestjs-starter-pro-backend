@@ -19,6 +19,7 @@ import { UserModule } from './modules/user/user.module';
 import { RoleModule } from './modules/role/role.module';
 import { FileModule } from './modules/file/file.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { InsuranceModule } from './modules/insurance/insurance.module';
 import { AutomationModule } from './modules/automation/automation.module';
 import { ApiAuthModule } from './modules/api-auth/api-auth.module';
 import { OpenApiModule } from './modules/open-api/open-api.module';
@@ -73,6 +74,7 @@ import { TaskModule } from './modules/task/task.module';
     MenuModule,
     FileModule,
     NotificationModule,
+    InsuranceModule,
     TaskModule,
     AutomationModule,
     ApiAuthModule,

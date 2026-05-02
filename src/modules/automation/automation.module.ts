@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '~/modules/auth/auth.module';
+import { InsuranceModule } from '~/modules/insurance/insurance.module';
 import { TaskModule } from '~/modules/task/task.module';
 import { AutomationTaskController } from './controllers/automation-task.controller';
 import { AutomationTaskConfigEntity } from './entities/automation-task-config.entity';
@@ -17,6 +18,7 @@ import { AutomationTaskService } from './services/automation-task.service';
     TypeOrmModule.forFeature([AutomationTaskConfigEntity, AutomationTaskLogEntity]),
     AuthModule,
     TaskModule,
+    InsuranceModule,
   ],
   controllers: [AutomationTaskController],
   providers: [

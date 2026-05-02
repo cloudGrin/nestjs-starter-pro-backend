@@ -128,7 +128,6 @@ describe('TaskService', () => {
         taskType: TaskType.TASK,
         recurrenceType: TaskRecurrenceType.WEEKLY,
         reminderChannels: [NotificationChannel.BARK],
-        sendExternalReminder: true,
       },
       { id: 1 } as any,
     );
@@ -275,22 +274,24 @@ describe('TaskService', () => {
     expect(taskRepository.save).not.toHaveBeenCalled();
   });
 
-  it('rejects enabling external reminders without an external channel', async () => {
+  it('derives external reminder delivery from selected reminder channels', async () => {
     mockActiveFamilyList();
+    taskRepository.create.mockImplementation((data) => data as TaskEntity);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
 
-    await expect(
-      service.createTask(
-        {
-          title: '缺少外部渠道',
-          listId: 2,
-          dueAt: '2026-05-01T10:00:00.000Z',
-          reminderChannels: [NotificationChannel.INTERNAL],
-          sendExternalReminder: true,
-        },
-        { id: 1 } as any,
-      ),
-    ).rejects.toThrow(BusinessException);
-    expect(taskRepository.save).not.toHaveBeenCalled();
+    const task = await service.createTask(
+      {
+        title: '缺少外部渠道',
+        listId: 2,
+        dueAt: '2026-05-01T10:00:00.000Z',
+        reminderChannels: [NotificationChannel.INTERNAL],
+        sendExternalReminder: true,
+      } as any,
+      { id: 1 } as any,
+    );
+
+    expect(task.reminderChannels).toEqual([NotificationChannel.INTERNAL]);
+    expect(task.sendExternalReminder).toBe(false);
   });
 
   it('rejects reading another user personal task', async () => {
@@ -393,6 +394,35 @@ describe('TaskService', () => {
 
     expect(result.remindAt?.toISOString()).toBe('2026-05-02T09:00:00.000Z');
     expect(result.remindedAt).toBeNull();
+  });
+
+  it('updates the derived external reminder flag when reminder channels change', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 15,
+      title: '改提醒渠道',
+      reminderChannels: [NotificationChannel.INTERNAL],
+      sendExternalReminder: false,
+      list: Object.assign(new TaskListEntity(), {
+        scope: TaskListScope.FAMILY,
+      }),
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+
+    const result = await service.updateTask(
+      15,
+      {
+        reminderChannels: [NotificationChannel.FEISHU],
+      } as any,
+      { id: 1 } as any,
+    );
+
+    expect(result.reminderChannels).toEqual([
+      NotificationChannel.INTERNAL,
+      NotificationChannel.FEISHU,
+    ]);
+    expect(result.sendExternalReminder).toBe(true);
   });
 
   it('requires migrating a task out of an archived list before editing it', async () => {

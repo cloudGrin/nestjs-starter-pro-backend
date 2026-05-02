@@ -238,4 +238,73 @@ describe('AdminBootstrapService', () => {
       }),
     );
   });
+
+  it('已有默认菜单时只同步路由关键字段并保留用户可配置的图标', async () => {
+    const role = Object.assign(new RoleEntity(), {
+      id: 1,
+      code: 'super_admin',
+      name: '超级管理员',
+      category: RoleCategory.SYSTEM,
+      isActive: true,
+      isSystem: true,
+    });
+    const staleTaskMenu = Object.assign(new MenuEntity(), {
+      id: 42,
+      name: '我的任务',
+      path: '/tasks',
+      component: 'OldTaskPage',
+      parentId: 99,
+      icon: null,
+    });
+    const insuranceMenu = Object.assign(new MenuEntity(), {
+      id: 43,
+      path: '/insurance',
+      component: 'InsurancePage',
+      parentId: null,
+    });
+    const systemMenu = Object.assign(new MenuEntity(), {
+      id: 10,
+      path: '/system',
+    });
+    const automationMenu = Object.assign(new MenuEntity(), {
+      id: 44,
+      path: '/system/automation',
+      component: 'system/automation',
+      parentId: 10,
+    });
+
+    userRepository.count.mockResolvedValue(1);
+    roleRepository.findOne.mockResolvedValue(role);
+    permissionRepository.find.mockResolvedValue([]);
+    permissionRepository.create.mockImplementation((data) => data as PermissionEntity);
+    permissionRepository.save.mockResolvedValue([] as unknown as PermissionEntity);
+    menuRepository.count.mockResolvedValue(1);
+    menuRepository.findOne.mockImplementation(async (options: any) => {
+      switch (options.where?.path) {
+        case '/tasks':
+          return staleTaskMenu;
+        case '/insurance':
+          return insuranceMenu;
+        case '/system':
+          return systemMenu;
+        case '/system/automation':
+          return automationMenu;
+        default:
+          return null;
+      }
+    });
+    menuRepository.save.mockImplementation(async (data) => data as unknown as MenuEntity);
+
+    await service.onApplicationBootstrap();
+
+    expect(menuRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 42,
+        path: '/tasks',
+        component: 'TaskCenterPage',
+        parentId: null,
+        icon: null,
+      }),
+    );
+  });
 });

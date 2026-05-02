@@ -2,7 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -82,11 +81,6 @@ export class CreateInsurancePolicyDto {
   @IsArray()
   @IsEnum(NotificationChannel, { each: true })
   reminderChannels?: NotificationChannel[];
-
-  @ApiPropertyOptional({ description: '是否发送外部提醒', default: false })
-  @IsOptional()
-  @IsBoolean()
-  sendExternalReminder?: boolean;
 
   @ApiPropertyOptional({ description: '附件文件ID', type: [Number] })
   @IsOptional()

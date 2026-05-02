@@ -105,13 +105,13 @@ describe('InsurancePolicyService', () => {
         paymentAmount: 1200,
         ownerUserId: 7,
         reminderChannels: [NotificationChannel.BARK],
-        sendExternalReminder: true,
         attachmentFileIds: [21],
       },
       { id: 1 } as any,
     );
 
     expect(policy.id).toBe(88);
+    expect(policy.sendExternalReminder).toBe(true);
     expect(attachmentRepository.save).toHaveBeenCalledWith([
       expect.objectContaining({ policyId: 88, fileId: 21, sort: 0 }),
     ]);
@@ -165,6 +165,28 @@ describe('InsurancePolicyService', () => {
       ),
     ).rejects.toThrow(BusinessException);
     expect(policyRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('derives external reminder delivery from selected policy reminder channels', async () => {
+    memberRepository.findOne.mockResolvedValue(
+      Object.assign(new InsuranceMemberEntity(), { id: 3 }),
+    );
+    userRepository.findOne.mockResolvedValue(Object.assign(new UserEntity(), { id: 7 }));
+
+    const policy = await service.createPolicy(
+      {
+        name: '家庭百万医疗',
+        memberId: 3,
+        type: InsurancePolicyType.MEDICAL,
+        ownerUserId: 7,
+        reminderChannels: [NotificationChannel.INTERNAL],
+        sendExternalReminder: true,
+      } as any,
+      { id: 1 } as any,
+    );
+
+    expect(policy.reminderChannels).toEqual([NotificationChannel.INTERNAL]);
+    expect(policy.sendExternalReminder).toBe(false);
   });
 
   it('rebuilds pending reminders when the policy owner changes', async () => {
@@ -230,9 +252,14 @@ describe('InsurancePolicyService', () => {
 
     await service.updatePolicy(88, {
       reminderChannels: [NotificationChannel.BARK],
-      sendExternalReminder: true,
     });
 
+    expect(policyRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reminderChannels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
+        sendExternalReminder: true,
+      }),
+    );
     const savedReminders = reminderRepository.save.mock
       .calls[0][0] as InsurancePolicyReminderEntity[];
     expect(savedReminders).not.toEqual(

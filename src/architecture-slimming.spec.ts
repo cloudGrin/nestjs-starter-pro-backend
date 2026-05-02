@@ -169,6 +169,21 @@ describe('architecture slimming', () => {
     expect(migration).not.toContain('displayCondition json');
   });
 
+  it('keeps menu schema to fields currently consumed by routing and navigation', () => {
+    const menuEntity = readSource('modules/menu/entities/menu.entity.ts');
+    const createMenuDto = readSource('modules/menu/dto/create-menu.dto.ts');
+    const menuService = readSource('modules/menu/services/menu.service.ts');
+    const cleanupMigration = readSource('migrations/1810000000000-DropUnusedMenuFields.ts');
+
+    expect(menuEntity).not.toContain('isCache');
+    expect(menuEntity).not.toContain('meta?:');
+    expect(createMenuDto).not.toContain('isCache');
+    expect(createMenuDto).not.toContain('meta?:');
+    expect(menuService).not.toContain('meta:');
+    expect(cleanupMigration).toContain('DROP COLUMN isCache');
+    expect(cleanupMigration).toContain('DROP COLUMN meta');
+  });
+
   it('removes parallel role-guard auth, stale register flow, and unused CRUD scaffold', () => {
     const authModule = readSource('modules/auth/auth.module.ts');
     const roleController = readSource('modules/role/controllers/role.controller.ts');
@@ -619,7 +634,6 @@ describe('architecture slimming', () => {
     const sharedModule = readSource('shared/shared.module.ts');
     const authModule = readSource('modules/auth/auth.module.ts');
     const apiAuthModule = readSource('modules/api-auth/api-auth.module.ts');
-    const cronModule = readSource('modules/cron/cron.module.ts');
     const healthModule = readSource('modules/health/health.module.ts');
 
     expect(sharedModule).toContain('@Global()');
@@ -632,7 +646,7 @@ describe('architecture slimming', () => {
     expect(authModule).not.toContain('@Global()');
     expect(authModule).not.toContain('exports: [AuthService, JwtModule]');
     expect(apiAuthModule).not.toContain('SharedModule');
-    expect(cronModule).not.toContain('exports: [CronService]');
+    expect(existsInSource('modules/cron')).toBe(false);
     expect(healthModule).not.toContain('exports: [HealthService]');
   });
 

@@ -201,10 +201,6 @@ export class MenuService {
       component: menu.component,
       isVisible: menu.isVisible,
       isActive: menu.isActive,
-      meta: menu.meta || {
-        title: menu.name,
-        icon: menu.icon,
-      },
       children:
         menu.children && menu.children.length > 0
           ? this.transformToRoutes(menu.children)

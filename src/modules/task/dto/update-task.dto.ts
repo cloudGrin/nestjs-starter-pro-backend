@@ -138,11 +138,4 @@ export class UpdateTaskDto {
   @IsArray()
   @IsEnum(NotificationChannel, { each: true })
   reminderChannels?: NotificationChannel[] | null;
-
-  @ApiPropertyOptional({
-    description: '是否发送 Bark/飞书等外部提醒',
-  })
-  @IsProvided()
-  @IsBoolean()
-  sendExternalReminder?: boolean;
 }

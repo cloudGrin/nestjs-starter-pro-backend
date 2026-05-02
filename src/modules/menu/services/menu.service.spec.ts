@@ -28,7 +28,6 @@ describe('MenuService', () => {
     menu.isVisible = true;
     menu.isActive = true;
     menu.isExternal = false;
-    menu.isCache = false;
     menu.createdAt = new Date();
     menu.updatedAt = new Date();
     menu.children = [];

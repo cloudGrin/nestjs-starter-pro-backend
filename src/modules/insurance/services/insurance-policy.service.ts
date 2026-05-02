@@ -86,8 +86,9 @@ export class InsurancePolicyService {
       ownerUserId,
       type: dto.type,
       reminderChannels: this.normalizeReminderChannels(dto.reminderChannels),
-      sendExternalReminder: dto.sendExternalReminder ?? false,
+      sendExternalReminder: false,
     });
+    this.syncDerivedReminderFields(entity);
     this.ensurePolicyRules(entity);
     const saved = await this.policyRepository.save(entity);
     await this.replaceAttachments(saved.id, dto.attachmentFileIds);
@@ -202,9 +203,7 @@ export class InsurancePolicyService {
     if (dto.reminderChannels !== undefined) {
       entity.reminderChannels = this.normalizeReminderChannels(dto.reminderChannels);
     }
-    if (dto.sendExternalReminder !== undefined) {
-      entity.sendExternalReminder = dto.sendExternalReminder;
-    }
+    this.syncDerivedReminderFields(entity);
     this.ensurePolicyRules(entity);
 
     const saved = await this.policyRepository.save(entity);
@@ -404,14 +403,17 @@ export class InsurancePolicyService {
     ) {
       throw BusinessException.validationFailed('生效日期不能晚于到期日期');
     }
-
-    if (policy.sendExternalReminder && !this.hasExternalReminderChannel(policy.reminderChannels)) {
-      throw BusinessException.validationFailed('外部提醒需要选择 Bark 或飞书');
-    }
   }
 
   private hasExternalReminderChannel(channels?: NotificationChannel[] | null): boolean {
     return channels?.some((channel) => EXTERNAL_REMINDER_CHANNELS.has(channel)) ?? false;
+  }
+
+  private syncDerivedReminderFields(
+    policy: Pick<InsurancePolicyEntity, 'reminderChannels' | 'sendExternalReminder'>,
+  ): void {
+    policy.reminderChannels = this.normalizeReminderChannels(policy.reminderChannels);
+    policy.sendExternalReminder = this.hasExternalReminderChannel(policy.reminderChannels);
   }
 
   private reminderFingerprint(policy: InsurancePolicyEntity): string {

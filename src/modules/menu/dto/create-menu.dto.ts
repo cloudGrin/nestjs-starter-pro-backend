@@ -58,26 +58,6 @@ export class CreateMenuDto {
   @IsBoolean()
   isExternal?: boolean;
 
-  @ApiPropertyOptional({ description: '是否缓存', default: false })
-  @IsOptional()
-  @IsBoolean()
-  isCache?: boolean;
-
-  @ApiPropertyOptional({ description: '路由元数据' })
-  @IsOptional()
-  meta?: {
-    title: string;
-    icon?: string;
-    hidden?: boolean;
-    alwaysShow?: boolean;
-    noCache?: boolean;
-    breadcrumb?: boolean;
-    affix?: boolean;
-    activeMenu?: string;
-    badge?: string | number;
-    [key: string]: any;
-  };
-
   @ApiPropertyOptional({ description: '备注' })
   @IsOptional()
   @IsString()

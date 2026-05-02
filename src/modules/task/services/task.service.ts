@@ -88,9 +88,10 @@ export class TaskService {
       urgent: dto.urgent ?? false,
       tags: dto.tags ?? null,
       reminderChannels: patch.reminderChannels ?? [NotificationChannel.INTERNAL],
-      sendExternalReminder: dto.sendExternalReminder ?? false,
+      sendExternalReminder: false,
     };
 
+    this.syncDerivedReminderFields(entityData as TaskEntity);
     this.ensureTaskRules(entityData as TaskEntity);
     const entity = this.taskRepository.create(entityData);
     const saved = await this.taskRepository.save(entity);
@@ -188,10 +189,13 @@ export class TaskService {
     }
 
     const nextEntity = Object.assign(Object.create(Object.getPrototypeOf(entity)), entity, patch);
+    this.syncDerivedReminderFields(nextEntity);
     this.ensureArchivedTaskMigrated(entity, nextEntity);
     this.ensureTaskRules(nextEntity);
 
-    Object.assign(entity, patch);
+    Object.assign(entity, patch, {
+      sendExternalReminder: nextEntity.sendExternalReminder,
+    });
     return this.taskRepository.save(entity);
   }
 
@@ -333,7 +337,6 @@ export class TaskService {
       'tags',
       'recurrenceType',
       'recurrenceInterval',
-      'sendExternalReminder',
     ] as const) {
       if (dto[key] !== undefined) {
         (patch as any)[key] = dto[key];
@@ -476,14 +479,17 @@ export class TaskService {
     if (taskType === TaskType.ANNIVERSARY && !task.dueAt) {
       throw BusinessException.validationFailed('纪念日必须设置日期');
     }
-
-    if (task.sendExternalReminder && !this.hasExternalReminderChannel(task.reminderChannels)) {
-      throw BusinessException.validationFailed('外部提醒需要选择 Bark 或飞书');
-    }
   }
 
   private hasExternalReminderChannel(channels?: NotificationChannel[] | null): boolean {
     return channels?.some((channel) => EXTERNAL_REMINDER_CHANNELS.has(channel)) ?? false;
+  }
+
+  private syncDerivedReminderFields(
+    task: Pick<TaskEntity, 'reminderChannels' | 'sendExternalReminder'>,
+  ): void {
+    task.reminderChannels = this.normalizeReminderChannels(task.reminderChannels);
+    task.sendExternalReminder = this.hasExternalReminderChannel(task.reminderChannels);
   }
 
   private ensureArchivedTaskMigrated(current: TaskEntity, next: TaskEntity): void {

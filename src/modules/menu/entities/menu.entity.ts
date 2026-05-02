@@ -98,31 +98,6 @@ export class MenuEntity extends SoftDeleteBaseEntity {
   isExternal: boolean;
 
   @Column({
-    type: 'boolean',
-    default: false,
-    comment: '是否缓存页面',
-  })
-  isCache: boolean;
-
-  @Column({
-    type: 'json',
-    nullable: true,
-    comment: '路由元数据',
-  })
-  meta?: {
-    title: string; // 页面标题
-    icon?: string; // 图标
-    hidden?: boolean; // 是否隐藏
-    alwaysShow?: boolean; // 是否总是显示根菜单
-    noCache?: boolean; // 不缓存
-    breadcrumb?: boolean; // 是否显示面包屑
-    affix?: boolean; // 是否固定在标签栏
-    activeMenu?: string; // 高亮菜单
-    badge?: string | number; // 徽标
-    [key: string]: any; // 扩展字段
-  };
-
-  @Column({
     type: 'text',
     nullable: true,
     comment: '备注',

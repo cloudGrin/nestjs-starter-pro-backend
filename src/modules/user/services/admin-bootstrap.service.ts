@@ -9,6 +9,10 @@ import { MenuEntity, MenuType } from '~/modules/menu/entities/menu.entity';
 import { PermissionEntity } from '~/modules/permission/entities/permission.entity';
 import { UserEntity } from '../entities/user.entity';
 
+type DefaultMenuDefinition = Partial<MenuEntity> & { path: string };
+
+const ROUTE_MANAGED_MENU_FIELDS = ['type', 'component', 'parentId'] as const;
+
 const DEFAULT_SYSTEM_PERMISSIONS = [
   { code: 'user:create', name: '创建用户', module: 'user', sort: 10 },
   { code: 'user:read', name: '查看用户', module: 'user', sort: 20 },
@@ -154,9 +158,10 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
   private async ensureDefaultMenus(): Promise<void> {
     const menuCount = await this.menuRepository.count();
     if (menuCount > 0) {
-      await this.ensureTaskCenterMenu();
-      await this.ensureInsuranceMenu();
-      await this.ensureAutomationMenu();
+      await this.ensureDefaultMenu(this.createTaskCenterMenu());
+      await this.ensureDefaultMenu(this.createInsuranceMenu());
+      const systemMenu = await this.ensureSystemMenu();
+      await this.ensureDefaultMenu(this.createAutomationMenu(systemMenu.id));
       return;
     }
 
@@ -175,7 +180,6 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         sort: 20,
         isVisible: true,
         isActive: true,
-        meta: { title: '用户管理', icon: 'user' },
       },
       {
         name: '角色管理',
@@ -187,7 +191,6 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         sort: 30,
         isVisible: true,
         isActive: true,
-        meta: { title: '角色管理', icon: 'team' },
       },
       {
         name: '菜单管理',
@@ -199,7 +202,6 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         sort: 40,
         isVisible: true,
         isActive: true,
-        meta: { title: '菜单管理', icon: 'menu' },
       },
       {
         name: '权限管理',
@@ -211,7 +213,6 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         sort: 50,
         isVisible: true,
         isActive: true,
-        meta: { title: '权限管理', icon: 'safety' },
       },
       {
         name: 'API应用',
@@ -223,7 +224,6 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         sort: 60,
         isVisible: true,
         isActive: true,
-        meta: { title: 'API应用', icon: 'api' },
       },
       {
         ...this.createAutomationMenu(savedSystemMenu.id),
@@ -238,7 +238,6 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         sort: 80,
         isVisible: true,
         isActive: true,
-        meta: { title: '文件管理', icon: 'folder' },
       },
       {
         name: '通知中心',
@@ -250,76 +249,65 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
         sort: 90,
         isVisible: true,
         isActive: true,
-        meta: { title: '通知中心', icon: 'notification' },
       },
     ]);
 
     await this.menuRepository.save(menus);
   }
 
-  private async ensureTaskCenterMenu(): Promise<void> {
+  private async ensureDefaultMenu(defaultMenu: DefaultMenuDefinition): Promise<MenuEntity> {
     const existing = await this.menuRepository.findOne({
-      where: { path: '/tasks' },
+      where: { path: defaultMenu.path },
     });
 
     if (existing) {
-      return;
+      const patch = this.getDefaultMenuRoutePatch(existing, defaultMenu);
+      if (Object.keys(patch).length === 0) {
+        return existing;
+      }
+
+      Object.assign(existing, patch);
+      return this.menuRepository.save(existing);
     }
 
-    await this.menuRepository.save(this.menuRepository.create(this.createTaskCenterMenu()));
+    return this.menuRepository.save(this.menuRepository.create(defaultMenu));
   }
 
-  private async ensureInsuranceMenu(): Promise<void> {
-    const existing = await this.menuRepository.findOne({
-      where: { path: '/insurance' },
-    });
+  private getDefaultMenuRoutePatch(
+    existing: MenuEntity,
+    defaultMenu: DefaultMenuDefinition,
+  ): Partial<MenuEntity> {
+    const patch: Partial<MenuEntity> = {};
+    for (const field of ROUTE_MANAGED_MENU_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(defaultMenu, field)) {
+        continue;
+      }
 
-    if (existing) {
-      return;
+      if (existing[field] !== defaultMenu[field]) {
+        (patch as any)[field] = defaultMenu[field];
+      }
     }
 
-    await this.menuRepository.save(this.menuRepository.create(this.createInsuranceMenu()));
-  }
-
-  private async ensureAutomationMenu(): Promise<void> {
-    const existing = await this.menuRepository.findOne({
-      where: { path: '/system/automation' },
-    });
-
-    if (existing) {
-      return;
-    }
-
-    const systemMenu = await this.ensureSystemMenu();
-    await this.menuRepository.save(
-      this.menuRepository.create(this.createAutomationMenu(systemMenu.id)),
-    );
+    return patch;
   }
 
   private async ensureSystemMenu(): Promise<MenuEntity> {
-    const existing = await this.menuRepository.findOne({
-      where: { path: '/system' },
-    });
-
-    if (existing) {
-      return existing;
-    }
-
-    return this.menuRepository.save(
-      this.menuRepository.create({
-        name: '系统管理',
-        path: '/system',
-        type: MenuType.DIRECTORY,
-        icon: 'setting',
-        sort: 10,
-        isVisible: true,
-        isActive: true,
-        meta: { title: '系统管理', icon: 'setting' },
-      }),
-    );
+    return this.ensureDefaultMenu(this.createSystemMenu());
   }
 
-  private createTaskCenterMenu(): Partial<MenuEntity> {
+  private createSystemMenu(): DefaultMenuDefinition {
+    return {
+      name: '系统管理',
+      path: '/system',
+      type: MenuType.DIRECTORY,
+      icon: 'setting',
+      sort: 10,
+      isVisible: true,
+      isActive: true,
+    };
+  }
+
+  private createTaskCenterMenu(): DefaultMenuDefinition {
     return {
       name: '任务中心',
       path: '/tasks',
@@ -330,11 +318,10 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       sort: 15,
       isVisible: true,
       isActive: true,
-      meta: { title: '任务中心', icon: 'check-square' },
     };
   }
 
-  private createInsuranceMenu(): Partial<MenuEntity> {
+  private createInsuranceMenu(): DefaultMenuDefinition {
     return {
       name: '家庭保险',
       path: '/insurance',
@@ -345,11 +332,10 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       sort: 16,
       isVisible: true,
       isActive: true,
-      meta: { title: '家庭保险', icon: 'safety' },
     };
   }
 
-  private createAutomationMenu(parentId: number): Partial<MenuEntity> {
+  private createAutomationMenu(parentId: number): DefaultMenuDefinition {
     return {
       name: '自动化任务',
       path: '/system/automation',
@@ -360,7 +346,6 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       sort: 70,
       isVisible: true,
       isActive: true,
-      meta: { title: '自动化任务', icon: 'clock-circle' },
     };
   }
 

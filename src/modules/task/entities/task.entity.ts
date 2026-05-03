@@ -1,9 +1,10 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { SoftDeleteBaseEntity } from '~/core/base/base.entity';
 import { UserEntity } from '~/modules/user/entities/user.entity';
-import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
 import { TaskListEntity } from './task-list.entity';
 import { TaskCompletionEntity } from './task-completion.entity';
+import { TaskAttachmentEntity } from './task-attachment.entity';
+import { TaskCheckItemEntity } from './task-check-item.entity';
 
 export enum TaskStatus {
   PENDING = 'pending',
@@ -29,7 +30,7 @@ export enum TaskRecurrenceType {
 @Index(['listId', 'status'])
 @Index(['assigneeId', 'status'])
 @Index(['dueAt'])
-@Index(['remindAt', 'remindedAt'])
+@Index(['nextReminderAt'])
 @Index(['taskType'])
 export class TaskEntity extends SoftDeleteBaseEntity {
   @Column({
@@ -123,6 +124,30 @@ export class TaskEntity extends SoftDeleteBaseEntity {
   remindedAt?: Date | null;
 
   @Column({
+    name: 'next_reminder_at',
+    type: 'timestamp',
+    nullable: true,
+    comment: '下一次提醒时间',
+  })
+  nextReminderAt?: Date | null;
+
+  @Column({
+    name: 'continuous_reminder_enabled',
+    type: 'boolean',
+    default: true,
+    comment: '是否持续提醒',
+  })
+  continuousReminderEnabled: boolean;
+
+  @Column({
+    name: 'continuous_reminder_interval_minutes',
+    type: 'int',
+    default: 30,
+    comment: '持续提醒间隔分钟',
+  })
+  continuousReminderIntervalMinutes: number;
+
+  @Column({
     name: 'completed_at',
     type: 'timestamp',
     nullable: true,
@@ -168,22 +193,12 @@ export class TaskEntity extends SoftDeleteBaseEntity {
   })
   recurrenceInterval?: number | null;
 
-  @Column({
-    name: 'reminder_channels',
-    type: 'json',
-    nullable: true,
-    comment: '提醒渠道',
-  })
-  reminderChannels?: NotificationChannel[] | null;
-
-  @Column({
-    name: 'send_external_reminder',
-    type: 'boolean',
-    default: false,
-    comment: '是否发送外部提醒',
-  })
-  sendExternalReminder: boolean;
-
   @OneToMany(() => TaskCompletionEntity, (completion) => completion.task)
   completions?: TaskCompletionEntity[];
+
+  @OneToMany(() => TaskAttachmentEntity, (attachment) => attachment.task)
+  attachments?: TaskAttachmentEntity[];
+
+  @OneToMany(() => TaskCheckItemEntity, (item) => item.task)
+  checkItems?: TaskCheckItemEntity[];
 }

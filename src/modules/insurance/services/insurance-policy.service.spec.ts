@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BusinessException } from '~/common/exceptions/business.exception';
-import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { createMockLogger, createMockRepository } from '~/test-utils';
 import { LoggerService } from '~/shared/logger/logger.service';
@@ -85,6 +84,23 @@ describe('InsurancePolicyService', () => {
     jest.clearAllMocks();
   });
 
+  it('loads policy reminders in list queries only when requested', async () => {
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    policyRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+    await service.findPolicies({ includeReminders: true } as any);
+
+    expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('policy.reminders', 'reminders');
+  });
+
   it('creates policy reminders for expiry and payment milestones', async () => {
     memberRepository.findOne.mockResolvedValue(
       Object.assign(new InsuranceMemberEntity(), { id: 3 }),
@@ -104,14 +120,12 @@ describe('InsurancePolicyService', () => {
         nextPaymentDate: '2026-08-15',
         paymentAmount: 1200,
         ownerUserId: 7,
-        reminderChannels: [NotificationChannel.BARK],
         attachmentFileIds: [21],
       },
       { id: 1 } as any,
     );
 
     expect(policy.id).toBe(88);
-    expect(policy.sendExternalReminder).toBe(true);
     expect(attachmentRepository.save).toHaveBeenCalledWith([
       expect.objectContaining({ policyId: 88, fileId: 21, sort: 0 }),
     ]);
@@ -167,28 +181,6 @@ describe('InsurancePolicyService', () => {
     expect(policyRepository.save).not.toHaveBeenCalled();
   });
 
-  it('derives external reminder delivery from selected policy reminder channels', async () => {
-    memberRepository.findOne.mockResolvedValue(
-      Object.assign(new InsuranceMemberEntity(), { id: 3 }),
-    );
-    userRepository.findOne.mockResolvedValue(Object.assign(new UserEntity(), { id: 7 }));
-
-    const policy = await service.createPolicy(
-      {
-        name: '家庭百万医疗',
-        memberId: 3,
-        type: InsurancePolicyType.MEDICAL,
-        ownerUserId: 7,
-        reminderChannels: [NotificationChannel.INTERNAL],
-        sendExternalReminder: true,
-      } as any,
-      { id: 1 } as any,
-    );
-
-    expect(policy.reminderChannels).toEqual([NotificationChannel.INTERNAL]);
-    expect(policy.sendExternalReminder).toBe(false);
-  });
-
   it('rebuilds pending reminders when the policy owner changes', async () => {
     policyRepository.findOne.mockResolvedValue(
       Object.assign(new InsurancePolicyEntity(), {
@@ -199,8 +191,6 @@ describe('InsurancePolicyService', () => {
         ownerUserId: 7,
         endDate: '2026-12-31',
         nextPaymentDate: '2026-08-15',
-        reminderChannels: [NotificationChannel.INTERNAL],
-        sendExternalReminder: false,
         reminders: [],
       }),
     );
@@ -236,8 +226,6 @@ describe('InsurancePolicyService', () => {
         ownerUserId: 7,
         endDate: '2026-12-31',
         nextPaymentDate: '2026-08-15',
-        reminderChannels: [NotificationChannel.INTERNAL],
-        sendExternalReminder: false,
         reminders: [
           Object.assign(new InsurancePolicyReminderEntity(), {
             policyId: 88,
@@ -251,15 +239,8 @@ describe('InsurancePolicyService', () => {
     policyRepository.save.mockImplementationOnce(async (data) => data as InsurancePolicyEntity);
 
     await service.updatePolicy(88, {
-      reminderChannels: [NotificationChannel.BARK],
+      endDate: '2027-12-31',
     });
-
-    expect(policyRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        reminderChannels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
-        sendExternalReminder: true,
-      }),
-    );
     const savedReminders = reminderRepository.save.mock
       .calls[0][0] as InsurancePolicyReminderEntity[];
     expect(savedReminders).not.toEqual(

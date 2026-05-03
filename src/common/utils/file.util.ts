@@ -16,6 +16,8 @@ export class FileUtil {
     '.gif': 'image/gif',
     '.bmp': 'image/bmp',
     '.webp': 'image/webp',
+    '.heic': 'image/heic',
+    '.heif': 'image/heif',
     '.ico': 'image/x-icon',
 
     // 文档
@@ -39,6 +41,7 @@ export class FileUtil {
     '.mp4': 'video/mp4',
     '.avi': 'video/x-msvideo',
     '.mov': 'video/quicktime',
+    '.webm': 'video/webm',
     '.wmv': 'video/x-ms-wmv',
     '.flv': 'video/x-flv',
     '.mkv': 'video/x-matroska',
@@ -122,7 +125,7 @@ export class FileUtil {
    * 判断是否为图片文件
    */
   static isImage(filename: string): boolean {
-    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.heif'];
     return imageExts.includes(this.getExtension(filename));
   }
 
@@ -130,7 +133,7 @@ export class FileUtil {
    * 判断是否为视频文件
    */
   static isVideo(filename: string): boolean {
-    const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv'];
+    const videoExts = ['.mp4', '.avi', '.mov', '.webm', '.wmv', '.flv', '.mkv'];
     return videoExts.includes(this.getExtension(filename));
   }
 

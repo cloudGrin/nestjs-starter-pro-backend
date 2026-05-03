@@ -13,9 +13,10 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
-import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
 import { TaskRecurrenceType, TaskType } from '../entities/task.entity';
+import { TaskCheckItemInputDto } from './task-check-item.dto';
 
 export class CreateTaskDto {
   @ApiProperty({
@@ -101,6 +102,27 @@ export class CreateTaskDto {
   tags?: string[];
 
   @ApiPropertyOptional({
+    description: '附件文件ID列表',
+    type: [Number],
+  })
+  @IsOptional()
+  @IsArray()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  attachmentFileIds?: number[];
+
+  @ApiPropertyOptional({
+    description: '检查项',
+    type: [TaskCheckItemInputDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskCheckItemInputDto)
+  checkItems?: TaskCheckItemInputDto[];
+
+  @ApiPropertyOptional({
     description: '重复规则',
     enum: TaskRecurrenceType,
     default: TaskRecurrenceType.NONE,
@@ -122,12 +144,23 @@ export class CreateTaskDto {
   recurrenceInterval?: number;
 
   @ApiPropertyOptional({
-    description: '提醒渠道',
-    enum: NotificationChannel,
-    isArray: true,
+    description: '是否持续提醒',
+    default: true,
   })
   @IsOptional()
-  @IsArray()
-  @IsEnum(NotificationChannel, { each: true })
-  reminderChannels?: NotificationChannel[];
+  @IsBoolean()
+  continuousReminderEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    description: '持续提醒间隔分钟',
+    minimum: 5,
+    maximum: 1440,
+    default: 30,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(5)
+  @Max(1440)
+  continuousReminderIntervalMinutes?: number;
 }

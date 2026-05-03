@@ -11,12 +11,15 @@ import {
   Post,
   Put,
   Query,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { RequirePermissions } from '~/core/decorators';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
-import { CreateTaskDto, QueryTaskDto, UpdateTaskDto } from '../dto';
+import { CreateTaskDto, QueryTaskDto, SnoozeTaskReminderDto, UpdateTaskDto } from '../dto';
 import { TaskService } from '../services/task.service';
 
 @ApiTags('任务管理')
@@ -81,11 +84,41 @@ export class TaskController {
     return this.taskService.reopenTask(id, user);
   }
 
+  @Post(':id/reminder/snooze')
+  @RequirePermissions('task:update')
+  @ApiOperation({ summary: '稍后提醒任务' })
+  async snoozeTaskReminder(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SnoozeTaskReminderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.taskService.snoozeTaskReminder(id, dto, user);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('task:delete')
   @ApiOperation({ summary: '删除任务' })
   async removeTask(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
     await this.taskService.removeTask(id, user);
+  }
+
+  @Get(':id/attachments/:fileId/download')
+  @RequirePermissions('task:read')
+  @ApiOperation({ summary: '下载任务附件' })
+  async downloadAttachment(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('fileId', ParseIntPipe) fileId: number,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { file, stream } = await this.taskService.getAttachmentDownload(id, fileId, user);
+    res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+    );
+
+    return new StreamableFile(stream as any);
   }
 }

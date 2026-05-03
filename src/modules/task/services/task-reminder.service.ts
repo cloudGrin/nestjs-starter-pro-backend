@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThanOrEqual, Repository } from 'typeorm';
+import { LessThanOrEqual, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import {
   NotificationChannel,
@@ -10,6 +10,12 @@ import { NotificationService } from '~/modules/notification/services/notificatio
 import { TaskEntity, TaskStatus } from '../entities/task.entity';
 
 const NOTIFICATION_TITLE_MAX_LENGTH = 150;
+const DEFAULT_CONTINUOUS_REMINDER_INTERVAL_MINUTES = 30;
+const ALL_REMINDER_CHANNELS = [
+  NotificationChannel.INTERNAL,
+  NotificationChannel.BARK,
+  NotificationChannel.FEISHU,
+];
 
 @Injectable()
 export class TaskReminderService {
@@ -24,8 +30,7 @@ export class TaskReminderService {
     const tasks = await this.taskRepository.find({
       where: {
         status: TaskStatus.PENDING,
-        remindAt: LessThanOrEqual(now),
-        remindedAt: IsNull(),
+        nextReminderAt: LessThanOrEqual(now),
         list: { isArchived: false },
       },
       relations: ['list'],
@@ -44,10 +49,9 @@ export class TaskReminderService {
         {
           id: task.id,
           status: TaskStatus.PENDING,
-          remindAt: LessThanOrEqual(now),
-          remindedAt: IsNull(),
+          nextReminderAt: LessThanOrEqual(now),
         } as any,
-        { remindedAt: now },
+        { remindedAt: now, nextReminderAt: null },
       );
 
       if (!claim.affected) {
@@ -63,19 +67,22 @@ export class TaskReminderService {
       }
 
       if (claimedTask.list?.isArchived) {
-        await this.taskRepository.update(task.id, { remindedAt: null });
+        await this.taskRepository.update(task.id, { remindedAt: null, nextReminderAt: null });
         continue;
       }
 
       if (!this.isStillDueForReminder(claimedTask, now)) {
-        await this.taskRepository.update(task.id, { remindedAt: null });
+        await this.taskRepository.update(task.id, {
+          remindedAt: null,
+          nextReminderAt: this.getRestoredNextReminderAt(claimedTask, now),
+        });
         continue;
       }
 
       const claimedRecipientId = claimedTask.assigneeId ?? claimedTask.creatorId;
       if (!claimedRecipientId) {
         this.logger.warn(`Skip task reminder without recipient taskId=${claimedTask.id}`);
-        await this.taskRepository.update(task.id, { remindedAt: null });
+        await this.taskRepository.update(task.id, { remindedAt: null, nextReminderAt: null });
         continue;
       }
 
@@ -85,20 +92,28 @@ export class TaskReminderService {
           content: claimedTask.description || claimedTask.title,
           recipientIds: [claimedRecipientId],
           type: NotificationType.REMINDER,
-          channels: this.normalizeChannels(claimedTask.reminderChannels),
-          sendExternal: claimedTask.sendExternalReminder,
+          channels: ALL_REMINDER_CHANNELS,
+          sendExternal: true,
           metadata: {
             module: 'task',
             taskId: claimedTask.id,
             link: `/tasks?taskId=${claimedTask.id}`,
+            mobileLink: `/m/tasks/${claimedTask.id}`,
           },
         });
 
         sent += 1;
+        await this.taskRepository.update(task.id, {
+          remindedAt: now,
+          nextReminderAt: this.getNextReminderAfterDelivery(claimedTask, now),
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.error(`Send task reminder failed taskId=${task.id}: ${message}`);
-        await this.taskRepository.update(task.id, { remindedAt: null });
+        await this.taskRepository.update(task.id, {
+          remindedAt: null,
+          nextReminderAt: this.getRestoredNextReminderAt(claimedTask, now),
+        });
       }
     }
 
@@ -109,16 +124,35 @@ export class TaskReminderService {
     return `任务提醒：${taskTitle}`.slice(0, NOTIFICATION_TITLE_MAX_LENGTH);
   }
 
-  private normalizeChannels(channels?: NotificationChannel[] | null): NotificationChannel[] {
-    const list = channels && channels.length > 0 ? [...channels] : [NotificationChannel.INTERNAL];
-    return Array.from(new Set([NotificationChannel.INTERNAL, ...list]));
-  }
-
   private isStillDueForReminder(task: TaskEntity, now: Date): boolean {
     if (task.status !== TaskStatus.PENDING || !task.remindAt) {
       return false;
     }
 
     return task.remindAt.getTime() <= now.getTime();
+  }
+
+  private getNextReminderAfterDelivery(task: TaskEntity, now: Date): Date | null {
+    if (!task.continuousReminderEnabled || !task.remindAt) {
+      return null;
+    }
+
+    const interval = Math.max(
+      task.continuousReminderIntervalMinutes ?? DEFAULT_CONTINUOUS_REMINDER_INTERVAL_MINUTES,
+      1,
+    );
+    return new Date(now.getTime() + interval * 60 * 1000);
+  }
+
+  private getRestoredNextReminderAt(task: TaskEntity, now: Date): Date | null {
+    if (task.status !== TaskStatus.PENDING || !task.remindAt) {
+      return null;
+    }
+
+    if (task.remindAt.getTime() > now.getTime()) {
+      return task.remindAt;
+    }
+
+    return task.nextReminderAt ?? task.remindAt;
   }
 }

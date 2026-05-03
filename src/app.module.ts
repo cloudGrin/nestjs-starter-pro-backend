@@ -27,6 +27,7 @@ import { HealthModule } from './modules/health/health.module';
 import { PermissionModule } from './modules/permission/permission.module';
 import { MenuModule } from './modules/menu/menu.module';
 import { TaskModule } from './modules/task/task.module';
+import { FamilyModule } from './modules/family/family.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { TaskModule } from './modules/task/task.module';
     NotificationModule,
     InsuranceModule,
     TaskModule,
+    FamilyModule,
     AutomationModule,
     ApiAuthModule,
     OpenApiModule,

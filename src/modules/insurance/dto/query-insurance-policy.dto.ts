@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PaginationDto } from '~/common/dto/pagination.dto';
 import { InsurancePolicyType } from '../entities/insurance-policy.entity';
 
@@ -21,4 +21,10 @@ export class QueryInsurancePolicyDto extends PaginationDto {
   @IsOptional()
   @IsString()
   keyword?: string;
+
+  @ApiPropertyOptional({ description: '是否返回提醒记录' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  includeReminders?: boolean;
 }

@@ -6,12 +6,15 @@ import { createMockRepository, createMockLogger } from '~/test-utils';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { BusinessException } from '~/common/exceptions/business.exception';
+import { FileEntity } from '~/modules/file/entities/file.entity';
+import { FileService } from '~/modules/file/services/file.service';
+import { TaskAttachmentEntity } from '../entities/task-attachment.entity';
+import { TaskCheckItemEntity } from '../entities/task-check-item.entity';
 import { TaskEntity, TaskRecurrenceType, TaskStatus, TaskType } from '../entities/task.entity';
 import { TaskListEntity, TaskListScope } from '../entities/task-list.entity';
 import { TaskCompletionEntity } from '../entities/task-completion.entity';
 import { TaskQueryView } from '../dto';
 import { TaskService } from './task.service';
-import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
 import { UserStatus } from '~/common/enums/user.enum';
 
 describe('TaskService', () => {
@@ -19,7 +22,11 @@ describe('TaskService', () => {
   let taskRepository: jest.Mocked<Repository<TaskEntity>>;
   let listRepository: jest.Mocked<Repository<TaskListEntity>>;
   let completionRepository: jest.Mocked<Repository<TaskCompletionEntity>>;
+  let attachmentRepository: jest.Mocked<Repository<TaskAttachmentEntity>>;
+  let checkItemRepository: jest.Mocked<Repository<TaskCheckItemEntity>>;
   let userRepository: jest.Mocked<Repository<UserEntity>>;
+  let fileRepository: jest.Mocked<Repository<FileEntity>>;
+  let fileService: jest.Mocked<FileService>;
   let dataSource: jest.Mocked<DataSource>;
 
   beforeEach(async () => {
@@ -35,7 +42,23 @@ describe('TaskService', () => {
           provide: getRepositoryToken(TaskCompletionEntity),
           useValue: createMockRepository<TaskCompletionEntity>(),
         },
+        {
+          provide: getRepositoryToken(TaskAttachmentEntity),
+          useValue: createMockRepository<TaskAttachmentEntity>(),
+        },
+        {
+          provide: getRepositoryToken(TaskCheckItemEntity),
+          useValue: createMockRepository<TaskCheckItemEntity>(),
+        },
         { provide: getRepositoryToken(UserEntity), useValue: createMockRepository<UserEntity>() },
+        { provide: getRepositoryToken(FileEntity), useValue: createMockRepository<FileEntity>() },
+        {
+          provide: FileService,
+          useValue: {
+            checkDownloadPermission: jest.fn(),
+            getDownloadStream: jest.fn(),
+          },
+        },
         {
           provide: DataSource,
           useValue: {
@@ -64,7 +87,11 @@ describe('TaskService', () => {
     taskRepository = module.get(getRepositoryToken(TaskEntity));
     listRepository = module.get(getRepositoryToken(TaskListEntity));
     completionRepository = module.get(getRepositoryToken(TaskCompletionEntity));
+    attachmentRepository = module.get(getRepositoryToken(TaskAttachmentEntity));
+    checkItemRepository = module.get(getRepositoryToken(TaskCheckItemEntity));
     userRepository = module.get(getRepositoryToken(UserEntity));
+    fileRepository = module.get(getRepositoryToken(FileEntity));
+    fileService = module.get(FileService);
     dataSource = module.get(DataSource);
   });
 
@@ -127,7 +154,6 @@ describe('TaskService', () => {
         tags: ['family'],
         taskType: TaskType.TASK,
         recurrenceType: TaskRecurrenceType.WEEKLY,
-        reminderChannels: [NotificationChannel.BARK],
       },
       { id: 1 } as any,
     );
@@ -148,8 +174,9 @@ describe('TaskService', () => {
         urgent: false,
         tags: ['family'],
         recurrenceType: TaskRecurrenceType.WEEKLY,
-        reminderChannels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
-        sendExternalReminder: true,
+        nextReminderAt: new Date('2026-05-01T09:00:00.000Z'),
+        continuousReminderEnabled: true,
+        continuousReminderIntervalMinutes: 30,
       }),
     );
   });
@@ -274,24 +301,136 @@ describe('TaskService', () => {
     expect(taskRepository.save).not.toHaveBeenCalled();
   });
 
-  it('derives external reminder delivery from selected reminder channels', async () => {
+  it('creates tasks with continuous reminders enabled by default when reminder time exists', async () => {
     mockActiveFamilyList();
     taskRepository.create.mockImplementation((data) => data as TaskEntity);
     taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
 
     const task = await service.createTask(
       {
-        title: '缺少外部渠道',
+        title: '持续提醒任务',
         listId: 2,
         dueAt: '2026-05-01T10:00:00.000Z',
-        reminderChannels: [NotificationChannel.INTERNAL],
-        sendExternalReminder: true,
-      } as any,
+        remindAt: '2026-05-01T09:00:00.000Z',
+      },
       { id: 1 } as any,
     );
 
-    expect(task.reminderChannels).toEqual([NotificationChannel.INTERNAL]);
-    expect(task.sendExternalReminder).toBe(false);
+    expect(task.continuousReminderEnabled).toBe(true);
+    expect(task.continuousReminderIntervalMinutes).toBe(30);
+    expect(task.nextReminderAt?.toISOString()).toBe('2026-05-01T09:00:00.000Z');
+  });
+
+  it('creates task attachments and checklist items after saving the task', async () => {
+    mockActiveFamilyList();
+    fileRepository.find.mockResolvedValue([
+      Object.assign(new FileEntity(), { id: 21 }),
+      Object.assign(new FileEntity(), { id: 22 }),
+    ]);
+    taskRepository.create.mockImplementation((data) => data as TaskEntity);
+    taskRepository.save.mockImplementation(async (data) => Object.assign(data, { id: 77 }));
+    attachmentRepository.create.mockImplementation((data) => data as TaskAttachmentEntity);
+    attachmentRepository.save.mockImplementation(async (data) => data as TaskAttachmentEntity[]);
+    checkItemRepository.create.mockImplementation((data) => data as TaskCheckItemEntity);
+    checkItemRepository.save.mockImplementation(async (data) => data as TaskCheckItemEntity[]);
+
+    const task = await service.createTask(
+      {
+        title: '理赔材料',
+        listId: 2,
+        attachmentFileIds: [21, 22],
+        checkItems: [
+          { title: ' 拍照 ', completed: true, sort: 0 },
+          { title: '上传', sort: 1 },
+        ],
+      },
+      { id: 1 } as any,
+    );
+
+    expect(task.attachments).toEqual([
+      expect.objectContaining({ taskId: 77, fileId: 21, sort: 0 }),
+      expect.objectContaining({ taskId: 77, fileId: 22, sort: 1 }),
+    ]);
+    expect(task.checkItems).toEqual([
+      expect.objectContaining({ taskId: 77, title: '拍照', completed: true, sort: 0 }),
+      expect.objectContaining({ taskId: 77, title: '上传', completed: false, sort: 1 }),
+    ]);
+  });
+
+  it('rejects unknown task attachment ids before saving', async () => {
+    mockActiveFamilyList();
+    fileRepository.find.mockResolvedValue([Object.assign(new FileEntity(), { id: 21 })]);
+
+    await expect(
+      service.createTask(
+        {
+          title: '未知附件',
+          listId: 2,
+          attachmentFileIds: [21, 404],
+        },
+        { id: 1 } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects task attachments the user cannot download before saving', async () => {
+    mockActiveFamilyList();
+    const privateFile = Object.assign(new FileEntity(), {
+      id: 21,
+      isPublic: false,
+      uploaderId: 9,
+    });
+    fileRepository.find.mockResolvedValue([privateFile]);
+    fileService.checkDownloadPermission.mockImplementation(() => {
+      throw BusinessException.forbidden('无权下载此文件');
+    });
+
+    await expect(
+      service.createTask(
+        {
+          title: '越权附件',
+          listId: 2,
+          attachmentFileIds: [21],
+        },
+        { id: 1, roles: [] } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(fileService.checkDownloadPermission).toHaveBeenCalledWith(privateFile, {
+      id: 1,
+      roles: [],
+    });
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('downloads task attachments only after loading an active accessible task', async () => {
+    const stream = { pipe: jest.fn() } as any;
+    const task = Object.assign(new TaskEntity(), {
+      id: 77,
+      title: '附件任务',
+      list: Object.assign(new TaskListEntity(), { scope: TaskListScope.FAMILY }),
+    });
+    const file = Object.assign(new FileEntity(), {
+      id: 21,
+      originalName: '材料.pdf',
+      mimeType: 'application/pdf',
+    });
+    taskRepository.findOne.mockResolvedValue(task);
+    attachmentRepository.findOne.mockResolvedValue(
+      Object.assign(new TaskAttachmentEntity(), { taskId: 77, fileId: 21, file }),
+    );
+    fileService.getDownloadStream.mockResolvedValue(stream);
+
+    const result = await service.getAttachmentDownload(77, 21, { id: 1 } as any);
+
+    expect(result).toEqual({ file, stream });
+    expect(taskRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 77 } }),
+    );
+    expect(attachmentRepository.findOne).toHaveBeenCalledWith({
+      where: { taskId: 77, fileId: 21 },
+      relations: ['file'],
+    });
   });
 
   it('rejects reading another user personal task', async () => {
@@ -336,6 +475,59 @@ describe('TaskService', () => {
     );
   });
 
+  it('loads task attachments and checklist items after paginating task rows', async () => {
+    const pageItems = [
+      Object.assign(new TaskEntity(), { id: 2, title: '第二个任务' }),
+      Object.assign(new TaskEntity(), { id: 3, title: '第三个任务' }),
+    ];
+    const detailedItems = [
+      Object.assign(new TaskEntity(), {
+        id: 3,
+        title: '第三个任务',
+        attachments: [Object.assign(new TaskAttachmentEntity(), { fileId: 31 })],
+        checkItems: [Object.assign(new TaskCheckItemEntity(), { title: '第三项', sort: 0 })],
+      }),
+      Object.assign(new TaskEntity(), {
+        id: 2,
+        title: '第二个任务',
+        attachments: [Object.assign(new TaskAttachmentEntity(), { fileId: 21 })],
+        checkItems: [Object.assign(new TaskCheckItemEntity(), { title: '第二项', sort: 0 })],
+      }),
+    ];
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([pageItems, 12]),
+    };
+    taskRepository.createQueryBuilder.mockReturnValue(qb as any);
+    taskRepository.find.mockResolvedValue(detailedItems);
+
+    const result = await service.findTasks({ page: 2, limit: 2 }, { id: 3 } as any);
+
+    expect(qb.leftJoinAndSelect).not.toHaveBeenCalledWith('task.attachments', expect.any(String));
+    expect(qb.leftJoinAndSelect).not.toHaveBeenCalledWith('task.checkItems', expect.any(String));
+    expect(taskRepository.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relations: expect.arrayContaining(['attachments', 'attachments.file', 'checkItems']),
+      }),
+    );
+    expect(result.items.map((task) => task.id)).toEqual([2, 3]);
+    expect(result.items[0].attachments?.[0].fileId).toBe(21);
+    expect(result.items[1].checkItems?.[0].title).toBe('第三项');
+    expect(result.meta).toEqual({
+      totalItems: 12,
+      itemCount: 2,
+      itemsPerPage: 2,
+      totalPages: 6,
+      currentPage: 2,
+    });
+  });
+
   it('updates nullable task fields to null when clearing an existing task', async () => {
     const task = Object.assign(new TaskEntity(), {
       id: 12,
@@ -376,6 +568,9 @@ describe('TaskService', () => {
       title: '改提醒时间',
       remindAt: new Date('2026-05-01T09:00:00.000Z'),
       remindedAt: new Date('2026-05-01T09:00:00.000Z'),
+      nextReminderAt: new Date('2026-05-01T09:30:00.000Z'),
+      continuousReminderEnabled: true,
+      continuousReminderIntervalMinutes: 30,
       list: Object.assign(new TaskListEntity(), {
         scope: TaskListScope.FAMILY,
       }),
@@ -394,35 +589,7 @@ describe('TaskService', () => {
 
     expect(result.remindAt?.toISOString()).toBe('2026-05-02T09:00:00.000Z');
     expect(result.remindedAt).toBeNull();
-  });
-
-  it('updates the derived external reminder flag when reminder channels change', async () => {
-    const task = Object.assign(new TaskEntity(), {
-      id: 15,
-      title: '改提醒渠道',
-      reminderChannels: [NotificationChannel.INTERNAL],
-      sendExternalReminder: false,
-      list: Object.assign(new TaskListEntity(), {
-        scope: TaskListScope.FAMILY,
-      }),
-    });
-
-    taskRepository.findOne.mockResolvedValue(task);
-    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
-
-    const result = await service.updateTask(
-      15,
-      {
-        reminderChannels: [NotificationChannel.FEISHU],
-      } as any,
-      { id: 1 } as any,
-    );
-
-    expect(result.reminderChannels).toEqual([
-      NotificationChannel.INTERNAL,
-      NotificationChannel.FEISHU,
-    ]);
-    expect(result.sendExternalReminder).toBe(true);
+    expect(result.nextReminderAt?.toISOString()).toBe('2026-05-02T09:00:00.000Z');
   });
 
   it('requires migrating a task out of an archived list before editing it', async () => {
@@ -433,8 +600,6 @@ describe('TaskService', () => {
       status: TaskStatus.PENDING,
       taskType: TaskType.TASK,
       recurrenceType: TaskRecurrenceType.NONE,
-      reminderChannels: [NotificationChannel.INTERNAL],
-      sendExternalReminder: false,
       list: Object.assign(new TaskListEntity(), {
         id: 8,
         scope: TaskListScope.FAMILY,
@@ -460,8 +625,6 @@ describe('TaskService', () => {
       recurrenceType: TaskRecurrenceType.NONE,
       dueAt: null,
       remindAt: null,
-      reminderChannels: [NotificationChannel.INTERNAL],
-      sendExternalReminder: false,
       list: Object.assign(new TaskListEntity(), {
         id: 2,
         scope: TaskListScope.FAMILY,
@@ -487,8 +650,6 @@ describe('TaskService', () => {
       recurrenceType: TaskRecurrenceType.MONTHLY,
       recurrenceInterval: 1,
       dueAt: new Date('2026-05-01T10:00:00.000Z'),
-      reminderChannels: [NotificationChannel.INTERNAL],
-      sendExternalReminder: false,
       list: Object.assign(new TaskListEntity(), {
         id: 2,
         scope: TaskListScope.FAMILY,
@@ -547,8 +708,6 @@ describe('TaskService', () => {
       status: TaskStatus.PENDING,
       taskType: TaskType.TASK,
       recurrenceType: TaskRecurrenceType.NONE,
-      reminderChannels: [NotificationChannel.INTERNAL],
-      sendExternalReminder: false,
       list: archivedList,
     });
 
@@ -617,6 +776,7 @@ describe('TaskService', () => {
       getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
     };
     taskRepository.createQueryBuilder.mockReturnValue(qb as any);
+    taskRepository.find.mockResolvedValue([matchingTask]);
 
     const result = await service.findTasks(
       {
@@ -682,8 +842,11 @@ describe('TaskService', () => {
       dueAt: new Date('2026-05-01T10:00:00.000Z'),
       remindAt: new Date('2026-05-01T09:00:00.000Z'),
       remindedAt: new Date('2026-05-01T09:00:00.000Z'),
+      nextReminderAt: new Date('2026-05-01T09:30:00.000Z'),
       recurrenceType: TaskRecurrenceType.WEEKLY,
       recurrenceInterval: 1,
+      continuousReminderEnabled: true,
+      continuousReminderIntervalMinutes: 30,
     });
 
     mockTaskLookup(task);
@@ -705,6 +868,7 @@ describe('TaskService', () => {
     expect(result.dueAt?.toISOString()).toBe('2026-05-08T10:00:00.000Z');
     expect(result.remindAt?.toISOString()).toBe('2026-05-08T09:00:00.000Z');
     expect(result.remindedAt).toBeNull();
+    expect(result.nextReminderAt?.toISOString()).toBe('2026-05-08T09:00:00.000Z');
   });
 
   it('rejects a duplicate completion right after a recurring task rolls forward', async () => {
@@ -743,8 +907,11 @@ describe('TaskService', () => {
       dueAt: null,
       remindAt: new Date('2026-05-01T09:00:00.000Z'),
       remindedAt: new Date('2026-05-01T09:00:00.000Z'),
+      nextReminderAt: new Date('2026-05-01T09:30:00.000Z'),
       recurrenceType: TaskRecurrenceType.DAILY,
       recurrenceInterval: 1,
+      continuousReminderEnabled: true,
+      continuousReminderIntervalMinutes: 30,
       list: Object.assign(new TaskListEntity(), {
         scope: TaskListScope.FAMILY,
       }),
@@ -760,6 +927,7 @@ describe('TaskService', () => {
     expect(result.dueAt).toBeNull();
     expect(result.remindAt?.toISOString()).toBe('2026-05-02T09:00:00.000Z');
     expect(result.remindedAt).toBeNull();
+    expect(result.nextReminderAt?.toISOString()).toBe('2026-05-02T09:00:00.000Z');
   });
 
   it('marks a non-recurring task as completed', async () => {
@@ -768,6 +936,8 @@ describe('TaskService', () => {
       title: '一次性任务',
       status: TaskStatus.PENDING,
       dueAt: new Date('2026-05-01T10:00:00.000Z'),
+      remindAt: new Date('2026-05-01T09:00:00.000Z'),
+      nextReminderAt: new Date('2026-05-01T09:30:00.000Z'),
       recurrenceType: TaskRecurrenceType.NONE,
     });
 
@@ -780,6 +950,7 @@ describe('TaskService', () => {
 
     expect(result.status).toBe(TaskStatus.COMPLETED);
     expect(result.completedAt).toBeInstanceOf(Date);
+    expect(result.nextReminderAt).toBeNull();
     expect(completionRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         taskId: 2,
@@ -804,6 +975,60 @@ describe('TaskService', () => {
 
     await expect(service.reopenTask(15, { id: 1 } as any)).rejects.toThrow(BusinessException);
     expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('restores the next reminder when reopening a completed continuous reminder task', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-01T10:00:00.000Z'));
+    const task = Object.assign(new TaskEntity(), {
+      id: 16,
+      title: '重开提醒',
+      status: TaskStatus.COMPLETED,
+      completedAt: new Date('2026-05-01T09:30:00.000Z'),
+      remindAt: new Date('2026-05-01T09:00:00.000Z'),
+      nextReminderAt: null,
+      continuousReminderEnabled: true,
+      continuousReminderIntervalMinutes: 30,
+      list: Object.assign(new TaskListEntity(), {
+        scope: TaskListScope.FAMILY,
+      }),
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+
+    const result = await service.reopenTask(16, { id: 1 } as any);
+
+    expect(result.status).toBe(TaskStatus.PENDING);
+    expect(result.completedAt).toBeNull();
+    expect(result.remindedAt).toBeNull();
+    expect(result.nextReminderAt?.toISOString()).toBe('2026-05-01T10:00:00.000Z');
+  });
+
+  it('snoozes the next task reminder without changing the configured reminder time', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 20,
+      title: '稍后提醒',
+      status: TaskStatus.PENDING,
+      remindAt: new Date('2026-05-01T09:00:00.000Z'),
+      nextReminderAt: new Date('2026-05-01T09:00:00.000Z'),
+      continuousReminderEnabled: true,
+      continuousReminderIntervalMinutes: 30,
+      list: Object.assign(new TaskListEntity(), {
+        scope: TaskListScope.FAMILY,
+      }),
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+
+    const result = await service.snoozeTaskReminder(
+      20,
+      { snoozeUntil: '2026-05-01T10:30:00.000Z' },
+      { id: 1 } as any,
+    );
+
+    expect(result.remindAt?.toISOString()).toBe('2026-05-01T09:00:00.000Z');
+    expect(result.nextReminderAt?.toISOString()).toBe('2026-05-01T10:30:00.000Z');
   });
 
   it('locks the task row before completing it', async () => {

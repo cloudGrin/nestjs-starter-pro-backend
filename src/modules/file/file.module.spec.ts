@@ -1,5 +1,4 @@
 import { ConfigService } from '@nestjs/config';
-import { DEFAULT_FILE_MAX_SIZE } from '~/config/constants';
 import { buildFileUploadMulterOptions } from './file.module';
 
 describe('buildFileUploadMulterOptions', () => {
@@ -12,11 +11,11 @@ describe('buildFileUploadMulterOptions', () => {
     expect(options.storage).toBeDefined();
   });
 
-  it('falls back to default max size when config is missing or invalid', () => {
+  it('falls back to 50MB for memory-buffered multipart uploads', () => {
     const options = buildFileUploadMulterOptions({
       get: jest.fn(() => undefined),
     } as unknown as ConfigService);
 
-    expect(options.limits?.fileSize).toBe(DEFAULT_FILE_MAX_SIZE);
+    expect(options.limits?.fileSize).toBe(50 * 1024 * 1024);
   });
 });

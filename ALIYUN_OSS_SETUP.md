@@ -36,7 +36,7 @@ FILE_OSS_ACCESS_KEY_SECRET=your-ram-access-key-secret
 ```env
 FILE_STORAGE=local
 FILE_MAX_SIZE=52428800
-FILE_ALLOWED_TYPES=.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip
+FILE_ALLOWED_TYPES=.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.mp4,.mov,.webm,.mkv,.avi,.wmv,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip
 FILE_PRIVATE_LINK_TTL_SECONDS=86400
 FILE_OSS_DIRECT_UPLOAD_TTL_SECONDS=900
 FILE_OSS_SECURE=true
@@ -47,8 +47,8 @@ FILE_OSS_SECURE=true
 | 变量 | 说明 | 默认值 |
 | --- | --- | --- |
 | `FILE_STORAGE` | 默认上传存储。个人本地开发建议保留 `local`，上传时在前端选择 OSS。若想默认走 OSS，可设为 `oss`。 | `local` |
-| `FILE_MAX_SIZE` | 后端声明的单文件最大大小，单位字节。OSS 直传签名会把这个大小约束到 `Content-Length`。 | `52428800` |
-| `FILE_ALLOWED_TYPES` | 允许上传的扩展名，逗号分隔。 | `.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip` |
+| `FILE_MAX_SIZE` | 普通文件上传和通用 OSS 直传的单文件最大大小，单位字节。家庭媒体接口使用 OSS 直传并单独允许 500MB。 | `52428800` |
+| `FILE_ALLOWED_TYPES` | 允许上传的扩展名，逗号分隔。 | `.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.mp4,.mov,.webm,.mkv,.avi,.wmv,.pdf,.doc,.docx,.ppt,.pptx,.txt,.zip` |
 | `FILE_PRIVATE_LINK_TTL_SECONDS` | 私有文件临时访问链接有效期，单位秒。 | `86400` |
 | `FILE_OSS_DIRECT_UPLOAD_TTL_SECONDS` | OSS 浏览器直传签名有效期，单位秒。当前校验范围是 `60` 到 `3600`。 | `900` |
 | `FILE_OSS_SECURE` | 是否使用 HTTPS 访问 OSS。 | `true` |

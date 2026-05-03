@@ -136,12 +136,14 @@ export class OssStorageStrategy implements FileStorageStrategy {
     response?: {
       contentType?: string;
       contentDisposition?: string;
+      process?: string;
     },
   ): string {
     const client = this.ensureClient();
     return client.signatureUrl(key, {
       method: 'GET',
       expires,
+      ...(response?.process ? { process: response.process } : {}),
       response: response
         ? {
             ...(response.contentType ? { 'content-type': response.contentType } : {}),

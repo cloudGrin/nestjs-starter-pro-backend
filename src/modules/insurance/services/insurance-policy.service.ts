@@ -7,7 +7,6 @@ import { PaginationResult } from '~/common/types/pagination.types';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { FileEntity } from '~/modules/file/entities/file.entity';
 import { FileService } from '~/modules/file/services/file.service';
-import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import {
   CreateInsurancePolicyDto,
@@ -46,11 +45,6 @@ const POLICY_SORT_FIELDS = new Set([
   'nextPaymentDate',
   'name',
 ]);
-const EXTERNAL_REMINDER_CHANNELS = new Set<NotificationChannel>([
-  NotificationChannel.BARK,
-  NotificationChannel.FEISHU,
-]);
-
 @Injectable()
 export class InsurancePolicyService {
   constructor(
@@ -85,10 +79,7 @@ export class InsurancePolicyService {
       memberId: dto.memberId,
       ownerUserId,
       type: dto.type,
-      reminderChannels: this.normalizeReminderChannels(dto.reminderChannels),
-      sendExternalReminder: false,
     });
-    this.syncDerivedReminderFields(entity);
     this.ensurePolicyRules(entity);
     const saved = await this.policyRepository.save(entity);
     await this.replaceAttachments(saved.id, dto.attachmentFileIds);
@@ -106,6 +97,10 @@ export class InsurancePolicyService {
       .leftJoinAndSelect('policy.ownerUser', 'ownerUser')
       .leftJoinAndSelect('policy.attachments', 'attachments')
       .leftJoinAndSelect('attachments.file', 'file');
+
+    if (query.includeReminders) {
+      qb.leftJoinAndSelect('policy.reminders', 'reminders');
+    }
 
     if (query.memberId) {
       qb.andWhere('policy.memberId = :memberId', { memberId: query.memberId });
@@ -200,10 +195,6 @@ export class InsurancePolicyService {
     if (dto.type !== undefined) {
       entity.type = dto.type;
     }
-    if (dto.reminderChannels !== undefined) {
-      entity.reminderChannels = this.normalizeReminderChannels(dto.reminderChannels);
-    }
-    this.syncDerivedReminderFields(entity);
     this.ensurePolicyRules(entity);
 
     const saved = await this.policyRepository.save(entity);
@@ -388,13 +379,6 @@ export class InsurancePolicyService {
     return dayjs(value).subtract(days, 'day').format('YYYY-MM-DD');
   }
 
-  private normalizeReminderChannels(
-    channels?: NotificationChannel[] | null,
-  ): NotificationChannel[] {
-    const list = channels && channels.length > 0 ? channels : [NotificationChannel.INTERNAL];
-    return Array.from(new Set([NotificationChannel.INTERNAL, ...list]));
-  }
-
   private ensurePolicyRules(policy: InsurancePolicyEntity): void {
     if (
       policy.effectiveDate &&
@@ -405,25 +389,8 @@ export class InsurancePolicyService {
     }
   }
 
-  private hasExternalReminderChannel(channels?: NotificationChannel[] | null): boolean {
-    return channels?.some((channel) => EXTERNAL_REMINDER_CHANNELS.has(channel)) ?? false;
-  }
-
-  private syncDerivedReminderFields(
-    policy: Pick<InsurancePolicyEntity, 'reminderChannels' | 'sendExternalReminder'>,
-  ): void {
-    policy.reminderChannels = this.normalizeReminderChannels(policy.reminderChannels);
-    policy.sendExternalReminder = this.hasExternalReminderChannel(policy.reminderChannels);
-  }
-
   private reminderFingerprint(policy: InsurancePolicyEntity): string {
-    return [
-      policy.endDate ?? '',
-      policy.nextPaymentDate ?? '',
-      policy.ownerUserId,
-      policy.reminderChannels?.join(',') ?? '',
-      policy.sendExternalReminder ? '1' : '0',
-    ].join('|');
+    return [policy.endDate ?? '', policy.nextPaymentDate ?? '', policy.ownerUserId].join('|');
   }
 
   private normalizeRequiredText(value: string, message: string): string {

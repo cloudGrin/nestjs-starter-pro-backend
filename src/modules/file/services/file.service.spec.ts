@@ -40,7 +40,7 @@ describe('FileService', () => {
         uploadDir: 'uploads',
         baseUrl: '/api/v1/files',
         maxSize: 50 * 1024 * 1024,
-        allowedTypes: ['.jpg', '.jpeg', '.png', '.pdf', '.txt'],
+        allowedTypes: ['.jpg', '.jpeg', '.png', '.mp4', '.pdf', '.txt'],
         privateLinkTtlSeconds: 86400,
         ossDirectUploadTtlSeconds: 900,
       },
@@ -213,6 +213,33 @@ describe('FileService', () => {
   });
 
   describe('createDirectUpload', () => {
+    it('allows trusted callers to override the direct upload max size for OSS-only flows', async () => {
+      const largeSize = 300 * 1024 * 1024;
+
+      await expect(
+        (service as any).createDirectUpload(
+          {
+            originalName: 'family-video.mp4',
+            mimeType: 'video/mp4',
+            size: largeSize,
+            module: 'family-chat',
+            isPublic: false,
+          },
+          1,
+          { maxSize: 500 * 1024 * 1024 },
+        ),
+      ).resolves.toEqual(expect.objectContaining({ method: 'PUT' }));
+
+      expect(storageFactory.getOssStrategy().createSignedUploadUrl).toHaveBeenCalledWith(
+        'avatar/2024/01/20/test_123.jpg',
+        900,
+        expect.objectContaining({
+          contentType: 'video/mp4',
+          contentLength: largeSize,
+        }),
+      );
+    });
+
     it('为 OSS 直传创建签名 PUT URL 和上传令牌', async () => {
       const result = await service.createDirectUpload(
         {
@@ -352,6 +379,34 @@ describe('FileService', () => {
           file: expect.objectContaining({ id: 3 }),
           redirectUrl: 'https://oss.example.com/download-signature',
           disposition: 'attachment',
+        }),
+      );
+    });
+
+    it('解析受信任图片链接时把 OSS 图片处理参数带入签名地址', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 5,
+        originalName: 'family.jpg',
+        path: 'family-circle/2026/05/04/family.jpg',
+        mimeType: 'image/jpeg',
+        storage: FileStorageType.OSS,
+        isPublic: false,
+        uploaderId: 1,
+      } as FileEntity);
+      const link = await service.createTrustedAccessLink(5, {
+        disposition: 'inline',
+        process: 'image/format,webp/quality,Q_100',
+        responseContentType: 'image/webp',
+      });
+
+      await service.resolveAccessLink(5, link.token);
+
+      expect(storageFactory.getOssStrategy().createSignedDownloadUrl).toHaveBeenCalledWith(
+        'family-circle/2026/05/04/family.jpg',
+        expect.any(Number),
+        expect.objectContaining({
+          contentType: 'image/webp',
+          process: 'image/format,webp/quality,Q_100',
         }),
       );
     });

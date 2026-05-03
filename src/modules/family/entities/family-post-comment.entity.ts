@@ -1,0 +1,36 @@
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { SoftDeleteBaseEntity } from '~/core/base/base.entity';
+import { UserEntity } from '~/modules/user/entities/user.entity';
+import { FamilyPostEntity } from './family-post.entity';
+
+@Entity('family_post_comments')
+@Index(['postId', 'createdAt'])
+export class FamilyPostCommentEntity extends SoftDeleteBaseEntity {
+  @Column({
+    name: 'post_id',
+    type: 'int',
+    comment: '动态ID',
+  })
+  postId: number;
+
+  @ManyToOne(() => FamilyPostEntity, (post) => post.comments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'post_id' })
+  post?: FamilyPostEntity;
+
+  @Column({
+    name: 'author_id',
+    type: 'int',
+    comment: '评论者ID',
+  })
+  authorId: number;
+
+  @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'author_id' })
+  author?: UserEntity;
+
+  @Column({
+    type: 'text',
+    comment: '评论内容',
+  })
+  content: string;
+}

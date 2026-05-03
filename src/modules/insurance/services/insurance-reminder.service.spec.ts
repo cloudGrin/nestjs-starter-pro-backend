@@ -63,8 +63,6 @@ describe('InsuranceReminderService', () => {
         type: InsurancePolicyType.MEDICAL,
         endDate: '2026-12-31',
         nextPaymentDate: '2026-08-15',
-        reminderChannels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
-        sendExternalReminder: true,
         member: Object.assign(new InsuranceMemberEntity(), { name: '妈妈' }),
       }),
     });
@@ -89,13 +87,18 @@ describe('InsuranceReminderService', () => {
         title: '保险缴费提醒：家庭百万医疗',
         recipientIds: [7],
         type: NotificationType.REMINDER,
-        channels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
+        channels: [
+          NotificationChannel.INTERNAL,
+          NotificationChannel.BARK,
+          NotificationChannel.FEISHU,
+        ],
         sendExternal: true,
         metadata: {
           module: 'insurance',
           policyId: 88,
           reminderId: 11,
           link: '/insurance?policyId=88',
+          mobileLink: '/m/insurance/88',
         },
       }),
     );

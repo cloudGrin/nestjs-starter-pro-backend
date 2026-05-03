@@ -49,8 +49,9 @@ describe('TaskReminderService', () => {
       creatorId: 1,
       assigneeId: 2,
       remindAt: now,
-      reminderChannels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
-      sendExternalReminder: true,
+      nextReminderAt: now,
+      continuousReminderEnabled: true,
+      continuousReminderIntervalMinutes: 30,
     });
 
     taskRepository.find.mockResolvedValue([task]);
@@ -75,11 +76,16 @@ describe('TaskReminderService', () => {
         content: '16:30 到校门口',
         recipientIds: [2],
         type: NotificationType.REMINDER,
-        channels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
+        channels: [
+          NotificationChannel.INTERNAL,
+          NotificationChannel.BARK,
+          NotificationChannel.FEISHU,
+        ],
         sendExternal: true,
         metadata: expect.objectContaining({
           module: 'task',
           taskId: 3,
+          mobileLink: '/m/tasks/3',
         }),
       }),
     );
@@ -87,12 +93,17 @@ describe('TaskReminderService', () => {
       expect.objectContaining({
         id: 3,
         status: TaskStatus.PENDING,
-        remindedAt: expect.anything(),
+        nextReminderAt: expect.anything(),
       }),
       {
         remindedAt: now,
+        nextReminderAt: null,
       },
     );
+    expect(taskRepository.update).toHaveBeenLastCalledWith(3, {
+      remindedAt: now,
+      nextReminderAt: new Date('2026-05-01T09:30:00.000Z'),
+    });
   });
 
   it('only scans tasks from active lists', async () => {
@@ -111,7 +122,7 @@ describe('TaskReminderService', () => {
     );
   });
 
-  it('always includes the internal channel once when normalizing reminder channels', async () => {
+  it('always sends task reminders through every notification channel', async () => {
     const now = new Date('2026-05-01T09:00:00.000Z');
     const task = Object.assign(new TaskEntity(), {
       id: 8,
@@ -119,12 +130,9 @@ describe('TaskReminderService', () => {
       status: TaskStatus.PENDING,
       creatorId: 1,
       remindAt: now,
-      reminderChannels: [
-        NotificationChannel.BARK,
-        NotificationChannel.INTERNAL,
-        NotificationChannel.BARK,
-      ],
-      sendExternalReminder: true,
+      nextReminderAt: now,
+      continuousReminderEnabled: false,
+      continuousReminderIntervalMinutes: 30,
     });
 
     taskRepository.find.mockResolvedValue([task]);
@@ -135,12 +143,17 @@ describe('TaskReminderService', () => {
 
     expect(notificationService.createNotification).toHaveBeenCalledWith(
       expect.objectContaining({
-        channels: [NotificationChannel.INTERNAL, NotificationChannel.BARK],
+        channels: [
+          NotificationChannel.INTERNAL,
+          NotificationChannel.BARK,
+          NotificationChannel.FEISHU,
+        ],
+        sendExternal: true,
       }),
     );
   });
 
-  it('falls back to the internal channel when reminder channels are empty', async () => {
+  it('clears the next reminder after a non-continuous reminder is sent', async () => {
     const now = new Date('2026-05-01T09:00:00.000Z');
     const task = Object.assign(new TaskEntity(), {
       id: 9,
@@ -148,8 +161,9 @@ describe('TaskReminderService', () => {
       status: TaskStatus.PENDING,
       creatorId: 1,
       remindAt: now,
-      reminderChannels: [],
-      sendExternalReminder: false,
+      nextReminderAt: now,
+      continuousReminderEnabled: false,
+      continuousReminderIntervalMinutes: 30,
     });
 
     taskRepository.find.mockResolvedValue([task]);
@@ -158,11 +172,37 @@ describe('TaskReminderService', () => {
 
     await service.sendDueReminders(now);
 
-    expect(notificationService.createNotification).toHaveBeenCalledWith(
-      expect.objectContaining({
-        channels: [NotificationChannel.INTERNAL],
-      }),
-    );
+    expect(taskRepository.update).toHaveBeenLastCalledWith(9, {
+      remindedAt: now,
+      nextReminderAt: null,
+    });
+  });
+
+  it('restores one-shot reminders for retry when notification delivery fails', async () => {
+    const now = new Date('2026-05-01T09:00:00.000Z');
+    const task = Object.assign(new TaskEntity(), {
+      id: 12,
+      title: '一次性提醒',
+      status: TaskStatus.PENDING,
+      creatorId: 1,
+      remindAt: now,
+      nextReminderAt: now,
+      continuousReminderEnabled: false,
+      continuousReminderIntervalMinutes: 30,
+    });
+
+    taskRepository.find.mockResolvedValue([task]);
+    taskRepository.findOne.mockResolvedValue(task);
+    taskRepository.update.mockResolvedValue({ affected: 1 } as any);
+    notificationService.createNotification.mockRejectedValue(new Error('temporary failure'));
+
+    const count = await service.sendDueReminders(now);
+
+    expect(count).toBe(0);
+    expect(taskRepository.update).toHaveBeenLastCalledWith(12, {
+      remindedAt: null,
+      nextReminderAt: now,
+    });
   });
 
   it('skips a reminder that was already claimed by another cron run', async () => {
@@ -173,6 +213,7 @@ describe('TaskReminderService', () => {
       status: TaskStatus.PENDING,
       creatorId: 1,
       remindAt: now,
+      nextReminderAt: now,
     });
 
     taskRepository.find.mockResolvedValue([task]);
@@ -192,6 +233,7 @@ describe('TaskReminderService', () => {
       status: TaskStatus.PENDING,
       creatorId: 1,
       remindAt: now,
+      nextReminderAt: now,
       list: { isArchived: false },
     });
     const archivedTask = Object.assign(new TaskEntity(), {
@@ -210,7 +252,10 @@ describe('TaskReminderService', () => {
       where: { id: 7 },
       relations: ['list'],
     });
-    expect(taskRepository.update).toHaveBeenLastCalledWith(7, { remindedAt: null });
+    expect(taskRepository.update).toHaveBeenLastCalledWith(7, {
+      remindedAt: null,
+      nextReminderAt: null,
+    });
     expect(notificationService.createNotification).not.toHaveBeenCalled();
   });
 
@@ -222,6 +267,7 @@ describe('TaskReminderService', () => {
       status: TaskStatus.PENDING,
       creatorId: 1,
       remindAt: now,
+      nextReminderAt: now,
       list: { isArchived: false },
     });
     const completedTask = Object.assign(new TaskEntity(), {
@@ -236,7 +282,10 @@ describe('TaskReminderService', () => {
     const count = await service.sendDueReminders(now);
 
     expect(count).toBe(0);
-    expect(taskRepository.update).toHaveBeenLastCalledWith(10, { remindedAt: null });
+    expect(taskRepository.update).toHaveBeenLastCalledWith(10, {
+      remindedAt: null,
+      nextReminderAt: null,
+    });
     expect(notificationService.createNotification).not.toHaveBeenCalled();
   });
 
@@ -248,11 +297,13 @@ describe('TaskReminderService', () => {
       status: TaskStatus.PENDING,
       creatorId: 1,
       remindAt: now,
+      nextReminderAt: now,
       list: { isArchived: false },
     });
     const rescheduledTask = Object.assign(new TaskEntity(), {
       ...task,
       remindAt: new Date('2026-05-01T10:00:00.000Z'),
+      nextReminderAt: new Date('2026-05-01T10:00:00.000Z'),
     });
 
     taskRepository.find.mockResolvedValue([task]);
@@ -262,7 +313,10 @@ describe('TaskReminderService', () => {
     const count = await service.sendDueReminders(now);
 
     expect(count).toBe(0);
-    expect(taskRepository.update).toHaveBeenLastCalledWith(11, { remindedAt: null });
+    expect(taskRepository.update).toHaveBeenLastCalledWith(11, {
+      remindedAt: null,
+      nextReminderAt: new Date('2026-05-01T10:00:00.000Z'),
+    });
     expect(notificationService.createNotification).not.toHaveBeenCalled();
   });
 
@@ -274,6 +328,9 @@ describe('TaskReminderService', () => {
       status: TaskStatus.PENDING,
       creatorId: 1,
       remindAt: now,
+      nextReminderAt: now,
+      continuousReminderEnabled: false,
+      continuousReminderIntervalMinutes: 30,
     });
 
     taskRepository.find.mockResolvedValue([task]);

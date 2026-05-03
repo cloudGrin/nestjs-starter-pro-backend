@@ -11,7 +11,6 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
 import { InsurancePolicyType } from '../entities/insurance-policy.entity';
 
 export class CreateInsurancePolicyDto {
@@ -75,12 +74,6 @@ export class CreateInsurancePolicyDto {
   @IsOptional()
   @IsString()
   remark?: string | null;
-
-  @ApiPropertyOptional({ description: '提醒渠道', enum: NotificationChannel, isArray: true })
-  @IsOptional()
-  @IsArray()
-  @IsEnum(NotificationChannel, { each: true })
-  reminderChannels?: NotificationChannel[];
 
   @ApiPropertyOptional({ description: '附件文件ID', type: [Number] })
   @IsOptional()

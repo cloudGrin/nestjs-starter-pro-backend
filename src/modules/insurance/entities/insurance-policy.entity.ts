@@ -1,6 +1,5 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { SoftDeleteBaseEntity } from '~/core/base/base.entity';
-import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { InsuranceMemberEntity } from './insurance-member.entity';
 import { InsurancePolicyAttachmentEntity } from './insurance-policy-attachment.entity';
@@ -116,22 +115,6 @@ export class InsurancePolicyEntity extends SoftDeleteBaseEntity {
     comment: '备注',
   })
   remark?: string | null;
-
-  @Column({
-    name: 'reminder_channels',
-    type: 'json',
-    nullable: true,
-    comment: '提醒渠道',
-  })
-  reminderChannels?: NotificationChannel[] | null;
-
-  @Column({
-    name: 'send_external_reminder',
-    type: 'boolean',
-    default: false,
-    comment: '是否发送外部提醒',
-  })
-  sendExternalReminder: boolean;
 
   @OneToMany(() => InsurancePolicyAttachmentEntity, (attachment) => attachment.policy)
   attachments?: InsurancePolicyAttachmentEntity[];

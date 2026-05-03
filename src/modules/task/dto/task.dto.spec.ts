@@ -99,7 +99,6 @@ describe('task DTOs', () => {
       remindAt: null,
       tags: null,
       recurrenceInterval: null,
-      reminderChannels: null,
     });
 
     expect(dto).toEqual({
@@ -109,7 +108,6 @@ describe('task DTOs', () => {
       remindAt: null,
       tags: null,
       recurrenceInterval: null,
-      reminderChannels: null,
     });
   });
 
@@ -139,6 +137,46 @@ describe('task DTOs', () => {
       title: '任务',
       listId: 1,
     });
+  });
+
+  it('accepts task attachments and checklist items in create payloads', async () => {
+    const dto = await transformBody(CreateTaskDto, {
+      title: '带附件的任务',
+      listId: 1,
+      attachmentFileIds: [11, 12],
+      checkItems: [
+        { title: '准备材料', completed: true, sort: 0 },
+        { title: '提交申请', sort: 1 },
+      ],
+    });
+
+    expect(dto).toEqual({
+      title: '带附件的任务',
+      listId: 1,
+      attachmentFileIds: [11, 12],
+      checkItems: [
+        { title: '准备材料', completed: true, sort: 0 },
+        { title: '提交申请', sort: 1 },
+      ],
+    });
+  });
+
+  it('rejects invalid task attachment and checklist item payloads', async () => {
+    await expect(
+      transformBody(CreateTaskDto, {
+        title: '错误附件',
+        listId: 1,
+        attachmentFileIds: [0],
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      transformBody(CreateTaskDto, {
+        title: '错误检查项',
+        listId: 1,
+        checkItems: [{ title: '   ' }],
+      }),
+    ).rejects.toThrow();
   });
 
   it('keeps create task list defaults at the service layer instead of DTO transform time', async () => {

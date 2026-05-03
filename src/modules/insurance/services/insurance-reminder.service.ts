@@ -48,13 +48,18 @@ export class InsuranceReminderService {
           content: this.buildContent(reminder),
           recipientIds: [reminder.recipientUserId],
           type: NotificationType.REMINDER,
-          channels: this.normalizeChannels(reminder.policy.reminderChannels),
-          sendExternal: reminder.policy.sendExternalReminder,
+          channels: [
+            NotificationChannel.INTERNAL,
+            NotificationChannel.BARK,
+            NotificationChannel.FEISHU,
+          ],
+          sendExternal: true,
           metadata: {
             module: 'insurance',
             policyId: reminder.policyId,
             reminderId: reminder.id,
             link: `/insurance?policyId=${reminder.policyId}`,
+            mobileLink: `/m/insurance/${reminder.policyId}`,
           },
         });
 
@@ -101,10 +106,5 @@ export class InsuranceReminderService {
     return (
       [memberName, company, dateText].filter(Boolean).join('\n') || reminder.policy?.name || ''
     );
-  }
-
-  private normalizeChannels(channels?: NotificationChannel[] | null): NotificationChannel[] {
-    const list = channels && channels.length > 0 ? channels : [NotificationChannel.INTERNAL];
-    return Array.from(new Set([NotificationChannel.INTERNAL, ...list]));
   }
 }

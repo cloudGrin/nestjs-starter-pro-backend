@@ -1,14 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import dayjs from 'dayjs';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { UserStatus } from '~/common/enums/user.enum';
-import { NotificationChannel } from '~/modules/notification/entities/notification.entity';
-import { CreateTaskDto, QueryTaskDto, TaskQueryView, UpdateTaskDto } from '../dto';
+import { FileEntity } from '~/modules/file/entities/file.entity';
+import { FileService } from '~/modules/file/services/file.service';
+import {
+  CreateTaskDto,
+  QueryTaskDto,
+  SnoozeTaskReminderDto,
+  TaskCheckItemInputDto,
+  TaskQueryView,
+  UpdateTaskDto,
+} from '../dto';
+import { TaskAttachmentEntity } from '../entities/task-attachment.entity';
+import { TaskCheckItemEntity } from '../entities/task-check-item.entity';
 import { TaskListEntity, TaskListScope } from '../entities/task-list.entity';
 import { TaskEntity, TaskRecurrenceType, TaskStatus, TaskType } from '../entities/task.entity';
 import { TaskCompletionEntity } from '../entities/task-completion.entity';
@@ -29,6 +39,11 @@ interface FindTaskOptions {
   lock?: boolean;
 }
 
+interface TaskAttachmentDownload {
+  file: FileEntity;
+  stream: NodeJS.ReadableStream;
+}
+
 const TASK_SORT_FIELDS = new Set([
   'createdAt',
   'updatedAt',
@@ -39,10 +54,7 @@ const TASK_SORT_FIELDS = new Set([
 ]);
 const RECENT_COMPLETION_DEDUP_WINDOW_MS = 30_000;
 const MAX_RECURRENCE_SEARCH_STEPS = 4000;
-const EXTERNAL_REMINDER_CHANNELS = new Set<NotificationChannel>([
-  NotificationChannel.BARK,
-  NotificationChannel.FEISHU,
-]);
+const DEFAULT_CONTINUOUS_REMINDER_INTERVAL_MINUTES = 30;
 const RECURRENCE_INTERVAL_LIMITS: Partial<
   Record<TaskRecurrenceType, { max: number; unit: string }>
 > = {
@@ -62,8 +74,15 @@ export class TaskService {
     private readonly taskListRepository: Repository<TaskListEntity>,
     @InjectRepository(TaskCompletionEntity)
     private readonly taskCompletionRepository: Repository<TaskCompletionEntity>,
+    @InjectRepository(TaskAttachmentEntity)
+    private readonly taskAttachmentRepository: Repository<TaskAttachmentEntity>,
+    @InjectRepository(TaskCheckItemEntity)
+    private readonly taskCheckItemRepository: Repository<TaskCheckItemEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(FileEntity)
+    private readonly fileRepository: Repository<FileEntity>,
+    private readonly fileService: FileService,
     private readonly dataSource: DataSource,
     private readonly logger: LoggerService,
   ) {}
@@ -72,6 +91,7 @@ export class TaskService {
     const list = await this.ensureListExists(dto.listId);
     this.ensureCanUseList(list, user);
     await this.ensureAssigneeExists(dto.assigneeId);
+    await this.ensureAttachmentFilesAccessible(dto.attachmentFileIds, user);
 
     const patch = this.toTaskPatch(dto);
     const entityData = {
@@ -87,14 +107,21 @@ export class TaskService {
       important: dto.important ?? false,
       urgent: dto.urgent ?? false,
       tags: dto.tags ?? null,
-      reminderChannels: patch.reminderChannels ?? [NotificationChannel.INTERNAL],
-      sendExternalReminder: false,
+      continuousReminderEnabled: dto.continuousReminderEnabled ?? true,
+      continuousReminderIntervalMinutes:
+        dto.continuousReminderIntervalMinutes ?? DEFAULT_CONTINUOUS_REMINDER_INTERVAL_MINUTES,
     };
 
-    this.syncDerivedReminderFields(entityData as TaskEntity);
+    this.syncReminderSchedule(entityData as TaskEntity, { reminderChanged: true });
     this.ensureTaskRules(entityData as TaskEntity);
     const entity = this.taskRepository.create(entityData);
     const saved = await this.taskRepository.save(entity);
+    if (dto.attachmentFileIds !== undefined) {
+      saved.attachments = await this.replaceAttachments(saved.id, dto.attachmentFileIds);
+    }
+    if (dto.checkItems !== undefined) {
+      saved.checkItems = await this.replaceCheckItems(saved.id, dto.checkItems);
+    }
     this.logger.log(`Created task "${saved.title}" by user ${user.id}`);
     return saved;
   }
@@ -103,11 +130,7 @@ export class TaskService {
     query: QueryTaskDto,
     user: CurrentUserLike,
   ): Promise<PaginationResult<TaskEntity>> {
-    const qb = this.taskRepository
-      .createQueryBuilder('task')
-      .leftJoinAndSelect('task.list', 'list')
-      .leftJoinAndSelect('task.creator', 'creator')
-      .leftJoinAndSelect('task.assignee', 'assignee');
+    const qb = this.createTaskListQueryBuilder();
 
     this.applyVisibility(qb, user);
     this.applyFilters(qb, query);
@@ -122,12 +145,13 @@ export class TaskService {
       const { start, end } = this.resolveDateRange(query, false);
       const items = candidates.filter((task) => this.taskOccursInRange(task, start, end));
       const pagedItems = items.slice((page - 1) * limit, page * limit);
+      const hydratedItems = await this.loadTaskListRelations(pagedItems);
 
       return {
-        items: pagedItems,
+        items: hydratedItems,
         meta: {
           totalItems: items.length,
-          itemCount: pagedItems.length,
+          itemCount: hydratedItems.length,
           itemsPerPage: limit,
           totalPages: Math.ceil(items.length / limit),
           currentPage: page,
@@ -138,12 +162,13 @@ export class TaskService {
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, totalItems] = await qb.getManyAndCount();
+    const hydratedItems = await this.loadTaskListRelations(items);
 
     return {
-      items,
+      items: hydratedItems,
       meta: {
         totalItems,
-        itemCount: items.length,
+        itemCount: hydratedItems.length,
         itemsPerPage: limit,
         totalPages: Math.ceil(totalItems / limit),
         currentPage: page,
@@ -176,27 +201,39 @@ export class TaskService {
     if (dto.assigneeId !== undefined) {
       await this.ensureAssigneeExists(dto.assigneeId);
     }
+    if (dto.attachmentFileIds !== undefined) {
+      await this.ensureAttachmentFilesAccessible(dto.attachmentFileIds, user);
+    }
 
     const patch = this.toTaskPatch(dto);
     if (targetList) {
       patch.list = targetList;
     }
-    if (
+    const reminderChanged =
       patch.remindAt !== undefined &&
-      !this.isSameDateValue(entity.remindAt ?? null, patch.remindAt)
-    ) {
+      !this.isSameDateValue(entity.remindAt ?? null, patch.remindAt);
+    if (reminderChanged) {
       patch.remindedAt = null;
     }
 
     const nextEntity = Object.assign(Object.create(Object.getPrototypeOf(entity)), entity, patch);
-    this.syncDerivedReminderFields(nextEntity);
+    this.syncReminderSchedule(nextEntity, { reminderChanged });
     this.ensureArchivedTaskMigrated(entity, nextEntity);
     this.ensureTaskRules(nextEntity);
 
     Object.assign(entity, patch, {
-      sendExternalReminder: nextEntity.sendExternalReminder,
+      nextReminderAt: nextEntity.nextReminderAt,
+      continuousReminderEnabled: nextEntity.continuousReminderEnabled,
+      continuousReminderIntervalMinutes: nextEntity.continuousReminderIntervalMinutes,
     });
-    return this.taskRepository.save(entity);
+    const saved = await this.taskRepository.save(entity);
+    if (dto.attachmentFileIds !== undefined) {
+      saved.attachments = await this.replaceAttachments(saved.id, dto.attachmentFileIds);
+    }
+    if (dto.checkItems !== undefined) {
+      saved.checkItems = await this.replaceCheckItems(saved.id, dto.checkItems);
+    }
+    return saved;
   }
 
   async completeTask(
@@ -242,6 +279,7 @@ export class TaskService {
       } else {
         task.status = TaskStatus.COMPLETED;
         task.completedAt = completedAt;
+        task.nextReminderAt = null;
       }
 
       return taskRepository.save(task);
@@ -257,6 +295,24 @@ export class TaskService {
     task.status = TaskStatus.PENDING;
     task.completedAt = null;
     task.remindedAt = null;
+    task.nextReminderAt = this.getReopenedNextReminderAt(task, new Date());
+    return this.taskRepository.save(task);
+  }
+
+  async snoozeTaskReminder(
+    id: number,
+    dto: SnoozeTaskReminderDto,
+    user: CurrentUserLike,
+  ): Promise<TaskEntity> {
+    const task = await this.findByIdOrFail(id, user);
+    if (!task.remindAt) {
+      throw BusinessException.validationFailed('任务未设置提醒时间');
+    }
+    if (task.status !== TaskStatus.PENDING) {
+      throw BusinessException.validationFailed('只有待办任务可以稍后提醒');
+    }
+
+    task.nextReminderAt = new Date(dto.snoozeUntil);
     return this.taskRepository.save(task);
   }
 
@@ -266,6 +322,27 @@ export class TaskService {
     if (!result.affected) {
       throw BusinessException.notFound('Task', id);
     }
+  }
+
+  async getAttachmentDownload(
+    taskId: number,
+    fileId: number,
+    user: CurrentUserLike,
+  ): Promise<TaskAttachmentDownload> {
+    await this.findByIdOrFail(taskId, user);
+
+    const attachment = await this.taskAttachmentRepository.findOne({
+      where: { taskId, fileId },
+      relations: ['file'],
+    });
+    if (!attachment?.file) {
+      throw BusinessException.notFound('Task attachment', fileId);
+    }
+
+    return {
+      file: attachment.file,
+      stream: await this.fileService.getDownloadStream(fileId),
+    };
   }
 
   private async ensureListExists(listId: number): Promise<TaskListEntity> {
@@ -290,6 +367,107 @@ export class TaskService {
     }
   }
 
+  private async ensureAttachmentFilesAccessible(
+    fileIds: number[] | undefined,
+    user: CurrentUserLike,
+  ): Promise<void> {
+    const ids = this.uniqueIds(fileIds);
+    if (ids.length === 0) {
+      return;
+    }
+
+    const files = await this.fileRepository.find({ where: { id: In(ids) } });
+    const existingIds = new Set(files.map((file) => file.id));
+    const missingIds = ids.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      throw BusinessException.validationFailed(`以下附件不存在：${missingIds.join(', ')}`);
+    }
+
+    files.forEach((file) => this.fileService.checkDownloadPermission(file, user));
+  }
+
+  private async replaceAttachments(
+    taskId: number,
+    fileIds?: number[],
+  ): Promise<TaskAttachmentEntity[]> {
+    const ids = this.uniqueIds(fileIds);
+    await this.taskAttachmentRepository.delete({ taskId });
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.taskAttachmentRepository.save(
+      ids.map((fileId, index) =>
+        this.taskAttachmentRepository.create({
+          taskId,
+          fileId,
+          sort: index,
+        }),
+      ),
+    );
+  }
+
+  private async replaceCheckItems(
+    taskId: number,
+    items?: TaskCheckItemInputDto[],
+  ): Promise<TaskCheckItemEntity[]> {
+    await this.taskCheckItemRepository.delete({ taskId });
+    if (!items?.length) {
+      return [];
+    }
+
+    const now = new Date();
+    return this.taskCheckItemRepository.save(
+      items.map((item, index) => {
+        const completed = item.completed ?? false;
+        return this.taskCheckItemRepository.create({
+          taskId,
+          title: this.normalizeCheckItemTitle(item.title),
+          completed,
+          completedAt: completed ? now : null,
+          sort: item.sort ?? index,
+        });
+      }),
+    );
+  }
+
+  private uniqueIds(ids?: number[]): number[] {
+    return Array.from(new Set((ids ?? []).filter((id) => Number.isInteger(id) && id > 0)));
+  }
+
+  private createTaskListQueryBuilder(): SelectQueryBuilder<TaskEntity> {
+    return this.taskRepository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.list', 'list')
+      .leftJoinAndSelect('task.creator', 'creator')
+      .leftJoinAndSelect('task.assignee', 'assignee');
+  }
+
+  private async loadTaskListRelations(tasks: TaskEntity[]): Promise<TaskEntity[]> {
+    const ids = tasks.map((task) => task.id);
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const detailedTasks = await this.taskRepository.find({
+      where: { id: In(ids) },
+      relations: ['list', 'creator', 'assignee', 'attachments', 'attachments.file', 'checkItems'],
+      order: {
+        checkItems: {
+          sort: 'ASC',
+          id: 'ASC',
+        },
+        attachments: {
+          sort: 'ASC',
+          id: 'ASC',
+        },
+      },
+    });
+    const taskById = new Map(detailedTasks.map((task) => [task.id, task]));
+
+    return ids.map((id) => taskById.get(id)).filter((task): task is TaskEntity => Boolean(task));
+  }
+
   private async findByIdOrFail(
     id: number,
     user?: CurrentUserLike,
@@ -302,12 +480,32 @@ export class TaskService {
           .leftJoinAndSelect('task.list', 'list')
           .leftJoinAndSelect('task.creator', 'creator')
           .leftJoinAndSelect('task.assignee', 'assignee')
+          .leftJoinAndSelect('task.attachments', 'attachments')
+          .leftJoinAndSelect('attachments.file', 'attachmentFile')
+          .leftJoinAndSelect('task.checkItems', 'checkItems')
           .where('task.id = :id', { id })
           .setLock('pessimistic_write')
           .getOne()
       : await repository.findOne({
           where: { id },
-          relations: ['list', 'creator', 'assignee'],
+          relations: [
+            'list',
+            'creator',
+            'assignee',
+            'attachments',
+            'attachments.file',
+            'checkItems',
+          ],
+          order: {
+            checkItems: {
+              sort: 'ASC',
+              id: 'ASC',
+            },
+            attachments: {
+              sort: 'ASC',
+              id: 'ASC',
+            },
+          },
         });
 
     if (!entity) {
@@ -337,6 +535,8 @@ export class TaskService {
       'tags',
       'recurrenceType',
       'recurrenceInterval',
+      'continuousReminderEnabled',
+      'continuousReminderIntervalMinutes',
     ] as const) {
       if (dto[key] !== undefined) {
         (patch as any)[key] = dto[key];
@@ -345,10 +545,6 @@ export class TaskService {
 
     if (dto.title !== undefined) {
       patch.title = this.normalizeRequiredText(dto.title);
-    }
-
-    if (dto.reminderChannels !== undefined) {
-      patch.reminderChannels = this.normalizeReminderChannels(dto.reminderChannels);
     }
 
     return patch;
@@ -434,6 +630,7 @@ export class TaskService {
     task.dueAt = nextOccurrence.dueAt;
     task.remindAt = nextOccurrence.remindAt;
     task.remindedAt = null;
+    task.nextReminderAt = nextOccurrence.remindAt;
   }
 
   private normalizeRequiredText(value: string): string {
@@ -445,11 +642,13 @@ export class TaskService {
     return text;
   }
 
-  private normalizeReminderChannels(
-    channels?: NotificationChannel[] | null,
-  ): NotificationChannel[] {
-    const list = channels && channels.length > 0 ? channels : [NotificationChannel.INTERNAL];
-    return Array.from(new Set([NotificationChannel.INTERNAL, ...list]));
+  private normalizeCheckItemTitle(value: string): string {
+    const text = value.trim();
+    if (!text) {
+      throw BusinessException.validationFailed('检查项标题不能为空');
+    }
+
+    return text;
   }
 
   private ensureTaskRules(task: TaskEntity): void {
@@ -481,15 +680,50 @@ export class TaskService {
     }
   }
 
-  private hasExternalReminderChannel(channels?: NotificationChannel[] | null): boolean {
-    return channels?.some((channel) => EXTERNAL_REMINDER_CHANNELS.has(channel)) ?? false;
+  private syncReminderSchedule(
+    task: Pick<
+      TaskEntity,
+      | 'remindAt'
+      | 'remindedAt'
+      | 'nextReminderAt'
+      | 'continuousReminderEnabled'
+      | 'continuousReminderIntervalMinutes'
+    >,
+    options: { reminderChanged: boolean },
+  ): void {
+    task.continuousReminderEnabled = task.continuousReminderEnabled ?? true;
+    task.continuousReminderIntervalMinutes =
+      task.continuousReminderIntervalMinutes ?? DEFAULT_CONTINUOUS_REMINDER_INTERVAL_MINUTES;
+
+    if (!task.remindAt) {
+      task.remindedAt = null;
+      task.nextReminderAt = null;
+      return;
+    }
+
+    if (options.reminderChanged) {
+      task.nextReminderAt = task.remindAt;
+      return;
+    }
+
+    if (task.continuousReminderEnabled) {
+      task.nextReminderAt = task.nextReminderAt ?? task.remindAt;
+      return;
+    }
+
+    task.nextReminderAt = task.remindedAt ? null : (task.nextReminderAt ?? task.remindAt);
   }
 
-  private syncDerivedReminderFields(
-    task: Pick<TaskEntity, 'reminderChannels' | 'sendExternalReminder'>,
-  ): void {
-    task.reminderChannels = this.normalizeReminderChannels(task.reminderChannels);
-    task.sendExternalReminder = this.hasExternalReminderChannel(task.reminderChannels);
+  private getReopenedNextReminderAt(task: TaskEntity, now: Date): Date | null {
+    if (!task.remindAt) {
+      return null;
+    }
+
+    if (task.continuousReminderEnabled) {
+      return task.remindAt.getTime() <= now.getTime() ? now : task.remindAt;
+    }
+
+    return task.remindedAt ? null : task.remindAt;
   }
 
   private ensureArchivedTaskMigrated(current: TaskEntity, next: TaskEntity): void {

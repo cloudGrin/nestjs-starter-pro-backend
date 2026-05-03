@@ -64,6 +64,12 @@ interface FileAccessTokenPayload extends BaseTokenPayload {
   type: 'file-access';
   fileId: number;
   disposition: FileAccessDisposition;
+  process?: string;
+  responseContentType?: string;
+}
+
+interface CreateDirectUploadOptions {
+  maxSize?: number;
 }
 
 const FILE_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'originalName', 'filename', 'size']);
@@ -104,6 +110,14 @@ export class FileService {
         '.png',
         '.gif',
         '.webp',
+        '.heic',
+        '.heif',
+        '.mp4',
+        '.mov',
+        '.webm',
+        '.mkv',
+        '.avi',
+        '.wmv',
         '.pdf',
         '.doc',
         '.docx',
@@ -219,6 +233,7 @@ export class FileService {
   async createDirectUpload(
     dto: CreateDirectUploadDto,
     uploaderId?: number,
+    options?: CreateDirectUploadOptions,
   ): Promise<{
     method: 'PUT';
     uploadUrl: string;
@@ -226,7 +241,7 @@ export class FileService {
     expiresAt: string;
     headers: Record<string, string>;
   }> {
-    this.validateFileMetadata(dto.originalName, dto.mimeType, dto.size);
+    this.validateFileMetadata(dto.originalName, dto.mimeType, dto.size, options?.maxSize);
 
     const oss = this.storageFactory.getOssStrategy();
     const filename = FileUtil.generateUniqueFilename(dto.originalName);
@@ -452,12 +467,25 @@ export class FileService {
     const file = await this.findById(id);
     this.checkDownloadPermission(file, user);
 
+    return this.createTrustedAccessLink(id, dto);
+  }
+
+  async createTrustedAccessLink(
+    id: number,
+    dto: CreateFileAccessLinkDto & { process?: string; responseContentType?: string },
+  ): Promise<{
+    url: string;
+    token: string;
+    expiresAt: string;
+  }> {
     const expiresAt = this.getExpiresAt(this.privateLinkTtlSeconds);
     const disposition = dto.disposition ?? 'attachment';
     const tokenPayload: FileAccessTokenPayload = {
       type: 'file-access',
       fileId: id,
       disposition,
+      process: dto.process,
+      responseContentType: dto.responseContentType,
       exp: expiresAt.unix,
     };
     const token = this.signToken(tokenPayload);
@@ -490,8 +518,9 @@ export class FileService {
         file,
         disposition: payload.disposition,
         redirectUrl: oss.createSignedDownloadUrl(file.path, this.signedOssDownloadTtlSeconds, {
-          contentType: file.mimeType || 'application/octet-stream',
+          contentType: payload.responseContentType || file.mimeType || 'application/octet-stream',
           contentDisposition: this.buildContentDisposition(file, payload.disposition),
+          process: payload.process,
         }),
       };
     }
@@ -550,11 +579,12 @@ export class FileService {
     originalName: string,
     mimeType: string | undefined,
     size: number,
+    maxSize = this.maxFileSize,
   ): void {
     // 1. 验证文件大小
-    if (!FileUtil.validateFileSize(size, this.maxFileSize)) {
+    if (!FileUtil.validateFileSize(size, maxSize)) {
       throw BusinessException.validationFailed(
-        `文件大小超出限制（最大 ${FileUtil.formatSize(this.maxFileSize)}）`,
+        `文件大小超出限制（最大 ${FileUtil.formatSize(maxSize)}）`,
       );
     }
 
@@ -592,6 +622,15 @@ export class FileService {
       'image/png',
       'image/gif',
       'image/webp',
+      'image/heic',
+      'image/heif',
+      // 视频
+      'video/mp4',
+      'video/quicktime',
+      'video/webm',
+      'video/x-matroska',
+      'video/x-msvideo',
+      'video/x-ms-wmv',
       // 文档
       'application/pdf',
       'application/msword',

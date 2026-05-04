@@ -28,6 +28,7 @@ import {
   FamilyMediaResponseDto,
   FamilyPostCommentResponseDto,
   FamilyPostResponseDto,
+  FamilyUserSummaryDto,
   QueryFamilyChatMessageDto,
   QueryFamilyPostDto,
 } from '../dto';
@@ -123,7 +124,15 @@ export class FamilyService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const [items, totalItems] = await this.postRepository.findAndCount({
-      relations: ['author', 'media', 'media.file', 'comments', 'comments.author', 'likes'],
+      relations: [
+        'author',
+        'media',
+        'media.file',
+        'comments',
+        'comments.author',
+        'likes',
+        'likes.user',
+      ],
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -310,6 +319,9 @@ export class FamilyService {
       comments: comments.map((comment) => this.toCommentResponse(comment)),
       likeCount: post.likes?.length ?? 0,
       likedByMe: (post.likes ?? []).some((like) => like.userId === currentUserId),
+      likedUsers: (post.likes ?? [])
+        .map((like) => this.toUserSummary(like.user))
+        .filter((user): user is FamilyUserSummaryDto => Boolean(user)),
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
     };
@@ -341,7 +353,7 @@ export class FamilyService {
     };
   }
 
-  private toUserSummary(user?: UserEntity): any {
+  private toUserSummary(user?: UserEntity): FamilyUserSummaryDto | undefined {
     if (!user) {
       return undefined;
     }

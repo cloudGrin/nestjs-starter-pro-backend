@@ -39,6 +39,7 @@ export interface FamilyPostResponseDto {
   comments: FamilyPostCommentResponseDto[];
   likeCount: number;
   likedByMe: boolean;
+  likedUsers: FamilyUserSummaryDto[];
   createdAt: Date;
   updatedAt: Date;
 }

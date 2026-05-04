@@ -246,6 +246,57 @@ describe('FamilyService', () => {
     ]);
   });
 
+  it('returns liked user summaries for family posts', async () => {
+    const likedUser = Object.assign(new UserEntity(), {
+      id: 4,
+      username: 'mom',
+      nickname: '妈妈',
+      avatar: 'https://example.com/mom.png',
+    });
+    const post = Object.assign(new FamilyPostEntity(), {
+      id: 11,
+      content: '照片',
+      authorId: 1,
+      author: Object.assign(new UserEntity(), { id: 1, username: 'dad', nickname: '爸爸' }),
+      media: [],
+      comments: [],
+      likes: [
+        Object.assign(new FamilyPostLikeEntity(), {
+          postId: 11,
+          userId: 4,
+          user: likedUser,
+        }),
+      ],
+      createdAt: new Date('2026-05-04T07:00:00.000Z'),
+      updatedAt: new Date('2026-05-04T07:00:00.000Z'),
+    });
+    postRepository.findAndCount.mockResolvedValue([[post], 1]);
+
+    const result = await service.findPosts(
+      { page: 1, limit: 20 },
+      { id: 4, username: 'mom', email: 'mom@example.com', roles: [], sessionId: 's1' },
+    );
+
+    expect(postRepository.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relations: expect.arrayContaining(['likes', 'likes.user']),
+      }),
+    );
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        likeCount: 1,
+        likedByMe: true,
+        likedUsers: [
+          expect.objectContaining({
+            id: 4,
+            nickname: '妈妈',
+            avatar: 'https://example.com/mom.png',
+          }),
+        ],
+      }),
+    );
+  });
+
   it('updates likes without creating notifications', async () => {
     postRepository.findOne.mockResolvedValue(Object.assign(new FamilyPostEntity(), { id: 11 }));
     postLikeRepository.findOne.mockResolvedValue(null);

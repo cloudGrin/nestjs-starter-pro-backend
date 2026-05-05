@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class CreateFamilyPostCommentDto {
   @ApiProperty({
@@ -10,4 +11,14 @@ export class CreateFamilyPostCommentDto {
   @IsNotEmpty()
   @MaxLength(1000)
   content: string;
+
+  @ApiPropertyOptional({
+    description: '被回复的评论ID',
+    minimum: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  parentCommentId?: number;
 }

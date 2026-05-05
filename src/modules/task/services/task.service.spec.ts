@@ -57,6 +57,7 @@ describe('TaskService', () => {
           useValue: {
             checkDownloadPermission: jest.fn(),
             getDownloadStream: jest.fn(),
+            createTrustedAccessLink: jest.fn(),
           },
         },
         {
@@ -430,6 +431,36 @@ describe('TaskService', () => {
     expect(attachmentRepository.findOne).toHaveBeenCalledWith({
       where: { taskId: 77, fileId: 21 },
       relations: ['file'],
+    });
+  });
+
+  it('creates signed task attachment access links after checking task access', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 77,
+      title: '附件任务',
+      list: Object.assign(new TaskListEntity(), { scope: TaskListScope.FAMILY }),
+    });
+    const file = Object.assign(new FileEntity(), {
+      id: 21,
+      originalName: '材料.pdf',
+      mimeType: 'application/pdf',
+    });
+    const link = {
+      url: '/api/v1/files/21/access?token=abc',
+      token: 'abc',
+      expiresAt: '2026-05-04T00:00:00.000Z',
+    };
+    taskRepository.findOne.mockResolvedValue(task);
+    attachmentRepository.findOne.mockResolvedValue(
+      Object.assign(new TaskAttachmentEntity(), { taskId: 77, fileId: 21, file }),
+    );
+    fileService.createTrustedAccessLink.mockResolvedValue(link);
+
+    await expect(
+      service.createAttachmentAccessLink(77, 21, { id: 1 } as any, { disposition: 'attachment' }),
+    ).resolves.toEqual(link);
+    expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(21, {
+      disposition: 'attachment',
     });
   });
 

@@ -47,6 +47,16 @@ import {
 import { FamilyEventService } from './family-event.service';
 
 const FAMILY_IMAGE_WEBP_PROCESS = 'image/format,webp/quality,Q_100';
+const FAMILY_POST_RESPONSE_RELATIONS = [
+  'author',
+  'media',
+  'media.file',
+  'comments',
+  'comments.author',
+  'comments.replyToUser',
+  'likes',
+  'likes.user',
+];
 
 type FamilyMediaEntity = FamilyPostMediaEntity | FamilyChatMessageMediaEntity;
 
@@ -108,7 +118,7 @@ export class FamilyService {
     await this.notifyFamilyExcept(user.id, {
       title: '新的家庭动态',
       content: this.buildNotificationContent(user.username, content, '发布了新的家庭动态'),
-      mobileLink: '/m/family?tab=circle',
+      mobileLink: '/m/family',
       metadata: { module: 'family', kind: 'post', postId: post.id },
     });
     this.eventService.emitPostCreated(post);
@@ -124,15 +134,7 @@ export class FamilyService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const [items, totalItems] = await this.postRepository.findAndCount({
-      relations: [
-        'author',
-        'media',
-        'media.file',
-        'comments',
-        'comments.author',
-        'likes',
-        'likes.user',
-      ],
+      relations: FAMILY_POST_RESPONSE_RELATIONS,
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -144,6 +146,18 @@ export class FamilyService {
     return this.paginate(responseItems, totalItems, page, limit);
   }
 
+  async findPost(postId: number, user: AuthenticatedUser): Promise<FamilyPostResponseDto> {
+    const post = await this.postRepository.findOne({
+      where: { id: postId },
+      relations: FAMILY_POST_RESPONSE_RELATIONS,
+    });
+    if (!post) {
+      throw BusinessException.notFound('Family post', postId);
+    }
+
+    return this.toPostResponse(post, user.id);
+  }
+
   async createComment(
     postId: number,
     dto: CreateFamilyPostCommentDto,
@@ -151,19 +165,34 @@ export class FamilyService {
   ): Promise<FamilyPostCommentEntity> {
     await this.ensurePostExists(postId);
     const content = this.normalizeRequiredText(dto.content, '评论内容不能为空');
+    const parentComment = dto.parentCommentId
+      ? await this.ensureCommentBelongsToPost(postId, dto.parentCommentId)
+      : null;
     const comment = await this.postCommentRepository.save(
       this.postCommentRepository.create({
         postId,
         authorId: user.id,
+        parentCommentId: parentComment?.id,
+        replyToUserId: parentComment?.authorId,
         content,
       }),
     );
 
     await this.notifyFamilyExcept(user.id, {
       title: '新的家庭评论',
-      content: this.buildNotificationContent(user.username, content, '评论了家庭动态'),
-      mobileLink: '/m/family?tab=circle',
-      metadata: { module: 'family', kind: 'comment', postId, commentId: comment.id },
+      content: this.buildNotificationContent(
+        user.username,
+        content,
+        parentComment ? '回复了家庭评论' : '评论了家庭动态',
+      ),
+      mobileLink: '/m/family',
+      metadata: {
+        module: 'family',
+        kind: parentComment ? 'comment-reply' : 'comment',
+        postId,
+        commentId: comment.id,
+        parentCommentId: parentComment?.id,
+      },
     });
     this.eventService.emitPostCommentCreated(comment);
 
@@ -226,7 +255,7 @@ export class FamilyService {
     await this.notifyFamilyExcept(user.id, {
       title: '新的家庭群聊消息',
       content: this.buildNotificationContent(user.username, content, '发来新的家庭群聊消息'),
-      mobileLink: '/m/family?tab=chat',
+      mobileLink: '/m/family/chat',
       metadata: { module: 'family', kind: 'chat-message', messageId: message.id },
     });
     this.eventService.emitChatMessageCreated(message);
@@ -345,15 +374,18 @@ export class FamilyService {
     return {
       id: comment.id,
       postId: comment.postId,
+      parentCommentId: comment.parentCommentId ?? null,
+      replyToUserId: comment.replyToUserId ?? null,
       content: comment.content,
       authorId: comment.authorId,
       author: this.toUserSummary(comment.author),
+      replyToUser: this.toUserSummary(comment.replyToUser) ?? null,
       createdAt: comment.createdAt,
       updatedAt: comment.updatedAt,
     };
   }
 
-  private toUserSummary(user?: UserEntity): FamilyUserSummaryDto | undefined {
+  private toUserSummary(user?: UserEntity | null): FamilyUserSummaryDto | undefined {
     if (!user) {
       return undefined;
     }
@@ -374,6 +406,21 @@ export class FamilyService {
     }
 
     return post;
+  }
+
+  private async ensureCommentBelongsToPost(
+    postId: number,
+    commentId: number,
+  ): Promise<FamilyPostCommentEntity> {
+    const comment = await this.postCommentRepository.findOne({
+      where: { id: commentId },
+      relations: ['author'],
+    });
+    if (!comment || comment.postId !== postId) {
+      throw BusinessException.notFound('Family post comment', commentId);
+    }
+
+    return comment;
   }
 
   private async ensureUsableMediaFiles(

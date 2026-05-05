@@ -8,6 +8,7 @@ import { LoggerService } from '~/shared/logger/logger.service';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { UserStatus } from '~/common/enums/user.enum';
 import { FileEntity } from '~/modules/file/entities/file.entity';
+import { CreateFileAccessLinkDto } from '~/modules/file/dto/file-access-link.dto';
 import { FileService } from '~/modules/file/services/file.service';
 import {
   CreateTaskDto,
@@ -42,6 +43,12 @@ interface FindTaskOptions {
 interface TaskAttachmentDownload {
   file: FileEntity;
   stream: NodeJS.ReadableStream;
+}
+
+export interface TaskAttachmentAccessLink {
+  url: string;
+  token: string;
+  expiresAt: string;
 }
 
 const TASK_SORT_FIELDS = new Set([
@@ -343,6 +350,27 @@ export class TaskService {
       file: attachment.file,
       stream: await this.fileService.getDownloadStream(fileId),
     };
+  }
+
+  async createAttachmentAccessLink(
+    taskId: number,
+    fileId: number,
+    user: CurrentUserLike,
+    dto: CreateFileAccessLinkDto,
+  ): Promise<TaskAttachmentAccessLink> {
+    await this.findByIdOrFail(taskId, user);
+
+    const attachment = await this.taskAttachmentRepository.findOne({
+      where: { taskId, fileId },
+      relations: ['file'],
+    });
+    if (!attachment?.file) {
+      throw BusinessException.notFound('Task attachment', fileId);
+    }
+
+    return this.fileService.createTrustedAccessLink(fileId, {
+      disposition: dto.disposition ?? 'attachment',
+    });
   }
 
   private async ensureListExists(listId: number): Promise<TaskListEntity> {

@@ -19,6 +19,12 @@ export class FamilyPostController {
     return this.familyService.findPosts(query, user);
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: '获取家庭圈动态详情' })
+  async findPost(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.familyService.findPost(id, user);
+  }
+
   @Post()
   @ApiOperation({ summary: '发布家庭圈动态' })
   async createPost(@Body() dto: CreateFamilyPostDto, @CurrentUser() user: AuthenticatedUser) {

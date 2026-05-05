@@ -23,9 +23,12 @@ export interface FamilyMediaResponseDto {
 export interface FamilyPostCommentResponseDto {
   id: number;
   postId: number;
+  parentCommentId?: number | null;
+  replyToUserId?: number | null;
   content: string;
   authorId: number;
   author?: FamilyUserSummaryDto;
+  replyToUser?: FamilyUserSummaryDto | null;
   createdAt: Date;
   updatedAt: Date;
 }

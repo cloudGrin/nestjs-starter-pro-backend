@@ -154,6 +154,10 @@ describe('FamilyService', () => {
         recipientIds: [2, 3],
         title: '新的家庭动态',
         sendExternal: false,
+        metadata: expect.objectContaining({
+          mobileLink: '/m/family',
+          postId: 11,
+        }),
       }),
       1,
     );
@@ -187,6 +191,73 @@ describe('FamilyService', () => {
         { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
       ),
     ).rejects.toThrow(BusinessException);
+  });
+
+  it('links comment notifications to the family circle feed', async () => {
+    postRepository.findOne.mockResolvedValue(Object.assign(new FamilyPostEntity(), { id: 11 }));
+    userRepository.find.mockResolvedValue([
+      Object.assign(new UserEntity(), { id: 1 }),
+      Object.assign(new UserEntity(), { id: 2 }),
+    ]);
+
+    await service.createComment(
+      11,
+      { content: '真好看' },
+      { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+    );
+
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: '新的家庭评论',
+        metadata: expect.objectContaining({
+          mobileLink: '/m/family',
+          postId: 11,
+          commentId: 31,
+        }),
+      }),
+      1,
+    );
+  });
+
+  it('creates replies with parent comment and reply target', async () => {
+    postRepository.findOne.mockResolvedValue(Object.assign(new FamilyPostEntity(), { id: 11 }));
+    postCommentRepository.findOne.mockResolvedValue(
+      Object.assign(new FamilyPostCommentEntity(), {
+        id: 30,
+        postId: 11,
+        authorId: 2,
+        author: Object.assign(new UserEntity(), { id: 2, username: 'mom' }),
+      }),
+    );
+    userRepository.find.mockResolvedValue([
+      Object.assign(new UserEntity(), { id: 1 }),
+      Object.assign(new UserEntity(), { id: 2 }),
+    ]);
+
+    await service.createComment(
+      11,
+      { content: '我也觉得', parentCommentId: 30 },
+      { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+    );
+
+    expect(postCommentRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postId: 11,
+        authorId: 1,
+        parentCommentId: 30,
+        replyToUserId: 2,
+        content: '我也觉得',
+      }),
+    );
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          kind: 'comment-reply',
+          parentCommentId: 30,
+        }),
+      }),
+      1,
+    );
   });
 
   it('uses WebP display links for family images and original links for videos', async () => {
@@ -297,6 +368,89 @@ describe('FamilyService', () => {
     );
   });
 
+  it('returns one family post for detail pages', async () => {
+    const post = Object.assign(new FamilyPostEntity(), {
+      id: 11,
+      content: '今天去看了花花',
+      authorId: 1,
+      author: Object.assign(new UserEntity(), { id: 1, username: 'dad', nickname: '爸爸' }),
+      media: [],
+      comments: [
+        Object.assign(new FamilyPostCommentEntity(), {
+          id: 31,
+          postId: 11,
+          content: '真好看',
+          authorId: 2,
+          author: Object.assign(new UserEntity(), { id: 2, username: 'mom', nickname: '妈妈' }),
+          createdAt: new Date('2026-05-04T08:00:00.000Z'),
+          updatedAt: new Date('2026-05-04T08:00:00.000Z'),
+        }),
+        Object.assign(new FamilyPostCommentEntity(), {
+          id: 32,
+          postId: 11,
+          parentCommentId: 31,
+          replyToUserId: 2,
+          content: '确实很漂亮',
+          authorId: 1,
+          author: Object.assign(new UserEntity(), { id: 1, username: 'dad', nickname: '爸爸' }),
+          replyToUser: Object.assign(new UserEntity(), {
+            id: 2,
+            username: 'mom',
+            nickname: '妈妈',
+          }),
+          createdAt: new Date('2026-05-04T08:10:00.000Z'),
+          updatedAt: new Date('2026-05-04T08:10:00.000Z'),
+        }),
+      ],
+      likes: [
+        Object.assign(new FamilyPostLikeEntity(), {
+          postId: 11,
+          userId: 2,
+          user: Object.assign(new UserEntity(), { id: 2, username: 'mom', nickname: '妈妈' }),
+        }),
+      ],
+      createdAt: new Date('2026-05-04T07:00:00.000Z'),
+      updatedAt: new Date('2026-05-04T07:00:00.000Z'),
+    });
+    postRepository.findOne.mockResolvedValue(post);
+
+    const result = await service.findPost(11, {
+      id: 2,
+      username: 'mom',
+      email: 'mom@example.com',
+      roles: [],
+      sessionId: 's1',
+    });
+
+    expect(postRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 11 },
+        relations: expect.arrayContaining([
+          'media.file',
+          'comments.author',
+          'comments.replyToUser',
+          'likes.user',
+        ]),
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 11,
+        content: '今天去看了花花',
+        likedByMe: true,
+        comments: [
+          expect.objectContaining({ content: '真好看', parentCommentId: null }),
+          expect.objectContaining({
+            content: '确实很漂亮',
+            parentCommentId: 31,
+            replyToUser: expect.objectContaining({ nickname: '妈妈' }),
+          }),
+        ],
+        likedUsers: [expect.objectContaining({ nickname: '妈妈' })],
+      }),
+    );
+  });
+
   it('updates likes without creating notifications', async () => {
     postRepository.findOne.mockResolvedValue(Object.assign(new FamilyPostEntity(), { id: 11 }));
     postLikeRepository.findOne.mockResolvedValue(null);
@@ -380,6 +534,10 @@ describe('FamilyService', () => {
         recipientIds: [2],
         title: '新的家庭群聊消息',
         sendExternal: false,
+        metadata: expect.objectContaining({
+          mobileLink: '/m/family/chat',
+          messageId: 51,
+        }),
       }),
       1,
     );

@@ -19,6 +19,7 @@ import { Response } from 'express';
 import { RequirePermissions } from '~/core/decorators';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
+import { CreateFileAccessLinkDto } from '~/modules/file/dto/file-access-link.dto';
 import { CreateTaskDto, QueryTaskDto, SnoozeTaskReminderDto, UpdateTaskDto } from '../dto';
 import { TaskService } from '../services/task.service';
 
@@ -120,5 +121,17 @@ export class TaskController {
     );
 
     return new StreamableFile(stream as any);
+  }
+
+  @Post(':id/attachments/:fileId/access-link')
+  @RequirePermissions('task:read')
+  @ApiOperation({ summary: '创建任务附件临时访问链接' })
+  async createAttachmentAccessLink(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('fileId', ParseIntPipe) fileId: number,
+    @Body() dto: CreateFileAccessLinkDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.taskService.createAttachmentAccessLink(id, fileId, user, dto);
   }
 }

@@ -51,6 +51,7 @@ describe('FamilyService', () => {
           provide: FileService,
           useValue: {
             createDirectUpload: jest.fn(),
+            upload: jest.fn(),
             createTrustedAccessLink: jest.fn(),
           },
         },
@@ -502,6 +503,65 @@ describe('FamilyService', () => {
       1,
       { maxSize: 500 * 1024 * 1024 },
     );
+  });
+
+  it('uploads family media to local storage for temporary non-OSS testing', async () => {
+    const uploadedFile = Object.assign(new FileEntity(), {
+      id: 70,
+      uploaderId: 1,
+      module: 'family-circle',
+      storage: FileStorageType.LOCAL,
+      mimeType: 'image/jpeg',
+      category: 'image',
+    });
+    fileService.upload.mockResolvedValue(uploadedFile);
+
+    const result = await service.uploadLocalMedia(
+      {
+        originalname: 'meal.jpg',
+        mimetype: 'image/jpeg',
+      } as Express.Multer.File,
+      { target: FamilyMediaTarget.CIRCLE },
+      { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+    );
+
+    expect(result).toBe(uploadedFile);
+    expect(fileService.upload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        originalname: 'meal.jpg',
+        mimetype: 'image/jpeg',
+      }),
+      {
+        module: 'family-circle',
+        tags: 'family,media',
+        isPublic: false,
+        storage: FileStorageType.LOCAL,
+      },
+      1,
+    );
+  });
+
+  it('accepts locally uploaded media when creating family posts', async () => {
+    fileRepository.find.mockResolvedValue([
+      Object.assign(new FileEntity(), {
+        id: 17,
+        uploaderId: 1,
+        module: 'family-circle',
+        storage: FileStorageType.LOCAL,
+        mimeType: 'image/jpeg',
+        category: 'image',
+      }),
+    ]);
+    userRepository.find.mockResolvedValue([Object.assign(new UserEntity(), { id: 1 })]);
+
+    await service.createPost(
+      { content: '本地图片', mediaFileIds: [17] },
+      { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+    );
+
+    expect(postMediaRepository.save).toHaveBeenCalledWith([
+      expect.objectContaining({ postId: 11, fileId: 17, mediaType: 'image', sort: 0 }),
+    ]);
   });
 
   it('creates chat messages with text and video media', async () => {

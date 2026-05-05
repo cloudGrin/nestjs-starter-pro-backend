@@ -31,6 +31,7 @@ import {
   FamilyUserSummaryDto,
   QueryFamilyChatMessageDto,
   QueryFamilyPostDto,
+  UploadFamilyMediaDto,
 } from '../dto';
 import {
   FAMILY_CHAT_FILE_MODULE,
@@ -297,6 +298,28 @@ export class FamilyService {
     );
   }
 
+  async uploadLocalMedia(
+    file: Express.Multer.File,
+    dto: UploadFamilyMediaDto,
+    user: AuthenticatedUser,
+  ): Promise<FileEntity> {
+    if (!file) {
+      throw BusinessException.validationFailed('请选择要上传的文件');
+    }
+
+    this.ensureFamilyMediaMetadata(file.originalname, file.mimetype || 'application/octet-stream');
+    return this.fileService.upload(
+      file,
+      {
+        module: this.getFileModule(dto.target),
+        tags: 'family,media',
+        isPublic: false,
+        storage: FileStorageType.LOCAL,
+      },
+      user.id,
+    );
+  }
+
   async completeMediaDirectUpload(dto: CompleteFamilyMediaDirectUploadDto): Promise<FileEntity> {
     return this.fileService.completeDirectUpload(dto as CompleteDirectUploadDto);
   }
@@ -449,8 +472,8 @@ export class FamilyService {
         throw BusinessException.validationFailed('媒体文件使用场景不匹配');
       }
 
-      if (file.storage !== FileStorageType.OSS) {
-        throw BusinessException.validationFailed('家庭媒体必须存储在 OSS');
+      if (file.storage !== FileStorageType.OSS && file.storage !== FileStorageType.LOCAL) {
+        throw BusinessException.validationFailed('家庭媒体存储类型不支持');
       }
 
       this.ensureFamilyMediaFile(file);

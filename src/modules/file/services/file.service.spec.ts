@@ -122,6 +122,56 @@ describe('FileService', () => {
       expect(repository.save).toHaveBeenCalledWith(entity);
     });
 
+    it('accepts mp4 uploads with octet-stream MIME from mobile browsers', async () => {
+      const file = createMockFile({
+        originalname: 'family-video.mp4',
+        mimetype: 'application/octet-stream',
+      });
+      const entity = { id: 2, originalName: file.originalname } as FileEntity;
+      repository.create.mockReturnValue(entity);
+      repository.save.mockResolvedValue(entity);
+
+      await service.upload(file, { module: 'family-chat', isPublic: false }, 1);
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          originalName: 'family-video.mp4',
+          mimeType: 'video/mp4',
+          category: 'video',
+        }),
+      );
+    });
+
+    it('allows trusted callers to override the configured extension whitelist', async () => {
+      (service as any).allowedTypes = ['.jpg', '.jpeg', '.png', '.pdf', '.txt', '.zip'];
+      const file = createMockFile({
+        originalname: 'family-video.mp4',
+        mimetype: 'application/octet-stream',
+      });
+      const entity = { id: 3, originalName: file.originalname } as FileEntity;
+      repository.create.mockReturnValue(entity);
+      repository.save.mockResolvedValue(entity);
+
+      await service.upload(
+        file,
+        {
+          module: 'family-chat',
+          isPublic: false,
+          allowedTypes: ['.mp4'],
+          maxSize: 500 * 1024 * 1024,
+        },
+        1,
+      );
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          originalName: 'family-video.mp4',
+          mimeType: 'video/mp4',
+          category: 'video',
+        }),
+      );
+    });
+
     it('当没有提供文件时应该抛出异常', async () => {
       await expect(service.upload(null as any, {}, 1)).rejects.toThrow(BusinessException);
     });
@@ -240,6 +290,33 @@ describe('FileService', () => {
       );
     });
 
+    it('infers mp4 content type for direct uploads with octet-stream MIME', async () => {
+      (service as any).allowedTypes = ['.jpg', '.jpeg', '.png', '.pdf', '.txt', '.zip'];
+
+      await expect(
+        service.createDirectUpload(
+          {
+            originalName: 'family-video.mp4',
+            mimeType: 'application/octet-stream',
+            size: 12 * 1024 * 1024,
+            module: 'family-chat',
+            isPublic: false,
+          },
+          1,
+          { maxSize: 500 * 1024 * 1024, allowedTypes: ['.mp4'] },
+        ),
+      ).resolves.toEqual(expect.objectContaining({ method: 'PUT' }));
+
+      expect(storageFactory.getOssStrategy().createSignedUploadUrl).toHaveBeenCalledWith(
+        'avatar/2024/01/20/test_123.jpg',
+        900,
+        expect.objectContaining({
+          contentType: 'video/mp4',
+          contentLength: 12 * 1024 * 1024,
+        }),
+      );
+    });
+
     it('为 OSS 直传创建签名 PUT URL 和上传令牌', async () => {
       const result = await service.createDirectUpload(
         {
@@ -306,6 +383,43 @@ describe('FileService', () => {
           url: undefined,
           uploaderId: 1,
           metadata: expect.objectContaining({ directUpload: true, etag: 'etag-1' }),
+        }),
+      );
+    });
+
+    it('stores inferred mp4 MIME when OSS reports octet-stream metadata', async () => {
+      const storage = storageFactory.getOssStrategy();
+      (storage.headObject as jest.Mock).mockResolvedValueOnce({
+        contentLength: 12 * 1024 * 1024,
+        contentType: 'application/octet-stream',
+        etag: 'etag-video',
+      });
+      const initiate = await service.createDirectUpload(
+        {
+          originalName: 'family-video.mp4',
+          mimeType: 'application/octet-stream',
+          size: 12 * 1024 * 1024,
+          module: 'family-chat',
+          isPublic: false,
+        },
+        1,
+        { maxSize: 500 * 1024 * 1024 },
+      );
+      const entity = {
+        id: 2,
+        originalName: 'family-video.mp4',
+        storage: FileStorageType.OSS,
+      } as FileEntity;
+      repository.create.mockReturnValue(entity);
+      repository.save.mockResolvedValue(entity);
+
+      await service.completeDirectUpload({ uploadToken: initiate.uploadToken });
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          originalName: 'family-video.mp4',
+          mimeType: 'video/mp4',
+          category: 'video',
         }),
       );
     });

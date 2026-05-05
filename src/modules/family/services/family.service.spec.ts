@@ -501,7 +501,10 @@ describe('FamilyService', () => {
         originalName: 'family-video.mp4',
       }),
       1,
-      { maxSize: 500 * 1024 * 1024 },
+      {
+        maxSize: 500 * 1024 * 1024,
+        allowedTypes: expect.arrayContaining(['.jpg', '.webp', '.mp4', '.mov', '.webm']),
+      },
     );
   });
 
@@ -531,12 +534,14 @@ describe('FamilyService', () => {
         originalname: 'meal.jpg',
         mimetype: 'image/jpeg',
       }),
-      {
+      expect.objectContaining({
         module: 'family-circle',
         tags: 'family,media',
         isPublic: false,
         storage: FileStorageType.LOCAL,
-      },
+        maxSize: 500 * 1024 * 1024,
+        allowedTypes: expect.arrayContaining(['.jpg', '.webp', '.mp4', '.mov', '.webm']),
+      }),
       1,
     );
   });

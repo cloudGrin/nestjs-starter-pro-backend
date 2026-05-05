@@ -48,6 +48,21 @@ import {
 import { FamilyEventService } from './family-event.service';
 
 const FAMILY_IMAGE_WEBP_PROCESS = 'image/format,webp/quality,Q_100';
+const FAMILY_MEDIA_ALLOWED_TYPES = [
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+  '.heic',
+  '.heif',
+  '.mp4',
+  '.mov',
+  '.webm',
+  '.mkv',
+  '.avi',
+  '.wmv',
+];
 const FAMILY_POST_RESPONSE_RELATIONS = [
   'author',
   'media',
@@ -294,7 +309,10 @@ export class FamilyService {
         isPublic: false,
       },
       user.id,
-      { maxSize: DEFAULT_FAMILY_MEDIA_MAX_SIZE },
+      {
+        maxSize: DEFAULT_FAMILY_MEDIA_MAX_SIZE,
+        allowedTypes: FAMILY_MEDIA_ALLOWED_TYPES,
+      },
     );
   }
 
@@ -315,6 +333,8 @@ export class FamilyService {
         tags: 'family,media',
         isPublic: false,
         storage: FileStorageType.LOCAL,
+        maxSize: DEFAULT_FAMILY_MEDIA_MAX_SIZE,
+        allowedTypes: FAMILY_MEDIA_ALLOWED_TYPES,
       },
       user.id,
     );

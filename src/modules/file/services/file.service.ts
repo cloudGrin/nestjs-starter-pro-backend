@@ -68,8 +68,9 @@ interface FileAccessTokenPayload extends BaseTokenPayload {
   responseContentType?: string;
 }
 
-interface CreateDirectUploadOptions {
+interface FileValidationOptions {
   maxSize?: number;
+  allowedTypes?: string[];
 }
 
 const FILE_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'originalName', 'filename', 'size']);
@@ -134,14 +135,14 @@ export class FileService {
    */
   async upload(
     file: Express.Multer.File,
-    options: UploadFileDto,
+    options: UploadFileDto & FileValidationOptions,
     uploaderId?: number,
   ): Promise<FileEntity> {
     if (!file) {
       throw BusinessException.validationFailed('请选择要上传的文件');
     }
 
-    this.validateFile(file);
+    this.validateFile(file, options);
     this.logger?.debug(
       `[FileUpload] Receive file "${file.originalname}" (${FileUtil.formatSize(file.size)})`,
     );
@@ -152,6 +153,7 @@ export class FileService {
     const uniqueFilename = FileUtil.generateUniqueFilename(file.originalname);
 
     const category = FileUtil.getFileCategory(file.originalname);
+    const mimeType = this.getEffectiveMimeType(file.originalname, file.mimetype);
     const hash = this.computeHash(file.buffer!);
 
     let stored: Awaited<ReturnType<FileStorageStrategy['saveFile']>> | undefined;
@@ -173,7 +175,7 @@ export class FileService {
           filename: stored.filename,
           path: stored.path,
           url: options.isPublic ? stored.url : undefined,
-          mimeType: file.mimetype,
+          mimeType,
           size: stored.size,
           category,
           storage: targetStorage,
@@ -233,7 +235,7 @@ export class FileService {
   async createDirectUpload(
     dto: CreateDirectUploadDto,
     uploaderId?: number,
-    options?: CreateDirectUploadOptions,
+    options?: FileValidationOptions,
   ): Promise<{
     method: 'PUT';
     uploadUrl: string;
@@ -241,14 +243,14 @@ export class FileService {
     expiresAt: string;
     headers: Record<string, string>;
   }> {
-    this.validateFileMetadata(dto.originalName, dto.mimeType, dto.size, options?.maxSize);
+    this.validateFileMetadata(dto.originalName, dto.mimeType, dto.size, options);
 
     const oss = this.storageFactory.getOssStrategy();
     const filename = FileUtil.generateUniqueFilename(dto.originalName);
     const relativePath = this.buildRelativePath(dto.module);
     const key = oss.buildObjectKey({ filename, relativePath, isPublic: dto.isPublic ?? false });
     const expiresAt = this.getExpiresAt(this.ossDirectUploadTtlSeconds);
-    const contentType = dto.mimeType || 'application/octet-stream';
+    const contentType = this.getEffectiveMimeType(dto.originalName, dto.mimeType);
     const signedUpload = await oss.createSignedUploadUrl(key, this.ossDirectUploadTtlSeconds, {
       contentType,
       contentLength: dto.size,
@@ -318,7 +320,10 @@ export class FileService {
           filename: payload.filename,
           path: payload.key,
           url,
-          mimeType: objectMeta.contentType || payload.mimeType,
+          mimeType: this.getEffectiveMimeType(
+            payload.originalName,
+            objectMeta.contentType || payload.mimeType,
+          ),
           size: payload.size,
           category: payload.category,
           storage: FileStorageType.OSS,
@@ -571,16 +576,19 @@ export class FileService {
   /**
    * 验证文件合法性
    */
-  private validateFile(file: Express.Multer.File): void {
-    this.validateFileMetadata(file.originalname, file.mimetype, file.size);
+  private validateFile(file: Express.Multer.File, options?: FileValidationOptions): void {
+    this.validateFileMetadata(file.originalname, file.mimetype, file.size, options);
   }
 
   private validateFileMetadata(
     originalName: string,
     mimeType: string | undefined,
     size: number,
-    maxSize = this.maxFileSize,
+    options?: FileValidationOptions,
   ): void {
+    const maxSize = options?.maxSize ?? this.maxFileSize;
+    const allowedTypes = options?.allowedTypes ?? this.allowedTypes;
+
     // 1. 验证文件大小
     if (!FileUtil.validateFileSize(size, maxSize)) {
       throw BusinessException.validationFailed(
@@ -589,17 +597,20 @@ export class FileService {
     }
 
     // 2. 验证文件扩展名
-    if (!FileUtil.validateFileType(originalName, this.allowedTypes)) {
+    if (!FileUtil.validateFileType(originalName, allowedTypes)) {
       throw BusinessException.validationFailed(
-        `不支持的文件类型，仅允许：${this.allowedTypes.join(', ')}`,
+        `不支持的文件类型，仅允许：${allowedTypes.join(', ')}`,
       );
     }
 
     // 3. 验证MIME类型
     if (mimeType) {
+      const effectiveMimeType = this.getEffectiveMimeType(originalName, mimeType);
       const allowedMimeTypes = this.getAllowedMimeTypes();
-      if (!allowedMimeTypes.includes(mimeType)) {
-        this.logger?.warn(`Rejected file with MIME type "${mimeType}" for "${originalName}"`);
+      if (!allowedMimeTypes.includes(effectiveMimeType)) {
+        this.logger?.warn(
+          `Rejected file with MIME type "${mimeType}" for "${originalName}" (effective: "${effectiveMimeType}")`,
+        );
         throw BusinessException.validationFailed(`文件MIME类型不匹配: ${mimeType}`);
       }
     }
@@ -610,6 +621,19 @@ export class FileService {
     if (dangerousExtensions.includes(ext)) {
       throw BusinessException.validationFailed(`出于安全考虑，不允许上传 ${ext} 文件`);
     }
+  }
+
+  private getEffectiveMimeType(originalName: string, mimeType?: string): string {
+    if (mimeType && mimeType !== 'application/octet-stream') {
+      return mimeType;
+    }
+
+    const inferredMimeType = FileUtil.getMimeType(originalName);
+    if (this.getAllowedMimeTypes().includes(inferredMimeType)) {
+      return inferredMimeType;
+    }
+
+    return mimeType || inferredMimeType;
   }
 
   /**

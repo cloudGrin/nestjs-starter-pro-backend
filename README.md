@@ -1,76 +1,298 @@
 # Home Admin
 
-Personal admin backend built with NestJS, TypeORM, MySQL, JWT RBAC, and API-Key based open APIs.
+[中文说明](./README.zh-CN.md)
 
-## Scope
+Home Admin is the NestJS backend for the Home self-hosted personal and family admin suite. It powers
+a desktop admin console and a mobile H5 app with authentication, RBAC, tasks, insurance records,
+family posts, real-time chat, file storage, notifications, automation jobs, and API key based open
+APIs.
 
-This project is intentionally a single-server personal admin system:
+The project is intentionally practical: one service, one MySQL database, explicit migrations, and a
+module structure that is easy to read and extend.
 
-- RBAC for admin users.
-- API Key authentication for future Web/H5/app integrations.
-- MySQL with explicit TypeORM migrations.
-- Process-memory cache for the current single-instance deployment model.
-- Local or Aliyun OSS file storage.
-- Internal notifications with optional Bark and Feishu delivery.
-- Code cron jobs for scheduled maintenance.
+## Why Use It
 
-Out of scope by design:
+Most admin starters stop at users, roles, and menus. Home Admin goes further and ships real private
+life workflows:
 
-- Multiple backend services.
-- Distributed cache or distributed locks.
-- Generic domain/application layers for simple CRUD.
-- Event bus or event-driven architecture.
-- Generic workflow engines.
-- Organization/department management.
-- Excel import/export platforms.
-- Broad statistics platforms.
+- Personal and family task management with reminders and recurring schedules.
+- Household insurance records with members, attachments, payment dates, and expiry reminders.
+- Family circle posts and real-time chat with image/video media.
+- Local or OSS-backed file storage with private access links.
+- Internal notifications plus optional Bark and Feishu delivery.
+- API app/key management for controlled integrations.
+- Automation tasks that can be configured, run manually, and audited.
 
-## Commands
+It is a good base if you want a self-hosted admin system that is already useful on day one, while
+remaining small enough for a personal deployment.
+
+## Feature Highlights
+
+### Auth and RBAC
+
+- JWT access tokens and refresh tokens.
+- Persistent refresh-token revocation and cleanup.
+- First-run super admin bootstrap with a one-time generated password in logs.
+- Users, roles, menus, and permissions.
+- Role access assignment for permissions and menus.
+- Deny-by-default permission guard: routes must be public, authenticated-only, or explicitly
+  permissioned.
+
+### Tasks
+
+- Task lists with active/archive state.
+- Tasks, anniversaries, due dates, assignees, tags, important/urgent flags.
+- Check items and attachments.
+- Complete, reopen, delete, and reminder snooze flows.
+- Recurrence support: daily, weekly, monthly, yearly, weekdays, and custom intervals.
+- Continuous reminders and scheduled due-reminder delivery.
+
+### Family Insurance
+
+- Insurance members and relationships.
+- Policies with company, policy number, type, effective date, expiry date, payment date, amount,
+  owner, notes, and attachments.
+- Family overview API.
+- Expiry and payment reminder jobs.
+
+### Family Circle and Chat
+
+- Family posts with text, image/video media, comments, nested replies, and likes.
+- Family chat messages with media.
+- Socket.IO gateway for real-time post, comment, like, chat, and notification refresh events.
+- Local upload and OSS direct-upload paths for family media.
+
+### Files
+
+- Local disk storage by default.
+- Optional Aliyun OSS storage.
+- Normal multipart upload and OSS browser direct upload.
+- Public downloads, permission-protected downloads, and temporary private access links.
+- Module tags for user avatars, documents, videos, insurance policies, task attachments, and more.
+
+### Notifications
+
+- Internal notification records with type, priority, unread/read state, and links.
+- Unread list, mark one read, and mark all read APIs.
+- Optional Bark and Feishu channels.
+
+### API Apps and Open APIs
+
+- API applications with scoped API keys.
+- One-time raw key generation.
+- API key guard and scope decorators.
+- Access logs with path, status, key, and request metadata.
+- Open API scope discovery for frontend integration docs.
+- Current open API: public user list at `/api/v1/open/users`.
+
+### Automation
+
+- Configurable cron tasks stored in the database.
+- Manual run endpoint.
+- Execution logs and last-run status.
+- Built-in jobs:
+  - Clean expired refresh tokens.
+  - Send due task reminders.
+  - Send insurance reminders.
+
+## Tech Stack
+
+- NestJS 11
+- TypeScript 5.8
+- TypeORM 0.3
+- MySQL 8
+- Passport JWT and custom API key strategy
+- Socket.IO
+- Nest Schedule
+- Swagger/OpenAPI
+- Winston logging
+- Jest and Supertest
+
+## Requirements
+
+- Node.js 20+
+- pnpm 10 recommended
+- MySQL 8
+
+## Quick Start
 
 ```bash
 pnpm install
-pnpm build
-pnpm test
-pnpm test:env:up
-pnpm test:e2e
-pnpm run migration:run
-pnpm start:prod
+cp .env.example .env
+pnpm migration:run:ts
+pnpm start:dev
 ```
+
+The API runs at:
+
+```text
+http://localhost:3000/api/v1
+```
+
+Health endpoints are not versioned:
+
+```text
+http://localhost:3000/healthz
+http://localhost:3000/readyz
+```
+
+On a fresh database, the app creates an `admin` account and logs a generated password once. Read the
+startup logs immediately, log in, and change the password.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and edit the values you need.
+Start from `.env.example`. Important settings:
 
-Important defaults:
+```bash
+NODE_ENV=development
+PORT=3000
+API_PREFIX=api
+API_VERSION=1
 
-- `DB_SYNCHRONIZE` is not supported. Schema changes go through migrations.
-- `TRUST_PROXY=false` by default. Enable only when running behind a trusted reverse proxy.
-- `FILE_STORAGE=local` by default. Set `FILE_STORAGE=oss` and OSS variables when needed.
-- `SWAGGER_ENABLE` must be `false` in production.
+DB_HOST=localhost
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=
+DB_DATABASE=home
 
-## First Admin User
+JWT_SECRET=dev-secret-key-change-this-in-production
+JWT_REFRESH_SECRET=dev-refresh-secret-key-change-this-in-production
 
-On a fresh database the application creates one `super_admin` account automatically and logs the generated password. Read the application logs immediately after first startup, then change the password.
+FILE_STORAGE=local
+FILE_UPLOAD_DIR=uploads
+FILE_BASE_URL=/api/v1/files
 
-## Architecture
+SWAGGER_ENABLE=true
+TRUST_PROXY=false
+```
 
-The intended flow is simple:
+Production notes:
 
-- Controllers handle HTTP and DTO validation.
-- Services own business rules.
-- TypeORM repositories are injected directly into services.
-- Guards enforce authentication and permission declarations.
-- Open APIs are thin adapters over existing services with independent DTOs and API-key scopes.
+- Use strong, different `JWT_SECRET` and `JWT_REFRESH_SECRET` values.
+- Keep `SWAGGER_ENABLE=false` in production.
+- Keep `DB_SYNCHRONIZE` disabled. Schema changes are managed through migrations.
+- Enable `TRUST_PROXY=true` only behind a trusted reverse proxy.
+- Use `FILE_STORAGE=oss` only after OSS variables are configured.
 
-No permission declaration means access is denied unless the route is explicitly public or allows any authenticated user.
+## Useful Commands
 
-## API Key Use
+```bash
+pnpm start:dev              # Watch-mode development server
+pnpm build                  # Compile NestJS
+pnpm start:prod             # Run compiled app
+pnpm test                   # Jest unit tests
+pnpm test:e2e               # E2E tests
+pnpm test:env:up            # Start MySQL test environment
+pnpm test:env:down          # Stop MySQL test environment
+pnpm migration:generate     # Generate a TypeORM migration
+pnpm migration:run:ts       # Run migrations from TypeScript sources
+pnpm migration:run          # Run compiled migrations
+pnpm migration:revert       # Revert the latest compiled migration
+pnpm lint                   # ESLint
+```
 
-Use the admin API to create an API app, generate a key once, and store the raw key securely. External services call open APIs with:
+## Project Structure
+
+```text
+src/
+  app.module.ts
+  main.ts
+  bootstrap/          App bootstrap, CORS, Swagger, validation, security setup
+  common/             DTOs, exceptions, enums, utilities
+  config/             Environment parsing, validation, TypeORM data source
+  core/               Guards, decorators, filters, interceptors, base entities
+  migrations/         Explicit database migrations
+  modules/
+    api-auth/         API apps, API keys, scopes, access logs
+    auth/             Login, refresh, logout, token cleanup
+    automation/       Cron definitions, configs, logs, executor
+    family/           Posts, comments, likes, media, chat, websocket gateway
+    file/             Storage abstraction, local storage, OSS storage
+    health/           Health and readiness endpoints
+    insurance/        Members, policies, attachments, reminders
+    menu/             Dynamic menu tree and user menus
+    notification/     Internal notifications and push channels
+    open-api/         API-key protected external APIs
+    permission/       Permission catalog
+    role/             Roles and role access assignment
+    task/             Task lists, tasks, reminders
+    user/             Users, profile, bootstrap admin
+  shared/             Cache, database module, logger
+test/                 E2E tests and helpers
+```
+
+## API Shape
+
+The app uses a global response envelope for successful JSON responses:
+
+```json
+{
+  "success": true,
+  "data": {},
+  "timestamp": "2026-05-06T00:00:00.000Z",
+  "path": "/api/v1/...",
+  "method": "GET",
+  "requestId": "..."
+}
+```
+
+Validation uses `whitelist`, `forbidNonWhitelisted`, and implicit conversion. API versioning is URI
+based, so controllers are served under `/api/v1` by default.
+
+When Swagger is enabled, docs are available at:
+
+```text
+http://localhost:3000/api-docs
+```
+
+## API Key Usage
+
+Create an API app in the admin UI or through the API, generate a key, store the raw key immediately,
+and call open APIs with:
 
 ```http
 X-API-Key: sk_live_xxx
 ```
 
-Scopes are checked by open API controllers through API scope decorators.
-The authenticated API app is available as `req.user` by Passport convention; this project intentionally does not add a second `req.app` context shape.
+Scopes are discovered from open API decorators and checked by the API key guard.
+
+## Docker
+
+The backend image builds the NestJS app, installs production dependencies, runs migrations on
+container startup, and starts `dist/main`.
+
+From the workspace root, Docker Compose can run MySQL, the backend, and `home-web` together:
+
+```bash
+docker compose --env-file .env.local up --build
+```
+
+By default the compose stack exposes:
+
+```text
+Web:  http://127.0.0.1:8088
+API:  http://127.0.0.1:3002/api/v1
+MySQL: 127.0.0.1:3307
+```
+
+## Testing
+
+```bash
+pnpm test
+pnpm test:env:up
+pnpm test:e2e
+pnpm lint
+pnpm build
+```
+
+Unit tests cover services, DTOs, guards, storage, configuration, and utilities. E2E tests cover core
+API flows such as auth, users, roles, menus, permissions, files, notifications, automation, and API
+auth.
+
+## Design Boundaries
+
+Home Admin is optimized for a personal, single-instance deployment. It deliberately avoids
+distributed locks, distributed cache, multi-service architecture, organization/department platforms,
+workflow engines, and generic enterprise abstractions unless they become necessary for the project.
+
+That makes it easier to understand, deploy, and extend for self-hosted use.

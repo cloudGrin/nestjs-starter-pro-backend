@@ -37,6 +37,13 @@ export class TaskListController {
     return this.taskListService.createList(dto, user);
   }
 
+  @Post('defaults')
+  @RequirePermissions('task-list:manage')
+  @ApiOperation({ summary: '初始化默认任务清单' })
+  async ensureDefaultLists(@CurrentUser() user: AuthenticatedUser) {
+    return this.taskListService.ensureDefaultLists(user);
+  }
+
   @Put(':id')
   @RequirePermissions('task-list:manage')
   @ApiOperation({ summary: '更新任务清单' })

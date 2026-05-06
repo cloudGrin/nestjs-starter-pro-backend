@@ -54,6 +54,12 @@ export class TaskListService {
     });
   }
 
+  async ensureDefaultLists(user: CurrentUserLike): Promise<TaskListEntity[]> {
+    await this.ensureActiveFamilyList(user);
+    await this.ensureActivePersonalList(user);
+    return this.findLists(user);
+  }
+
   async updateList(
     id: number,
     dto: UpdateTaskListDto,
@@ -130,6 +136,63 @@ export class TaskListService {
     }
 
     return name;
+  }
+
+  private async ensureActiveFamilyList(user: CurrentUserLike): Promise<void> {
+    const existing = await this.taskListRepository.findOne({
+      where: {
+        scope: TaskListScope.FAMILY,
+        isArchived: false,
+      },
+      order: {
+        sort: 'ASC',
+        createdAt: 'ASC',
+      },
+    });
+
+    if (existing) {
+      return;
+    }
+
+    await this.createDefaultList('家庭', TaskListScope.FAMILY, user);
+  }
+
+  private async ensureActivePersonalList(user: CurrentUserLike): Promise<void> {
+    const existing = await this.taskListRepository.findOne({
+      where: {
+        scope: TaskListScope.PERSONAL,
+        ownerId: user.id,
+        isArchived: false,
+      },
+      order: {
+        sort: 'ASC',
+        createdAt: 'ASC',
+      },
+    });
+
+    if (existing) {
+      return;
+    }
+
+    await this.createDefaultList('个人', TaskListScope.PERSONAL, user);
+  }
+
+  private async createDefaultList(
+    name: string,
+    scope: TaskListScope,
+    user: CurrentUserLike,
+  ): Promise<TaskListEntity> {
+    const entity = this.taskListRepository.create({
+      name,
+      scope,
+      ownerId: user.id,
+      isArchived: false,
+      sort: 0,
+    });
+
+    const saved = await this.taskListRepository.save(entity);
+    this.logger.log(`Created default task list "${saved.name}" by user ${user.id}`);
+    return saved;
   }
 
   private isSuperAdmin(user: CurrentUserLike): boolean {

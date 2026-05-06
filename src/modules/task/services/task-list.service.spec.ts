@@ -96,6 +96,149 @@ describe('TaskListService', () => {
     );
   });
 
+  it('does not create default lists from the read-only list query', async () => {
+    repository.find.mockResolvedValue([]);
+
+    await service.findLists({ id: 3 });
+
+    expect(repository.findOne).not.toHaveBeenCalled();
+    expect(repository.create).not.toHaveBeenCalled();
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('keeps super admin list visibility unchanged', async () => {
+    repository.find.mockResolvedValue([]);
+
+    await service.findLists({ id: 1, isSuperAdmin: true });
+
+    expect(repository.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: undefined,
+      }),
+    );
+  });
+
+  it('creates default family and personal lists from the manage-only initializer', async () => {
+    const familyList = Object.assign(new TaskListEntity(), {
+      id: 11,
+      name: '家庭',
+      scope: TaskListScope.FAMILY,
+      ownerId: 3,
+      isArchived: false,
+      sort: 0,
+    });
+    const personalList = Object.assign(new TaskListEntity(), {
+      id: 12,
+      name: '个人',
+      scope: TaskListScope.PERSONAL,
+      ownerId: 3,
+      isArchived: false,
+      sort: 0,
+    });
+
+    repository.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    repository.create.mockImplementation((data) => data as TaskListEntity);
+    repository.save.mockResolvedValueOnce(familyList).mockResolvedValueOnce(personalList);
+    repository.find.mockResolvedValue([familyList, personalList]);
+
+    const result = await service.ensureDefaultLists({ id: 3 });
+
+    expect(repository.findOne).toHaveBeenNthCalledWith(1, {
+      where: {
+        scope: TaskListScope.FAMILY,
+        isArchived: false,
+      },
+      order: {
+        sort: 'ASC',
+        createdAt: 'ASC',
+      },
+    });
+    expect(repository.findOne).toHaveBeenNthCalledWith(2, {
+      where: {
+        scope: TaskListScope.PERSONAL,
+        ownerId: 3,
+        isArchived: false,
+      },
+      order: {
+        sort: 'ASC',
+        createdAt: 'ASC',
+      },
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '家庭',
+        scope: TaskListScope.FAMILY,
+        ownerId: 3,
+        isArchived: false,
+        sort: 0,
+      }),
+    );
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '个人',
+        scope: TaskListScope.PERSONAL,
+        ownerId: 3,
+        isArchived: false,
+        sort: 0,
+      }),
+    );
+    expect(result).toEqual([familyList, personalList]);
+  });
+
+  it('does not recreate defaults when active renamed lists already exist', async () => {
+    repository.findOne
+      .mockResolvedValueOnce(
+        Object.assign(new TaskListEntity(), {
+          id: 21,
+          name: '房屋维修',
+          scope: TaskListScope.FAMILY,
+          isArchived: false,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Object.assign(new TaskListEntity(), {
+          id: 22,
+          name: '我的事项',
+          scope: TaskListScope.PERSONAL,
+          ownerId: 3,
+          isArchived: false,
+        }),
+      );
+    repository.find.mockResolvedValue([]);
+
+    await service.ensureDefaultLists({ id: 3 });
+
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('creates active defaults when only archived lists exist', async () => {
+    repository.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    repository.create.mockImplementation((data) => data as TaskListEntity);
+    repository.save.mockImplementation(async (entity) => entity as TaskListEntity);
+    repository.find.mockResolvedValue([]);
+
+    await service.ensureDefaultLists({ id: 3 });
+
+    expect(repository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          scope: TaskListScope.FAMILY,
+          isArchived: false,
+        }),
+      }),
+    );
+    expect(repository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          scope: TaskListScope.PERSONAL,
+          ownerId: 3,
+          isArchived: false,
+        }),
+      }),
+    );
+    expect(repository.save).toHaveBeenCalledTimes(2);
+  });
+
   it('rejects updating another user personal list', async () => {
     repository.findOne.mockResolvedValue(
       Object.assign(new TaskListEntity(), {

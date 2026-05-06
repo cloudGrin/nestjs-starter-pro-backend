@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -11,7 +12,10 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { InsurancePolicyType } from '../entities/insurance-policy.entity';
+import {
+  InsurancePaymentFrequency,
+  InsurancePolicyType,
+} from '../entities/insurance-policy.entity';
 
 export class CreateInsurancePolicyDto {
   @ApiProperty({ description: '保单名称', maxLength: 150 })
@@ -62,6 +66,28 @@ export class CreateInsurancePolicyDto {
   @IsNumber()
   @Min(0)
   paymentAmount?: number | null;
+
+  @ApiPropertyOptional({ description: '缴费周期', enum: InsurancePaymentFrequency })
+  @IsOptional()
+  @IsEnum(InsurancePaymentFrequency)
+  paymentFrequency?: InsurancePaymentFrequency | null;
+
+  @ApiPropertyOptional({ description: '支付渠道', maxLength: 100 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  paymentChannel?: string | null;
+
+  @ApiPropertyOptional({ description: '购买渠道', maxLength: 100 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  purchaseChannel?: string | null;
+
+  @ApiPropertyOptional({ description: '是否开启续费提醒', default: true })
+  @IsOptional()
+  @IsBoolean()
+  paymentReminderEnabled?: boolean;
 
   @ApiPropertyOptional({ description: '负责人用户ID；不传时使用创建人' })
   @IsOptional()

@@ -16,6 +16,15 @@ export enum InsurancePolicyType {
   OTHER = 'other',
 }
 
+export enum InsurancePaymentFrequency {
+  MONTHLY = 'monthly',
+  QUARTERLY = 'quarterly',
+  SEMI_ANNUAL = 'semi_annual',
+  ANNUAL = 'annual',
+  SINGLE = 'single',
+  OTHER = 'other',
+}
+
 @Entity('insurance_policies')
 @Index(['memberId', 'type'])
 @Index(['endDate'])
@@ -97,6 +106,41 @@ export class InsurancePolicyEntity extends SoftDeleteBaseEntity {
     comment: '缴费金额',
   })
   paymentAmount?: string | number | null;
+
+  @Column({
+    name: 'payment_frequency',
+    type: 'enum',
+    enum: InsurancePaymentFrequency,
+    nullable: true,
+    comment: '缴费周期',
+  })
+  paymentFrequency?: InsurancePaymentFrequency | null;
+
+  @Column({
+    name: 'payment_channel',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+    comment: '支付渠道',
+  })
+  paymentChannel?: string | null;
+
+  @Column({
+    name: 'purchase_channel',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+    comment: '购买渠道',
+  })
+  purchaseChannel?: string | null;
+
+  @Column({
+    name: 'payment_reminder_enabled',
+    type: 'boolean',
+    default: true,
+    comment: '是否开启续费提醒',
+  })
+  paymentReminderEnabled: boolean;
 
   @Column({
     name: 'owner_user_id',

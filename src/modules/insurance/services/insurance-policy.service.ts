@@ -112,7 +112,7 @@ export class InsurancePolicyService {
 
     if (query.keyword) {
       qb.andWhere(
-        '(policy.name LIKE :keyword OR policy.company LIKE :keyword OR policy.policyNo LIKE :keyword OR member.name LIKE :keyword)',
+        '(policy.name LIKE :keyword OR policy.company LIKE :keyword OR policy.policyNo LIKE :keyword OR policy.paymentChannel LIKE :keyword OR policy.purchaseChannel LIKE :keyword OR member.name LIKE :keyword)',
         { keyword: `%${query.keyword}%` },
       );
     }
@@ -247,7 +247,13 @@ export class InsurancePolicyService {
 
   private toPolicyPatch(dto: Partial<CreateInsurancePolicyDto>): Partial<InsurancePolicyEntity> {
     const patch: Partial<InsurancePolicyEntity> = {};
-    for (const key of ['company', 'policyNo', 'remark'] as const) {
+    for (const key of [
+      'company',
+      'policyNo',
+      'paymentChannel',
+      'purchaseChannel',
+      'remark',
+    ] as const) {
       if (dto[key] !== undefined) {
         (patch as any)[key] = this.normalizeOptionalText(dto[key]);
       }
@@ -259,6 +265,12 @@ export class InsurancePolicyService {
     }
     if (dto.paymentAmount !== undefined) {
       patch.paymentAmount = dto.paymentAmount ?? null;
+    }
+    if (dto.paymentFrequency !== undefined) {
+      patch.paymentFrequency = dto.paymentFrequency ?? null;
+    }
+    if (dto.paymentReminderEnabled !== undefined) {
+      patch.paymentReminderEnabled = dto.paymentReminderEnabled;
     }
 
     return patch;
@@ -333,15 +345,20 @@ export class InsurancePolicyService {
         type: InsurancePolicyReminderType.EXPIRY_7D,
         date: this.subtractDays(policy.endDate, 7),
       },
-      {
-        type: InsurancePolicyReminderType.PAYMENT_7D,
-        date: this.subtractDays(policy.nextPaymentDate, 7),
-      },
-      {
-        type: InsurancePolicyReminderType.PAYMENT_DUE,
-        date: policy.nextPaymentDate,
-      },
     ];
+
+    if (policy.paymentReminderEnabled !== false) {
+      reminders.push(
+        {
+          type: InsurancePolicyReminderType.PAYMENT_7D,
+          date: this.subtractDays(policy.nextPaymentDate, 7),
+        },
+        {
+          type: InsurancePolicyReminderType.PAYMENT_DUE,
+          date: policy.nextPaymentDate,
+        },
+      );
+    }
 
     return reminders
       .filter((item): item is { type: InsurancePolicyReminderType; date: string } =>
@@ -390,7 +407,12 @@ export class InsurancePolicyService {
   }
 
   private reminderFingerprint(policy: InsurancePolicyEntity): string {
-    return [policy.endDate ?? '', policy.nextPaymentDate ?? '', policy.ownerUserId].join('|');
+    return [
+      policy.endDate ?? '',
+      policy.nextPaymentDate ?? '',
+      policy.paymentReminderEnabled === false ? '0' : '1',
+      policy.ownerUserId,
+    ].join('|');
   }
 
   private normalizeRequiredText(value: string, message: string): string {

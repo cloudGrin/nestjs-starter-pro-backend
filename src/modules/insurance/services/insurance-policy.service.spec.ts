@@ -101,6 +101,30 @@ describe('InsurancePolicyService', () => {
     expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('policy.reminders', 'reminders');
   });
 
+  it('searches payment and purchase metadata by keyword', async () => {
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    policyRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+    await service.findPolicies({ keyword: '自动扣费' } as any);
+
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      expect.stringContaining('policy.paymentChannel LIKE :keyword'),
+      { keyword: '%自动扣费%' },
+    );
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      expect.stringContaining('policy.purchaseChannel LIKE :keyword'),
+      { keyword: '%自动扣费%' },
+    );
+  });
+
   it('creates policy reminders for expiry and payment milestones', async () => {
     memberRepository.findOne.mockResolvedValue(
       Object.assign(new InsuranceMemberEntity(), { id: 3 }),
@@ -155,6 +179,67 @@ describe('InsurancePolicyService', () => {
           remindDate: '2026-08-15',
           recipientUserId: 7,
         }),
+      ]),
+    );
+  });
+
+  it('stores policy payment metadata when creating a policy', async () => {
+    memberRepository.findOne.mockResolvedValue(
+      Object.assign(new InsuranceMemberEntity(), { id: 3 }),
+    );
+    userRepository.findOne.mockResolvedValue(Object.assign(new UserEntity(), { id: 7 }));
+
+    const policy = await service.createPolicy(
+      {
+        name: '家庭百万医疗',
+        memberId: 3,
+        type: InsurancePolicyType.MEDICAL,
+        paymentAmount: 128,
+        paymentFrequency: 'monthly',
+        paymentChannel: '银行卡自动扣费',
+        purchaseChannel: '保险经纪人',
+        paymentReminderEnabled: false,
+        ownerUserId: 7,
+      } as any,
+      { id: 1 } as any,
+    );
+
+    expect((policy as any).paymentFrequency).toBe('monthly');
+    expect((policy as any).paymentChannel).toBe('银行卡自动扣费');
+    expect((policy as any).purchaseChannel).toBe('保险经纪人');
+    expect((policy as any).paymentReminderEnabled).toBe(false);
+  });
+
+  it('omits payment reminders when renewal reminders are disabled', async () => {
+    memberRepository.findOne.mockResolvedValue(
+      Object.assign(new InsuranceMemberEntity(), { id: 3 }),
+    );
+    userRepository.findOne.mockResolvedValue(Object.assign(new UserEntity(), { id: 7 }));
+
+    await service.createPolicy(
+      {
+        name: '家庭百万医疗',
+        memberId: 3,
+        type: InsurancePolicyType.MEDICAL,
+        endDate: '2026-12-31',
+        nextPaymentDate: '2026-08-15',
+        paymentReminderEnabled: false,
+        ownerUserId: 7,
+      } as any,
+      { id: 1 } as any,
+    );
+
+    const reminders = reminderRepository.save.mock.calls[0][0] as InsurancePolicyReminderEntity[];
+    expect(reminders).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reminderType: InsurancePolicyReminderType.EXPIRY_30D }),
+        expect.objectContaining({ reminderType: InsurancePolicyReminderType.EXPIRY_7D }),
+      ]),
+    );
+    expect(reminders).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reminderType: InsurancePolicyReminderType.PAYMENT_7D }),
+        expect.objectContaining({ reminderType: InsurancePolicyReminderType.PAYMENT_DUE }),
       ]),
     );
   });

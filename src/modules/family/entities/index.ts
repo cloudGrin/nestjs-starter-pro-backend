@@ -5,3 +5,4 @@ export * from './family-post-comment.entity';
 export * from './family-post-like.entity';
 export * from './family-post-media.entity';
 export * from './family-post.entity';
+export * from './family-read-state.entity';

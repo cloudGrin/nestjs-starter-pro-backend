@@ -25,7 +25,9 @@ import {
   CreateFamilyPostCommentDto,
   CreateFamilyPostDto,
   FamilyChatMessageResponseDto,
+  FamilyChatMessageCreatedEventDto,
   FamilyMediaResponseDto,
+  FamilyPostCreatedEventDto,
   FamilyPostCommentResponseDto,
   FamilyPostResponseDto,
   FamilyUserSummaryDto,
@@ -137,7 +139,7 @@ export class FamilyService {
       mobileLink: '/m/family',
       metadata: { module: 'family', kind: 'post', postId: post.id },
     });
-    this.eventService.emitPostCreated(post);
+    this.eventService.emitPostCreated(await this.toPostCreatedEvent(post, user));
     this.logger.log(`Created family post ${post.id} by user ${user.id}`);
 
     return post;
@@ -149,7 +151,9 @@ export class FamilyService {
   ): Promise<PaginationResult<FamilyPostResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
+    const where = query.afterId ? { id: MoreThan(query.afterId) } : undefined;
     const [items, totalItems] = await this.postRepository.findAndCount({
+      where,
       relations: FAMILY_POST_RESPONSE_RELATIONS,
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
@@ -274,7 +278,7 @@ export class FamilyService {
       mobileLink: '/m/family/chat',
       metadata: { module: 'family', kind: 'chat-message', messageId: message.id },
     });
-    this.eventService.emitChatMessageCreated(message);
+    this.eventService.emitChatMessageCreated(await this.toChatMessageCreatedEvent(message, user));
 
     return message;
   }
@@ -440,6 +444,43 @@ export class FamilyService {
       realName: user.realName,
       avatar: user.avatar,
     };
+  }
+
+  private async toPostCreatedEvent(
+    post: FamilyPostEntity,
+    user: AuthenticatedUser,
+  ): Promise<FamilyPostCreatedEventDto> {
+    return {
+      postId: post.id,
+      authorId: user.id,
+      author: await this.toAuthenticatedUserSummary(user),
+      createdAt: post.createdAt ?? new Date(),
+    };
+  }
+
+  private async toChatMessageCreatedEvent(
+    message: FamilyChatMessageEntity,
+    user: AuthenticatedUser,
+  ): Promise<FamilyChatMessageCreatedEventDto> {
+    return {
+      messageId: message.id,
+      senderId: user.id,
+      sender: await this.toAuthenticatedUserSummary(user),
+      createdAt: message.createdAt ?? new Date(),
+    };
+  }
+
+  private async toAuthenticatedUserSummary(user: AuthenticatedUser): Promise<FamilyUserSummaryDto> {
+    const entity = await this.userRepository.findOne({ where: { id: user.id } });
+    return (
+      this.toUserSummary(entity) ?? {
+        id: user.id,
+        username: user.username,
+        nickname: null,
+        realName: null,
+        avatar: null,
+      }
+    );
   }
 
   private async ensurePostExists(postId: number): Promise<FamilyPostEntity> {

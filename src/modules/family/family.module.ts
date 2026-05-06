@@ -10,6 +10,7 @@ import { UserModule } from '~/modules/user/user.module';
 import { FamilyChatController } from './controllers/family-chat.controller';
 import { FamilyMediaController } from './controllers/family-media.controller';
 import { FamilyPostController } from './controllers/family-post.controller';
+import { FamilyStateController } from './controllers/family-state.controller';
 import {
   FamilyChatMessageEntity,
   FamilyChatMessageMediaEntity,
@@ -17,9 +18,11 @@ import {
   FamilyPostEntity,
   FamilyPostLikeEntity,
   FamilyPostMediaEntity,
+  FamilyReadStateEntity,
 } from './entities';
 import { FamilyGateway } from './gateways/family.gateway';
 import { FamilyEventService } from './services/family-event.service';
+import { FamilyReadStateService } from './services/family-read-state.service';
 import { FamilyService } from './services/family.service';
 
 @Module({
@@ -31,6 +34,7 @@ import { FamilyService } from './services/family.service';
       FamilyPostLikeEntity,
       FamilyChatMessageEntity,
       FamilyChatMessageMediaEntity,
+      FamilyReadStateEntity,
       FileEntity,
       UserEntity,
     ]),
@@ -44,8 +48,13 @@ import { FamilyService } from './services/family.service';
     NotificationModule,
     UserModule,
   ],
-  controllers: [FamilyPostController, FamilyChatController, FamilyMediaController],
-  providers: [FamilyService, FamilyGateway, FamilyEventService],
-  exports: [FamilyService],
+  controllers: [
+    FamilyPostController,
+    FamilyChatController,
+    FamilyMediaController,
+    FamilyStateController,
+  ],
+  providers: [FamilyService, FamilyReadStateService, FamilyGateway, FamilyEventService],
+  exports: [FamilyService, FamilyReadStateService],
 })
 export class FamilyModule {}

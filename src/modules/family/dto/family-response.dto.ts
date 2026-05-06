@@ -56,3 +56,26 @@ export interface FamilyChatMessageResponseDto {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface FamilyReadStateResponseDto {
+  unreadPosts: number;
+  unreadChatMessages: number;
+  latestPostId: number | null;
+  latestChatMessageId: number | null;
+  lastReadPostId: number | null;
+  lastReadChatMessageId: number | null;
+}
+
+export interface FamilyPostCreatedEventDto {
+  postId: number;
+  authorId: number;
+  author?: FamilyUserSummaryDto;
+  createdAt: Date;
+}
+
+export interface FamilyChatMessageCreatedEventDto {
+  messageId: number;
+  senderId: number;
+  sender?: FamilyUserSummaryDto;
+  createdAt: Date;
+}

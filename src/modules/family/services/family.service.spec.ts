@@ -162,7 +162,14 @@ describe('FamilyService', () => {
       }),
       1,
     );
-    expect(eventService.emitPostCreated).toHaveBeenCalledWith(expect.objectContaining({ id: 11 }));
+    expect(eventService.emitPostCreated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postId: 11,
+        authorId: 1,
+        author: expect.objectContaining({ id: 1, username: 'dad' }),
+        createdAt: expect.any(Date),
+      }),
+    );
   });
 
   it('rejects creating empty posts without media', async () => {
@@ -365,6 +372,23 @@ describe('FamilyService', () => {
             avatar: 'https://example.com/mom.png',
           }),
         ],
+      }),
+    );
+  });
+
+  it('returns only newer family posts when afterId is provided', async () => {
+    postRepository.findAndCount.mockResolvedValue([[], 0]);
+
+    await service.findPosts(
+      { page: 1, limit: 20, afterId: 10 },
+      { id: 4, username: 'mom', email: 'mom@example.com', roles: [], sessionId: 's1' },
+    );
+
+    expect(postRepository.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: expect.any(Object),
+        },
       }),
     );
   });
@@ -607,7 +631,12 @@ describe('FamilyService', () => {
       1,
     );
     expect(eventService.emitChatMessageCreated).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 51 }),
+      expect.objectContaining({
+        messageId: 51,
+        senderId: 1,
+        sender: expect.objectContaining({ id: 1, username: 'dad' }),
+        createdAt: expect.any(Date),
+      }),
     );
   });
 });

@@ -65,7 +65,6 @@ interface FileAccessTokenPayload extends BaseTokenPayload {
   fileId: number;
   disposition: FileAccessDisposition;
   process?: string;
-  responseContentType?: string;
 }
 
 interface FileValidationOptions {
@@ -74,6 +73,7 @@ interface FileValidationOptions {
 }
 
 const FILE_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'originalName', 'filename', 'size']);
+const DEFAULT_FILE_MODULE = 'files';
 const STORAGE_OPTION_LABELS: Record<FileStorageType, string> = {
   [FileStorageType.LOCAL]: '本地存储',
   [FileStorageType.OSS]: '阿里云 OSS',
@@ -477,7 +477,7 @@ export class FileService {
 
   async createTrustedAccessLink(
     id: number,
-    dto: CreateFileAccessLinkDto & { process?: string; responseContentType?: string },
+    dto: CreateFileAccessLinkDto & { process?: string },
   ): Promise<{
     url: string;
     token: string;
@@ -490,7 +490,6 @@ export class FileService {
       fileId: id,
       disposition,
       process: dto.process,
-      responseContentType: dto.responseContentType,
       exp: expiresAt.unix,
     };
     const token = this.signToken(tokenPayload);
@@ -523,7 +522,6 @@ export class FileService {
         file,
         disposition: payload.disposition,
         redirectUrl: oss.createSignedDownloadUrl(file.path, this.signedOssDownloadTtlSeconds, {
-          contentType: payload.responseContentType || file.mimeType || 'application/octet-stream',
           contentDisposition: this.buildContentDisposition(file, payload.disposition),
           process: payload.process,
         }),
@@ -543,8 +541,9 @@ export class FileService {
    */
   private buildRelativePath(module?: string): string {
     const segments = [dayjs().format('YYYY/MM/DD')];
-    if (module) {
-      segments.unshift(module.replace(/[^a-zA-Z0-9/_-]/g, ''));
+    const normalizedModule = module?.replace(/[^a-zA-Z0-9/_-]/g, '') || DEFAULT_FILE_MODULE;
+    if (normalizedModule) {
+      segments.unshift(normalizedModule);
     }
     return segments.join('/');
   }

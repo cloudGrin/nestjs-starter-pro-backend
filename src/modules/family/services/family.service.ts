@@ -358,7 +358,6 @@ export class FamilyService {
           ...(item.mediaType === FamilyMediaType.IMAGE
             ? {
                 process: FAMILY_IMAGE_WEBP_PROCESS,
-                responseContentType: 'image/webp',
               }
             : {}),
         });

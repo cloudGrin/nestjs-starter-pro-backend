@@ -134,7 +134,6 @@ export class OssStorageStrategy implements FileStorageStrategy {
     key: string,
     expires: number,
     response?: {
-      contentType?: string;
       contentDisposition?: string;
       process?: string;
     },
@@ -146,7 +145,6 @@ export class OssStorageStrategy implements FileStorageStrategy {
       ...(response?.process ? { process: response.process } : {}),
       response: response
         ? {
-            ...(response.contentType ? { 'content-type': response.contentType } : {}),
             ...(response.contentDisposition
               ? { 'content-disposition': response.contentDisposition }
               : {}),

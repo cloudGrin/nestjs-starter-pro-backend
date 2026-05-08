@@ -5,6 +5,7 @@ import { OssStorageStrategy } from './oss-storage.strategy';
 
 const mockOssClient = {
   signatureUrlV4: jest.fn(),
+  signatureUrl: jest.fn(),
 };
 
 jest.mock('ali-oss', () => jest.fn(() => mockOssClient));
@@ -15,6 +16,7 @@ describe('OssStorageStrategy', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockOssClient.signatureUrlV4.mockResolvedValue('https://oss.example.com/upload-signature');
+    mockOssClient.signatureUrl.mockReturnValue('https://oss.example.com/download-signature');
 
     strategy = new OssStorageStrategy(
       createMockConfigService({
@@ -67,5 +69,22 @@ describe('OssStorageStrategy', () => {
         bucket: 'home-bucket',
       }),
     );
+  });
+
+  it('does not override content-type on signed download URLs', () => {
+    const result = strategy.createSignedDownloadUrl('family/test.jpg', 900, {
+      contentDisposition: 'inline; filename="test.jpg"',
+      process: 'image/format,webp/quality,Q_100',
+    });
+
+    expect(result).toBe('https://oss.example.com/download-signature');
+    expect(mockOssClient.signatureUrl).toHaveBeenCalledWith('family/test.jpg', {
+      method: 'GET',
+      expires: 900,
+      process: 'image/format,webp/quality,Q_100',
+      response: {
+        'content-disposition': 'inline; filename="test.jpg"',
+      },
+    });
   });
 });

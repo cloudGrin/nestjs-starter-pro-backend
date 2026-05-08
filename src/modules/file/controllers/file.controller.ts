@@ -228,7 +228,7 @@ export class FileController {
   async accessByLink(
     @Param('id', ParseIntPipe) id: number,
     @Query('token') token: string,
-    @Res({ passthrough: true }) res: Response,
+    @Res() res: Response,
   ) {
     if (!token) {
       throw BusinessException.forbidden('访问链接无效或已过期');
@@ -246,7 +246,7 @@ export class FileController {
       `${result.disposition}; filename*=UTF-8''${encodeURIComponent(result.file.originalName)}`,
     );
 
-    return new StreamableFile(result.stream as any);
+    (result.stream as NodeJS.ReadableStream).pipe(res);
   }
 
   @Get(':id/download')

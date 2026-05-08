@@ -86,4 +86,14 @@ describe('FileController', () => {
       1,
     );
   });
+
+  it('does not use passthrough response for access links that may redirect', () => {
+    const source = readFileSync(join(__dirname, 'file.controller.ts'), 'utf8');
+    const accessByLinkSource = source.slice(
+      source.indexOf('async accessByLink'),
+      source.indexOf("@Get(':id/download')"),
+    );
+
+    expect(accessByLinkSource).not.toContain('@Res({ passthrough: true })');
+  });
 });

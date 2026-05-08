@@ -142,6 +142,29 @@ describe('FileService', () => {
       );
     });
 
+    it('stores uploads without a selected module under the default files prefix', async () => {
+      const file = createMockFile({ originalname: 'plain.jpg' });
+      const entity = { id: 12, originalName: file.originalname } as FileEntity;
+      const storage = storageFactory.getStrategy(FileStorageType.LOCAL) as any;
+      (storage.saveFile as jest.Mock).mockClear();
+      repository.create.mockReturnValue(entity);
+      repository.save.mockResolvedValue(entity);
+
+      await service.upload(file, { isPublic: false }, 1);
+
+      expect(storage.saveFile).toHaveBeenCalledWith(
+        file.buffer,
+        expect.objectContaining({
+          relativePath: expect.stringMatching(/^files\/\d{4}\/\d{2}\/\d{2}$/),
+        }),
+      );
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          module: undefined,
+        }),
+      );
+    });
+
     it('allows trusted callers to override the configured extension whitelist', async () => {
       (service as any).allowedTypes = ['.jpg', '.jpeg', '.png', '.pdf', '.txt', '.zip'];
       const file = createMockFile({
@@ -313,6 +336,24 @@ describe('FileService', () => {
         expect.objectContaining({
           contentType: 'video/mp4',
           contentLength: 12 * 1024 * 1024,
+        }),
+      );
+    });
+
+    it('uses the default files prefix for direct uploads without a selected module', async () => {
+      await service.createDirectUpload(
+        {
+          originalName: 'plain.jpg',
+          mimeType: 'image/jpeg',
+          size: 1024 * 100,
+          isPublic: false,
+        },
+        1,
+      );
+
+      expect(storageFactory.getOssStrategy().buildObjectKey).toHaveBeenCalledWith(
+        expect.objectContaining({
+          relativePath: expect.stringMatching(/^files\/\d{4}\/\d{2}\/\d{2}$/),
         }),
       );
     });
@@ -510,7 +551,6 @@ describe('FileService', () => {
       const link = await service.createTrustedAccessLink(5, {
         disposition: 'inline',
         process: 'image/format,webp/quality,Q_100',
-        responseContentType: 'image/webp',
       });
 
       await service.resolveAccessLink(5, link.token);
@@ -519,7 +559,6 @@ describe('FileService', () => {
         'family-circle/2026/05/04/family.jpg',
         expect.any(Number),
         expect.objectContaining({
-          contentType: 'image/webp',
           process: 'image/format,webp/quality,Q_100',
         }),
       );

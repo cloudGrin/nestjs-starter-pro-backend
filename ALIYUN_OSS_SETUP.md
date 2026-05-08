@@ -333,17 +333,17 @@ FILE_OSS_BUCKET=your-bucket-name
 先确认前端 Origin：
 
 - 打开 `home-web` 页面，看浏览器地址栏。
-- 如果地址栏是 `http://localhost:5173/files`，Origin 就是 `http://localhost:5173`。
+- 本项目 Vite 开发服务默认是 `http://localhost:3001`。如果地址栏是 `http://localhost:3001/files`，Origin 就是 `http://localhost:3001`。
 - Origin 只包含协议、域名、端口，不包含路径。
-- `http://localhost:5173` 和 `http://127.0.0.1:5173` 是两个不同 Origin。
-- `http://localhost:5173` 和 `https://localhost:5173` 也是两个不同 Origin。
+- `http://localhost:3001` 和 `http://127.0.0.1:3001` 是两个不同 Origin。
+- `http://localhost:3001` 和 `https://localhost:3001` 也是两个不同 Origin。
 - 不要在 Origin 末尾加 `/`。
 
 控制台字段可以这样填：
 
 | CORS 字段 | 本项目建议值 | 说明 |
 | --- | --- | --- |
-| 来源 / AllowedOrigin | `http://localhost:5173`，生产环境填真实前端域名 | 必须和浏览器地址栏 Origin 完全一致 |
+| 来源 / AllowedOrigin | `http://localhost:3001`，Docker 本地部署通常是 `http://localhost:8088`，生产环境填真实前端域名 | 必须和浏览器地址栏 Origin 完全一致 |
 | 允许 Methods / AllowedMethod | `PUT`、`GET`、`HEAD` | 直传用 `PUT`，访问和校验可能用 `GET`、`HEAD` |
 | 允许 Headers / AllowedHeader | `content-type`、`content-length`、`x-oss-forbid-overwrite` | 这些是直传和签名约束会涉及的头 |
 | 暴露 Headers / ExposeHeader | `ETag`、`x-oss-request-id` | 方便前端和排障读取响应信息 |

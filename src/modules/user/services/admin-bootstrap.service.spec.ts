@@ -192,11 +192,17 @@ describe('AdminBootstrapService', () => {
           component: 'TaskCenterPage',
           parentId: null,
         }),
+        expect.objectContaining({
+          name: '家庭内容',
+          path: '/family-content',
+          component: 'FamilyContentPage',
+          parentId: null,
+        }),
       ]),
     );
   });
 
-  it('已有用户时补齐默认权限和任务菜单但不重新创建 admin 或输出密码', async () => {
+  it('已有用户时补齐默认权限和默认业务菜单但不重新创建 admin 或输出密码', async () => {
     const role = Object.assign(new RoleEntity(), {
       id: 1,
       code: 'super_admin',
@@ -237,6 +243,14 @@ describe('AdminBootstrapService', () => {
         parentId: null,
       }),
     );
+    expect(menuRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '家庭内容',
+        path: '/family-content',
+        component: 'FamilyContentPage',
+        parentId: null,
+      }),
+    );
   });
 
   it('已有默认菜单时只同步路由关键字段并保留用户可配置的图标', async () => {
@@ -262,6 +276,12 @@ describe('AdminBootstrapService', () => {
       component: 'InsurancePage',
       parentId: null,
     });
+    const familyContentMenu = Object.assign(new MenuEntity(), {
+      id: 45,
+      path: '/family-content',
+      component: 'OldFamilyPage',
+      parentId: 10,
+    });
     const systemMenu = Object.assign(new MenuEntity(), {
       id: 10,
       path: '/system',
@@ -285,6 +305,8 @@ describe('AdminBootstrapService', () => {
           return staleTaskMenu;
         case '/insurance':
           return insuranceMenu;
+        case '/family-content':
+          return familyContentMenu;
         case '/system':
           return systemMenu;
         case '/system/automation':
@@ -304,6 +326,14 @@ describe('AdminBootstrapService', () => {
         component: 'TaskCenterPage',
         parentId: null,
         icon: null,
+      }),
+    );
+    expect(menuRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 45,
+        path: '/family-content',
+        component: 'FamilyContentPage',
+        parentId: null,
       }),
     );
   });

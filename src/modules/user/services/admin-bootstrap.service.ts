@@ -160,6 +160,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     if (menuCount > 0) {
       await this.ensureDefaultMenu(this.createTaskCenterMenu());
       await this.ensureDefaultMenu(this.createInsuranceMenu());
+      await this.ensureDefaultMenu(this.createFamilyContentMenu());
       const systemMenu = await this.ensureSystemMenu();
       await this.ensureDefaultMenu(this.createAutomationMenu(systemMenu.id));
       return;
@@ -170,6 +171,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
     const menus = this.menuRepository.create([
       this.createTaskCenterMenu(),
       this.createInsuranceMenu(),
+      this.createFamilyContentMenu(),
       {
         name: '用户管理',
         path: '/system/users',
@@ -330,6 +332,20 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       component: 'InsurancePage',
       parentId: null,
       sort: 16,
+      isVisible: true,
+      isActive: true,
+    };
+  }
+
+  private createFamilyContentMenu(): DefaultMenuDefinition {
+    return {
+      name: '家庭内容',
+      path: '/family-content',
+      type: MenuType.MENU,
+      icon: 'team',
+      component: 'FamilyContentPage',
+      parentId: null,
+      sort: 17,
       isVisible: true,
       isActive: true,
     };

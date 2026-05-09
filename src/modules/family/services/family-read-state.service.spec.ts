@@ -177,6 +177,58 @@ describe('FamilyReadStateService', () => {
     expect(readStateRepository.save).not.toHaveBeenCalled();
   });
 
+  it('caps explicit post read ids at the current latest post id', async () => {
+    readStateRepository.findOne.mockResolvedValue(
+      Object.assign(new FamilyReadStateEntity(), {
+        userId: 1,
+        lastReadPostId: 10,
+        lastReadChatMessageId: 20,
+      }),
+    );
+
+    await service.markPostsRead(user, 999);
+
+    expect(readStateRepository.update).toHaveBeenCalledWith(
+      {
+        userId: 1,
+        lastReadPostId: expect.any(Object),
+      },
+      expect.objectContaining({
+        lastReadPostId: 42,
+      }),
+    );
+    expect(readStateRepository.update).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ lastReadPostId: 999 }),
+    );
+  });
+
+  it('caps explicit chat read ids at the current latest message id', async () => {
+    readStateRepository.findOne.mockResolvedValue(
+      Object.assign(new FamilyReadStateEntity(), {
+        userId: 1,
+        lastReadPostId: 10,
+        lastReadChatMessageId: 20,
+      }),
+    );
+
+    await service.markChatRead(user, 999);
+
+    expect(readStateRepository.update).toHaveBeenCalledWith(
+      {
+        userId: 1,
+        lastReadChatMessageId: expect.any(Object),
+      },
+      expect.objectContaining({
+        lastReadChatMessageId: 77,
+      }),
+    );
+    expect(readStateRepository.update).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ lastReadChatMessageId: 999 }),
+    );
+  });
+
   it('refetches read state when first-time creation races with another request', async () => {
     const racedState = Object.assign(new FamilyReadStateEntity(), {
       id: 2,

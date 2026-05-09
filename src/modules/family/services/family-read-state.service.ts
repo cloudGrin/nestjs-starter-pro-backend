@@ -40,7 +40,7 @@ export class FamilyReadStateService {
     postId?: number,
   ): Promise<FamilyReadStateResponseDto> {
     const state = await this.ensureReadState(user.id);
-    const nextPostId = postId ?? (await this.findLatestPostId());
+    const nextPostId = await this.resolvePostReadPointer(postId);
     if (nextPostId && nextPostId > (state.lastReadPostId ?? 0)) {
       await this.updatePostReadPointer(user.id, nextPostId);
     }
@@ -53,12 +53,30 @@ export class FamilyReadStateService {
     messageId?: number,
   ): Promise<FamilyReadStateResponseDto> {
     const state = await this.ensureReadState(user.id);
-    const nextMessageId = messageId ?? (await this.findLatestChatMessageId());
+    const nextMessageId = await this.resolveChatReadPointer(messageId);
     if (nextMessageId && nextMessageId > (state.lastReadChatMessageId ?? 0)) {
       await this.updateChatReadPointer(user.id, nextMessageId);
     }
 
     return this.getState(user);
+  }
+
+  private async resolvePostReadPointer(postId?: number): Promise<number | null> {
+    const latestPostId = await this.findLatestPostId();
+    if (!latestPostId) {
+      return null;
+    }
+
+    return postId ? Math.min(postId, latestPostId) : latestPostId;
+  }
+
+  private async resolveChatReadPointer(messageId?: number): Promise<number | null> {
+    const latestMessageId = await this.findLatestChatMessageId();
+    if (!latestMessageId) {
+      return null;
+    }
+
+    return messageId ? Math.min(messageId, latestMessageId) : latestMessageId;
   }
 
   private async ensureReadState(userId: number): Promise<FamilyReadStateEntity> {

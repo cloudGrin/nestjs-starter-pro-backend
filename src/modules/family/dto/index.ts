@@ -1,3 +1,4 @@
+export * from './baby.dto';
 export * from './create-family-chat-message.dto';
 export * from './create-family-post-comment.dto';
 export * from './create-family-post.dto';

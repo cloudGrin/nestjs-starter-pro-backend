@@ -61,6 +61,8 @@ const DEFAULT_SYSTEM_PERMISSIONS = [
   { code: 'insurance:update', name: '更新保单', module: 'insurance', sort: 30 },
   { code: 'insurance:delete', name: '删除保单', module: 'insurance', sort: 40 },
   { code: 'insurance-member:manage', name: '管理保险成员', module: 'insurance', sort: 50 },
+  { code: 'baby:read', name: '查看宝宝档案', module: 'baby', sort: 10 },
+  { code: 'baby:update', name: '维护宝宝档案', module: 'baby', sort: 20 },
   { code: 'automation:read', name: '查看自动化任务', module: 'automation', sort: 10 },
   { code: 'automation:update', name: '更新自动化任务配置', module: 'automation', sort: 20 },
   { code: 'automation:execute', name: '执行自动化任务', module: 'automation', sort: 30 },
@@ -161,6 +163,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       await this.ensureDefaultMenu(this.createTaskCenterMenu());
       await this.ensureDefaultMenu(this.createInsuranceMenu());
       await this.ensureDefaultMenu(this.createFamilyContentMenu());
+      await this.ensureDefaultMenu(this.createBabyProfileMenu());
       const systemMenu = await this.ensureSystemMenu();
       await this.ensureDefaultMenu(this.createAutomationMenu(systemMenu.id));
       return;
@@ -172,6 +175,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       this.createTaskCenterMenu(),
       this.createInsuranceMenu(),
       this.createFamilyContentMenu(),
+      this.createBabyProfileMenu(),
       {
         name: '用户管理',
         path: '/system/users',
@@ -346,6 +350,20 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       component: 'FamilyContentPage',
       parentId: null,
       sort: 17,
+      isVisible: true,
+      isActive: true,
+    };
+  }
+
+  private createBabyProfileMenu(): DefaultMenuDefinition {
+    return {
+      name: '宝宝档案',
+      path: '/baby',
+      type: MenuType.MENU,
+      icon: 'heart',
+      component: 'BabyProfilePage',
+      parentId: null,
+      sort: 18,
       isVisible: true,
       isActive: true,
     };

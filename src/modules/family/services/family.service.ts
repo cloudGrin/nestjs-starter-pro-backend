@@ -239,6 +239,7 @@ export class FamilyService {
   }
 
   async unlikePost(postId: number, user: AuthenticatedUser): Promise<void> {
+    await this.ensurePostExists(postId);
     await this.postLikeRepository.delete({ postId, userId: user.id });
     this.eventService.emitPostLikeChanged({ postId, userId: user.id, liked: false });
   }

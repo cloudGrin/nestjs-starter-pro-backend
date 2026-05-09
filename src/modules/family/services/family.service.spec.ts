@@ -499,6 +499,23 @@ describe('FamilyService', () => {
     });
   });
 
+  it('rejects unliking a missing family post', async () => {
+    postRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.unlikePost(999, {
+        id: 1,
+        username: 'dad',
+        email: 'dad@example.com',
+        roles: [],
+        sessionId: 's1',
+      }),
+    ).rejects.toThrow(BusinessException);
+
+    expect(postLikeRepository.delete).not.toHaveBeenCalled();
+    expect(eventService.emitPostLikeChanged).not.toHaveBeenCalled();
+  });
+
   it('keeps family direct uploads on OSS with a 500MB media limit', async () => {
     fileService.createDirectUpload.mockResolvedValue({
       method: 'PUT',

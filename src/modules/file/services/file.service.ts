@@ -174,7 +174,7 @@ export class FileService {
           originalName: file.originalname,
           filename: stored.filename,
           path: stored.path,
-          url: options.isPublic ? stored.url : undefined,
+          url: undefined,
           mimeType,
           size: stored.size,
           category,
@@ -189,10 +189,7 @@ export class FileService {
         }),
       );
 
-      if (entity.isPublic && entity.storage === FileStorageType.LOCAL) {
-        entity.url = this.buildPublicDownloadUrl(entity.id);
-        await this.fileRepository.update(entity.id, { url: entity.url });
-      }
+      await this.ensurePublicDownloadUrl(entity);
     } catch (error) {
       let recordRollbackSucceeded = true;
       if (entity?.id) {
@@ -311,15 +308,13 @@ export class FileService {
       throw BusinessException.validationFailed('OSS 文件大小与上传令牌不匹配');
     }
 
-    const url = payload.isPublic ? oss.buildPublicUrl(payload.key) : undefined;
-
     try {
-      return await this.fileRepository.save(
+      const entity = await this.fileRepository.save(
         this.fileRepository.create({
           originalName: payload.originalName,
           filename: payload.filename,
           path: payload.key,
-          url,
+          url: undefined,
           mimeType: this.getEffectiveMimeType(
             payload.originalName,
             objectMeta.contentType || payload.mimeType,
@@ -338,6 +333,7 @@ export class FileService {
           uploaderId: payload.uploaderId,
         }),
       );
+      return await this.ensurePublicDownloadUrl(entity);
     } catch (error) {
       await oss.delete(payload.key).catch((deleteError) => {
         this.logger?.error(
@@ -558,6 +554,19 @@ export class FileService {
   private buildPublicDownloadUrl(fileId: number): string {
     const base = this.getPublicFileBaseUrl();
     return `${base}/${fileId}/public`;
+  }
+
+  private async ensurePublicDownloadUrl(entity: FileEntity): Promise<FileEntity> {
+    if (!entity.isPublic) {
+      return entity;
+    }
+
+    const url = this.buildPublicDownloadUrl(entity.id);
+    if (entity.url !== url) {
+      entity.url = url;
+      await this.fileRepository.update(entity.id, { url });
+    }
+    return entity;
   }
 
   private buildAccessUrl(fileId: number, token: string): string {

@@ -271,6 +271,41 @@ describe('FileService', () => {
         }),
       );
     });
+
+    it('公开 OSS 文件保存后端公开下载 URL，而不是私有 bucket 对象直链', async () => {
+      const file = createMockFile();
+      const storage = storageFactory.getStrategy(FileStorageType.OSS);
+      (storage.saveFile as jest.Mock).mockResolvedValueOnce({
+        filename: 'test_123.jpg',
+        path: 'user-avatar/2026/05/09/test_123.jpg',
+        size: file.size,
+        url: 'https://oss.example.com/user-avatar/2026/05/09/test_123.jpg',
+        metadata: {},
+      });
+      const entity = {
+        id: 9,
+        originalName: file.originalname,
+        storage: FileStorageType.OSS,
+        isPublic: true,
+      } as FileEntity;
+      repository.create.mockReturnValue(entity);
+      repository.save.mockResolvedValue(entity);
+
+      const result = await service.upload(
+        file,
+        { module: 'user-avatar', storage: FileStorageType.OSS, isPublic: true },
+        1,
+      );
+
+      expect(result.url).toBe('/api/v1/files/9/public');
+      expect(repository.update).toHaveBeenCalledWith(9, { url: '/api/v1/files/9/public' });
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: undefined,
+          isPublic: true,
+        }),
+      );
+    });
   });
 
   describe('getStorageOptions', () => {
@@ -424,6 +459,38 @@ describe('FileService', () => {
           url: undefined,
           uploaderId: 1,
           metadata: expect.objectContaining({ directUpload: true, etag: 'etag-1' }),
+        }),
+      );
+    });
+
+    it('公开 OSS 直传完成后保存后端公开下载 URL，而不是私有 bucket 对象直链', async () => {
+      const initiate = await service.createDirectUpload(
+        {
+          originalName: 'avatar.jpg',
+          mimeType: 'image/jpeg',
+          size: 1024 * 100,
+          module: 'user-avatar',
+          isPublic: true,
+        },
+        1,
+      );
+      const entity = {
+        id: 10,
+        originalName: 'avatar.jpg',
+        storage: FileStorageType.OSS,
+        isPublic: true,
+      } as FileEntity;
+      repository.create.mockReturnValue(entity);
+      repository.save.mockResolvedValue(entity);
+
+      const result = await service.completeDirectUpload({ uploadToken: initiate.uploadToken });
+
+      expect(result.url).toBe('/api/v1/files/10/public');
+      expect(repository.update).toHaveBeenCalledWith(10, { url: '/api/v1/files/10/public' });
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: undefined,
+          isPublic: true,
         }),
       );
     });

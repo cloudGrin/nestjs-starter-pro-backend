@@ -31,6 +31,7 @@ describe('FamilyService', () => {
   let notificationService: jest.Mocked<NotificationService>;
   let eventService: jest.Mocked<FamilyEventService>;
   let fileService: jest.Mocked<FileService>;
+  let logger: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -87,6 +88,7 @@ describe('FamilyService', () => {
     notificationService = module.get(NotificationService);
     eventService = module.get(FamilyEventService);
     fileService = module.get(FileService);
+    logger = module.get(LoggerService);
 
     postRepository.create.mockImplementation((data) => data as FamilyPostEntity);
     postRepository.save.mockImplementation(async (data) =>
@@ -225,6 +227,52 @@ describe('FamilyService', () => {
       }),
       1,
     );
+  });
+
+  it('logs family comment creation without storing comment content', async () => {
+    postRepository.findOne.mockResolvedValue(Object.assign(new FamilyPostEntity(), { id: 11 }));
+    userRepository.find.mockResolvedValue([
+      Object.assign(new UserEntity(), { id: 1 }),
+      Object.assign(new UserEntity(), { id: 2 }),
+    ]);
+
+    await service.createComment(
+      11,
+      { content: '真好看' },
+      { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+    );
+
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('[FamilyComment] create requested'),
+      'FamilyService',
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('[FamilyComment] create saved'),
+      'FamilyService',
+    );
+    expect(logger.log.mock.calls.flat().join(' ')).not.toContain('真好看');
+  });
+
+  it('logs family comment creation failures with safe context', async () => {
+    const databaseError = new Error('Unknown column parentCommentId');
+    postRepository.findOne.mockResolvedValue(Object.assign(new FamilyPostEntity(), { id: 11 }));
+    postCommentRepository.save.mockRejectedValue(databaseError);
+
+    await expect(
+      service.createComment(
+        11,
+        { content: '真好看' },
+        { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+      ),
+    ).rejects.toThrow(databaseError);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('[FamilyComment] create failed'),
+      databaseError.stack,
+      'FamilyService',
+    );
+    expect(logger.error.mock.calls.flat().join(' ')).toContain('postId=11');
+    expect(logger.error.mock.calls.flat().join(' ')).not.toContain('真好看');
   });
 
   it('creates replies with parent comment and reply target', async () => {

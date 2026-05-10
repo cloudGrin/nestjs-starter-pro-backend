@@ -183,40 +183,68 @@ export class FamilyService {
     dto: CreateFamilyPostCommentDto,
     user: AuthenticatedUser,
   ): Promise<FamilyPostCommentEntity> {
-    await this.ensurePostExists(postId);
-    const content = this.normalizeRequiredText(dto.content, '评论内容不能为空');
-    const parentComment = dto.parentCommentId
-      ? await this.ensureCommentBelongsToPost(postId, dto.parentCommentId)
-      : null;
-    const comment = await this.postCommentRepository.save(
-      this.postCommentRepository.create({
-        postId,
-        authorId: user.id,
-        parentCommentId: parentComment?.id,
-        replyToUserId: parentComment?.authorId,
-        content,
-      }),
+    const contentLength = dto.content?.trim().length ?? 0;
+    this.logger.log(
+      `[FamilyComment] create requested postId=${postId} userId=${user.id} parentCommentId=${
+        dto.parentCommentId ?? 'null'
+      } contentLength=${contentLength}`,
+      'FamilyService',
     );
 
-    await this.notifyFamilyExcept(user.id, {
-      title: '新的家庭评论',
-      content: this.buildNotificationContent(
-        user.username,
-        content,
-        parentComment ? '回复了家庭评论' : '评论了家庭动态',
-      ),
-      mobileLink: '/m/family',
-      metadata: {
-        module: 'family',
-        kind: parentComment ? 'comment-reply' : 'comment',
-        postId,
-        commentId: comment.id,
-        parentCommentId: parentComment?.id,
-      },
-    });
-    this.eventService.emitPostCommentCreated(comment);
+    try {
+      await this.ensurePostExists(postId);
+      const content = this.normalizeRequiredText(dto.content, '评论内容不能为空');
+      const parentComment = dto.parentCommentId
+        ? await this.ensureCommentBelongsToPost(postId, dto.parentCommentId)
+        : null;
+      const comment = await this.postCommentRepository.save(
+        this.postCommentRepository.create({
+          postId,
+          authorId: user.id,
+          parentCommentId: parentComment?.id,
+          replyToUserId: parentComment?.authorId,
+          content,
+        }),
+      );
 
-    return comment;
+      this.logger.log(
+        `[FamilyComment] create saved postId=${postId} commentId=${comment.id} userId=${
+          user.id
+        } parentCommentId=${parentComment?.id ?? 'null'} contentLength=${content.length}`,
+        'FamilyService',
+      );
+
+      await this.notifyFamilyExcept(user.id, {
+        title: '新的家庭评论',
+        content: this.buildNotificationContent(
+          user.username,
+          content,
+          parentComment ? '回复了家庭评论' : '评论了家庭动态',
+        ),
+        mobileLink: '/m/family',
+        metadata: {
+          module: 'family',
+          kind: parentComment ? 'comment-reply' : 'comment',
+          postId,
+          commentId: comment.id,
+          parentCommentId: parentComment?.id,
+        },
+      });
+      this.eventService.emitPostCommentCreated(comment);
+
+      return comment;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `[FamilyComment] create failed postId=${postId} userId=${user.id} parentCommentId=${
+          dto.parentCommentId ?? 'null'
+        } contentLength=${contentLength} error=${message}`,
+        stack,
+        'FamilyService',
+      );
+      throw error;
+    }
   }
 
   async likePost(postId: number, user: AuthenticatedUser): Promise<{ liked: true }> {

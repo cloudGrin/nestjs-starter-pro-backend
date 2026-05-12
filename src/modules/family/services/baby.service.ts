@@ -5,6 +5,11 @@ import { BusinessException } from '~/common/exceptions/business.exception';
 import { FileUtil } from '~/common/utils';
 import { DEFAULT_FAMILY_MEDIA_MAX_SIZE } from '~/config/constants';
 import { FileEntity, FileStorageType } from '~/modules/file/entities/file.entity';
+import {
+  OSS_IMAGE_AVATAR_PROCESS,
+  OSS_IMAGE_FEED_PROCESS,
+  OSS_IMAGE_PREVIEW_PROCESS,
+} from '~/modules/file/image-process.constants';
 import { FileService } from '~/modules/file/services/file.service';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
 import { UserEntity } from '~/modules/user/entities/user.entity';
@@ -43,7 +48,6 @@ const BABY_BIRTHDAY_ALLOWED_IMAGE_TYPES = [
   '.heic',
   '.heif',
 ];
-const BABY_IMAGE_WEBP_PROCESS = 'image/format,webp/quality,Q_100';
 
 @Injectable()
 export class BabyService {
@@ -378,7 +382,9 @@ export class BabyService {
       ? (
           await this.fileService.createTrustedAccessLink(profile.avatarFileId, {
             disposition: 'inline',
+            process: OSS_IMAGE_AVATAR_PROCESS,
             cacheMaxAgeSeconds: FAMILY_PRIVATE_MEDIA_CACHE_MAX_AGE_SECONDS,
+            file: profile.avatarFile ?? undefined,
           })
         ).url
       : null;
@@ -433,8 +439,11 @@ export class BabyService {
         ? (
             await this.fileService.createTrustedAccessLink(birthday.coverFileId, {
               disposition: 'inline',
-              process: BABY_IMAGE_WEBP_PROCESS,
+              ...(birthday.coverFile?.storage === FileStorageType.OSS
+                ? { process: OSS_IMAGE_FEED_PROCESS }
+                : {}),
               cacheMaxAgeSeconds: FAMILY_PRIVATE_MEDIA_CACHE_MAX_AGE_SECONDS,
+              file: birthday.coverFile ?? undefined,
             })
           ).url
         : (mediaResponses[0]?.displayUrl ?? null);
@@ -479,9 +488,19 @@ export class BabyService {
   ): Promise<BabyBirthdayMediaResponseDto> {
     const link = await this.fileService.createTrustedAccessLink(media.fileId, {
       disposition: 'inline',
-      process: BABY_IMAGE_WEBP_PROCESS,
+      ...(media.file?.storage === FileStorageType.OSS ? { process: OSS_IMAGE_FEED_PROCESS } : {}),
       cacheMaxAgeSeconds: FAMILY_PRIVATE_MEDIA_CACHE_MAX_AGE_SECONDS,
+      file: media.file,
     });
+    const previewLink =
+      media.file?.storage === FileStorageType.OSS
+        ? await this.fileService.createTrustedAccessLink(media.fileId, {
+            disposition: 'inline',
+            process: OSS_IMAGE_PREVIEW_PROCESS,
+            cacheMaxAgeSeconds: FAMILY_PRIVATE_MEDIA_CACHE_MAX_AGE_SECONDS,
+            file: media.file,
+          })
+        : null;
 
     return {
       id: media.id,
@@ -494,6 +513,7 @@ export class BabyService {
       mimeType: media.file?.mimeType,
       size: typeof media.file?.size === 'number' ? media.file.size : Number(media.file?.size ?? 0),
       displayUrl: link.url,
+      ...(previewLink ? { previewUrl: previewLink.url } : {}),
       expiresAt: link.expiresAt,
       createdAt: media.createdAt,
     };

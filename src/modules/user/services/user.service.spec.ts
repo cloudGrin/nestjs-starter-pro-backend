@@ -353,7 +353,7 @@ describe('UserService', () => {
       await expect(service.findUserById(1)).rejects.toThrow(NotFoundException);
     });
 
-    it('为当前用户资料中的本地头像生成30天私有缓存链接', async () => {
+    it('为当前用户资料中的头像生成30天私有缓存链接并请求头像尺寸的图片处理', async () => {
       const user = UserMockFactory.create({ id: 1, avatar: '/api/v1/files/9/public' });
       userRepository.findOne.mockResolvedValue(user);
       fileService.createTrustedAccessLink.mockResolvedValue({
@@ -366,6 +366,7 @@ describe('UserService', () => {
 
       expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(9, {
         disposition: 'inline',
+        process: 'image/resize,l_256,m_lfit/format,webp/quality,Q_82',
         cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
       });
       expect(result.avatar).toBe('/api/v1/files/9/access?token=avatar');

@@ -4,7 +4,12 @@ import dayjs from 'dayjs';
 import { In, IsNull, Repository } from 'typeorm';
 import { BusinessException } from '~/common/exceptions/business.exception';
 import { PaginationResult } from '~/common/types/pagination.types';
+import { DEFAULT_INSURANCE_ATTACHMENT_MAX_SIZE } from '~/config/constants';
 import { LoggerService } from '~/shared/logger/logger.service';
+import {
+  CompleteDirectUploadDto,
+  CreateDirectUploadDto,
+} from '~/modules/file/dto/direct-upload.dto';
 import { FileEntity } from '~/modules/file/entities/file.entity';
 import { FileService } from '~/modules/file/services/file.service';
 import { UserEntity } from '~/modules/user/entities/user.entity';
@@ -45,6 +50,13 @@ const POLICY_SORT_FIELDS = new Set([
   'nextPaymentDate',
   'name',
 ]);
+const INSURANCE_ATTACHMENT_FILE_OPTIONS = {
+  module: 'insurance-policy',
+  tags: 'insurance,policy',
+  isPublic: false,
+  maxSize: DEFAULT_INSURANCE_ATTACHMENT_MAX_SIZE,
+} as const;
+
 @Injectable()
 export class InsurancePolicyService {
   constructor(
@@ -63,6 +75,30 @@ export class InsurancePolicyService {
     private readonly fileService: FileService,
     private readonly logger: LoggerService,
   ) {}
+
+  async uploadAttachment(file: Express.Multer.File, user: CurrentUserLike): Promise<FileEntity> {
+    return this.fileService.upload(file, INSURANCE_ATTACHMENT_FILE_OPTIONS, user.id);
+  }
+
+  createAttachmentDirectUpload(
+    dto: CreateDirectUploadDto,
+    user: CurrentUserLike,
+  ): ReturnType<FileService['createDirectUpload']> {
+    return this.fileService.createDirectUpload(
+      {
+        ...dto,
+        module: INSURANCE_ATTACHMENT_FILE_OPTIONS.module,
+        tags: INSURANCE_ATTACHMENT_FILE_OPTIONS.tags,
+        isPublic: INSURANCE_ATTACHMENT_FILE_OPTIONS.isPublic,
+      },
+      user.id,
+      { maxSize: INSURANCE_ATTACHMENT_FILE_OPTIONS.maxSize },
+    );
+  }
+
+  async completeAttachmentDirectUpload(dto: CompleteDirectUploadDto): Promise<FileEntity> {
+    return this.fileService.completeDirectUpload(dto);
+  }
 
   async createPolicy(
     dto: CreateInsurancePolicyDto,
@@ -126,12 +162,15 @@ export class InsurancePolicyService {
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
+    const normalizedItems = await Promise.all(
+      items.map((policy) => this.normalizePolicyAttachmentFileUrls(policy)),
+    );
 
     return {
-      items,
+      items: normalizedItems,
       meta: {
         totalItems,
-        itemCount: items.length,
+        itemCount: normalizedItems.length,
         itemsPerPage: limit,
         totalPages: Math.ceil(totalItems / limit),
         currentPage: page,
@@ -140,7 +179,7 @@ export class InsurancePolicyService {
   }
 
   async findPolicy(id: number): Promise<InsurancePolicyEntity> {
-    return this.findByIdOrFail(id);
+    return this.normalizePolicyAttachmentFileUrls(await this.findByIdOrFail(id));
   }
 
   async findFamilyView(): Promise<InsuranceFamilyViewItem[]> {
@@ -151,8 +190,11 @@ export class InsurancePolicyService {
       relations: ['member', 'ownerUser', 'attachments', 'attachments.file'],
       order: { endDate: 'ASC', createdAt: 'DESC' },
     });
+    const normalizedPolicies = await Promise.all(
+      policies.map((policy) => this.normalizePolicyAttachmentFileUrls(policy)),
+    );
     const policiesByMember = new Map<number, InsurancePolicyEntity[]>();
-    policies.forEach((policy) => {
+    normalizedPolicies.forEach((policy) => {
       const list = policiesByMember.get(policy.memberId) ?? [];
       list.push(policy);
       policiesByMember.set(policy.memberId, list);
@@ -243,6 +285,24 @@ export class InsurancePolicyService {
     }
 
     return entity;
+  }
+
+  private async normalizePolicyAttachmentFileUrls(
+    policy: InsurancePolicyEntity,
+  ): Promise<InsurancePolicyEntity> {
+    if (!policy.attachments?.length) {
+      return policy;
+    }
+
+    await Promise.all(
+      policy.attachments.map(async (attachment) => {
+        if (attachment.file) {
+          attachment.file = await this.fileService.normalizePublicAccessUrl(attachment.file);
+        }
+      }),
+    );
+
+    return policy;
   }
 
   private toPolicyPatch(dto: Partial<CreateInsurancePolicyDto>): Partial<InsurancePolicyEntity> {

@@ -567,6 +567,68 @@ describe('FileService', () => {
     });
   });
 
+  describe('getPublicDownload', () => {
+    it('redirects public OSS image downloads to a resized WebP signed URL', async () => {
+      const file = {
+        id: 14,
+        originalName: 'legacy.jpg',
+        path: 'public/legacy.jpg',
+        mimeType: 'image/jpeg',
+        category: 'image',
+        storage: FileStorageType.OSS,
+        isPublic: true,
+        url: 'https://oss.example.com/public/legacy.jpg',
+      } as FileEntity;
+      repository.findOne.mockResolvedValue(file);
+
+      const result = await service.getPublicDownload(14);
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          file,
+          redirectUrl: 'https://oss.example.com/download-signature',
+          cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
+        }),
+      );
+      expect(result.stream).toBeUndefined();
+      expect(repository.update).toHaveBeenCalledWith(14, { url: '/api/v1/files/14/public' });
+      expect(file.url).toBe('/api/v1/files/14/public');
+      expect(storageFactory.getOssStrategy().createSignedDownloadUrl).toHaveBeenCalledWith(
+        'public/legacy.jpg',
+        30 * 24 * 60 * 60,
+        expect.objectContaining({
+          contentDisposition: "inline; filename*=UTF-8''legacy.jpg",
+          process: 'image/resize,l_1920,m_lfit/format,webp/quality,Q_86/interlace,1',
+          cacheControl: `public, max-age=${30 * 24 * 60 * 60}`,
+        }),
+      );
+    });
+
+    it('streams public local images as originals without OSS processing', async () => {
+      const stream = { pipe: jest.fn() } as any;
+      const storage = storageFactory.getStrategy(FileStorageType.LOCAL);
+      (storage.getStream as jest.Mock).mockResolvedValueOnce(stream);
+      repository.findOne.mockResolvedValue({
+        id: 15,
+        originalName: 'local.jpg',
+        path: 'uploads/local.jpg',
+        mimeType: 'image/jpeg',
+        category: 'image',
+        storage: FileStorageType.LOCAL,
+        isPublic: true,
+        url: '/api/v1/files/15/public',
+      } as FileEntity);
+
+      const result = await service.getPublicDownload(15);
+
+      expect(result.stream).toBe(stream);
+      expect(result.redirectUrl).toBeUndefined();
+      expect(result.cacheMaxAgeSeconds).toBeUndefined();
+      expect(storage.getStream).toHaveBeenCalledWith('uploads/local.jpg');
+      expect(storageFactory.getOssStrategy().createSignedDownloadUrl).not.toHaveBeenCalled();
+    });
+  });
+
   describe('createAccessLink', () => {
     it('为有权限的私有文件创建临时访问链接', async () => {
       repository.findOne.mockResolvedValue({
@@ -618,7 +680,7 @@ describe('FileService', () => {
       } as FileEntity);
       const link = await service.createTrustedAccessLink(5, {
         disposition: 'inline',
-        process: 'image/format,webp/quality,Q_100',
+        process: 'image/resize,l_1080,m_lfit/format,webp/quality,Q_82/interlace,1',
       });
 
       await service.resolveAccessLink(5, link.token);
@@ -627,17 +689,77 @@ describe('FileService', () => {
         'family-circle/2026/05/04/family.jpg',
         expect.any(Number),
         expect.objectContaining({
-          process: 'image/format,webp/quality,Q_100',
+          process: 'image/resize,l_1080,m_lfit/format,webp/quality,Q_82/interlace,1',
         }),
       );
     });
 
+    it('adds default resized WebP processing for inline OSS images without caller process', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 5,
+        originalName: 'family.jpg',
+        path: 'family-circle/2026/05/04/family.jpg',
+        mimeType: 'image/jpeg',
+        category: 'image',
+        storage: FileStorageType.OSS,
+        isPublic: false,
+        uploaderId: 1,
+      } as FileEntity);
+      const link = await service.createTrustedAccessLink(5, {
+        disposition: 'inline',
+      });
+
+      await service.resolveAccessLink(5, link.token);
+
+      expect(storageFactory.getOssStrategy().createSignedDownloadUrl).toHaveBeenCalledWith(
+        'family-circle/2026/05/04/family.jpg',
+        expect.any(Number),
+        expect.objectContaining({
+          process: 'image/resize,l_1920,m_lfit/format,webp/quality,Q_86/interlace,1',
+        }),
+      );
+    });
+
+    it('does not embed OSS image processing into local image trusted links', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 5,
+        originalName: 'family.jpg',
+        path: 'family-circle/2026/05/04/family.jpg',
+        mimeType: 'image/jpeg',
+        category: 'image',
+        storage: FileStorageType.LOCAL,
+        isPublic: false,
+        uploaderId: 1,
+      } as FileEntity);
+
+      const link = await service.createTrustedAccessLink(5, {
+        disposition: 'inline',
+        process: 'image/resize,l_1080,m_lfit/format,webp/quality,Q_82/interlace,1',
+      });
+      const [body] = link.token.split('.');
+      const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as {
+        process?: string;
+      };
+
+      expect(payload.process).toBeUndefined();
+    });
+
     it('keeps trusted access links stable inside a private cache window', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-05-10T00:00:00.000Z'));
+      repository.findOne.mockResolvedValue({
+        id: 5,
+        originalName: 'family.jpg',
+        path: 'family-circle/2026/05/04/family.jpg',
+        mimeType: 'image/jpeg',
+        category: 'image',
+        storage: FileStorageType.OSS,
+        isPublic: false,
+        uploaderId: 1,
+      } as FileEntity);
 
       const first = await service.createTrustedAccessLink(5, {
         disposition: 'inline',
-        process: 'image/format,webp/quality,Q_100',
+        process: 'image/resize,l_1080,m_lfit/format,webp/quality,Q_82/interlace,1',
         cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
       });
 
@@ -645,7 +767,7 @@ describe('FileService', () => {
 
       const second = await service.createTrustedAccessLink(5, {
         disposition: 'inline',
-        process: 'image/format,webp/quality,Q_100',
+        process: 'image/resize,l_1080,m_lfit/format,webp/quality,Q_82/interlace,1',
         cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
       });
 
@@ -743,6 +865,34 @@ describe('FileService', () => {
       expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('file.uploader', 'uploader');
     });
 
+    it('normalizes legacy public file URLs in list results', async () => {
+      const file = {
+        id: 22,
+        originalName: 'public.jpg',
+        filename: 'public.jpg',
+        path: 'image/public.jpg',
+        mimeType: 'image/jpeg',
+        category: 'image',
+        storage: FileStorageType.OSS,
+        isPublic: true,
+        url: 'https://oss.example.com/image/public.jpg',
+      } as FileEntity;
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[file], 1]),
+      };
+      repository.createQueryBuilder.mockReturnValue(qb as any);
+
+      const result = await service.findFiles({ page: 1, limit: 10 });
+
+      expect(result.items[0].url).toBe('/api/v1/files/22/public');
+      expect(repository.update).toHaveBeenCalledWith(22, { url: '/api/v1/files/22/public' });
+    });
+
     it('ignores unsupported sort fields and falls back to createdAt ordering', async () => {
       const qb = {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -770,6 +920,22 @@ describe('FileService', () => {
 
       expect(result).toEqual(file);
       expect(repository.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
+    });
+
+    it('normalizes legacy public URLs when loading a file by id', async () => {
+      const file = {
+        id: 23,
+        originalName: 'legacy.jpg',
+        storage: FileStorageType.OSS,
+        isPublic: true,
+        url: 'https://oss.example.com/legacy.jpg',
+      } as FileEntity;
+      repository.findOne.mockResolvedValue(file);
+
+      const result = await service.findById(23);
+
+      expect(result.url).toBe('/api/v1/files/23/public');
+      expect(repository.update).toHaveBeenCalledWith(23, { url: '/api/v1/files/23/public' });
     });
   });
 

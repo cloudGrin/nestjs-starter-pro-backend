@@ -184,13 +184,19 @@ describe('BabyService', () => {
     expect(overview.birthdays[0].coverUrl).toBe('/private/files/40');
   });
 
-  it('uses private cache links for baby avatar, birthday cover and birthday media', async () => {
+  it('uses private cache links with resized OSS image processing for baby images', async () => {
     profileRepository.findOne.mockResolvedValue(
       Object.assign(new BabyProfileEntity(), {
         id: 1,
         nickname: '小葡萄',
         birthDate: '2026-02-01',
         avatarFileId: 10,
+        avatarFile: Object.assign(new FileEntity(), {
+          id: 10,
+          storage: FileStorageType.OSS,
+          category: 'image',
+          mimeType: 'image/jpeg',
+        }),
       }),
     );
     growthRepository.find.mockResolvedValue([]);
@@ -200,7 +206,25 @@ describe('BabyService', () => {
         year: 2027,
         title: '一周岁生日',
         coverFileId: 20,
-        media: [Object.assign(new BabyBirthdayMediaEntity(), { id: 31, fileId: 41, sort: 0 })],
+        coverFile: Object.assign(new FileEntity(), {
+          id: 20,
+          storage: FileStorageType.OSS,
+          category: 'image',
+          mimeType: 'image/jpeg',
+        }),
+        media: [
+          Object.assign(new BabyBirthdayMediaEntity(), {
+            id: 31,
+            fileId: 41,
+            sort: 0,
+            file: Object.assign(new FileEntity(), {
+              id: 41,
+              storage: FileStorageType.OSS,
+              category: 'image',
+              mimeType: 'image/jpeg',
+            }),
+          }),
+        ],
         contributions: [],
       }),
     ]);
@@ -209,13 +233,17 @@ describe('BabyService', () => {
 
     expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(
       10,
-      expect.objectContaining({ disposition: 'inline', cacheMaxAgeSeconds: 30 * 24 * 60 * 60 }),
+      expect.objectContaining({
+        disposition: 'inline',
+        process: 'image/resize,l_256,m_lfit/format,webp/quality,Q_82',
+        cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
+      }),
     );
     expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(
       20,
       expect.objectContaining({
         disposition: 'inline',
-        process: 'image/format,webp/quality,Q_100',
+        process: 'image/resize,l_1080,m_lfit/format,webp/quality,Q_82/interlace,1',
         cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
       }),
     );
@@ -223,7 +251,15 @@ describe('BabyService', () => {
       41,
       expect.objectContaining({
         disposition: 'inline',
-        process: 'image/format,webp/quality,Q_100',
+        process: 'image/resize,l_1080,m_lfit/format,webp/quality,Q_82/interlace,1',
+        cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
+      }),
+    );
+    expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(
+      41,
+      expect.objectContaining({
+        disposition: 'inline',
+        process: 'image/resize,l_1920,m_lfit/format,webp/quality,Q_86/interlace,1',
         cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
       }),
     );

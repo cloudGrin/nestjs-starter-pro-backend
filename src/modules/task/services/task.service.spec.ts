@@ -58,6 +58,7 @@ describe('TaskService', () => {
             checkDownloadPermission: jest.fn(),
             getDownloadStream: jest.fn(),
             createTrustedAccessLink: jest.fn(),
+            normalizePublicAccessUrl: jest.fn(async (file: FileEntity) => file),
           },
         },
         {
@@ -480,6 +481,40 @@ describe('TaskService', () => {
     taskRepository.findOne.mockResolvedValue(task);
 
     await expect((service as any).findTask(8, { id: 1 })).rejects.toThrow(BusinessException);
+  });
+
+  it('normalizes public attachment file URLs when reading a task', async () => {
+    const file = Object.assign(new FileEntity(), {
+      id: 21,
+      originalName: 'photo.jpg',
+      url: 'https://oss.example.com/photo.jpg',
+    });
+    const normalizedFile = Object.assign(new FileEntity(), {
+      ...file,
+      url: '/api/v1/files/21/public',
+    });
+    const task = Object.assign(new TaskEntity(), {
+      id: 8,
+      title: '家庭任务',
+      list: Object.assign(new TaskListEntity(), {
+        id: 4,
+        scope: TaskListScope.FAMILY,
+      }),
+      attachments: [
+        Object.assign(new TaskAttachmentEntity(), {
+          taskId: 8,
+          fileId: 21,
+          file,
+        }),
+      ],
+    });
+    taskRepository.findOne.mockResolvedValue(task);
+    fileService.normalizePublicAccessUrl.mockResolvedValueOnce(normalizedFile);
+
+    const result = await service.findTask(8, { id: 1 } as any);
+
+    expect(fileService.normalizePublicAccessUrl).toHaveBeenCalledWith(file);
+    expect(result.attachments?.[0].file?.url).toBe('/api/v1/files/21/public');
   });
 
   it('includes personal list ownership in list visibility', async () => {

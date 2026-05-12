@@ -12,6 +12,7 @@ import { CacheService } from '~/shared/cache/cache.service';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { RefreshTokenEntity } from '~/modules/auth/entities/refresh-token.entity';
 import { UserNotificationSettingEntity } from '~/modules/notification/entities/user-notification-setting.entity';
+import { OSS_IMAGE_AVATAR_PROCESS } from '~/modules/file/image-process.constants';
 import { FileService } from '~/modules/file/services/file.service';
 import { UserEntity } from '../entities/user.entity';
 import { RoleEntity } from '~/modules/role/entities/role.entity';
@@ -256,6 +257,7 @@ export class UserService {
 
     const link = await this.fileService.createTrustedAccessLink(fileId, {
       disposition: 'inline',
+      process: OSS_IMAGE_AVATAR_PROCESS,
       cacheMaxAgeSeconds: USER_AVATAR_CACHE_MAX_AGE_SECONDS,
     });
 

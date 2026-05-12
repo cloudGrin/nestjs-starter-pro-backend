@@ -184,7 +184,7 @@ export class TaskService {
   }
 
   async findTask(id: number, user: CurrentUserLike): Promise<TaskEntity> {
-    return this.findByIdOrFail(id, user);
+    return this.normalizeTaskAttachmentFileUrls(await this.findByIdOrFail(id, user));
   }
 
   async findAssigneeOptions(): Promise<UserEntity[]> {
@@ -493,7 +493,27 @@ export class TaskService {
     });
     const taskById = new Map(detailedTasks.map((task) => [task.id, task]));
 
-    return ids.map((id) => taskById.get(id)).filter((task): task is TaskEntity => Boolean(task));
+    const orderedTasks = ids
+      .map((id) => taskById.get(id))
+      .filter((task): task is TaskEntity => Boolean(task));
+
+    return Promise.all(orderedTasks.map((task) => this.normalizeTaskAttachmentFileUrls(task)));
+  }
+
+  private async normalizeTaskAttachmentFileUrls(task: TaskEntity): Promise<TaskEntity> {
+    if (!task.attachments?.length) {
+      return task;
+    }
+
+    await Promise.all(
+      task.attachments.map(async (attachment) => {
+        if (attachment.file) {
+          attachment.file = await this.fileService.normalizePublicAccessUrl(attachment.file);
+        }
+      }),
+    );
+
+    return task;
   }
 
   private async findByIdOrFail(

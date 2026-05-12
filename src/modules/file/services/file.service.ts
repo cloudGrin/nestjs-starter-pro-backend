@@ -14,6 +14,7 @@ import { UploadFileDto } from '../dto/upload-file.dto';
 import { QueryFileDto } from '../dto/query-file.dto';
 import { CompleteDirectUploadDto, CreateDirectUploadDto } from '../dto/direct-upload.dto';
 import { CreateFileAccessLinkDto, FileAccessDisposition } from '../dto/file-access-link.dto';
+import { OSS_IMAGE_DEFAULT_INLINE_PROCESS } from '../image-process.constants';
 import { FileStorageFactory } from '../storage/storage.factory';
 import { FileStorageStrategy } from '../storage/file-storage.interface';
 
@@ -76,10 +77,19 @@ interface FileValidationOptions {
 interface TrustedAccessLinkOptions {
   process?: string;
   cacheMaxAgeSeconds?: number;
+  file?: Pick<FileEntity, 'storage' | 'category' | 'mimeType' | 'originalName'>;
+}
+
+export interface PublicDownloadResult {
+  file: FileEntity;
+  stream?: NodeJS.ReadableStream;
+  redirectUrl?: string;
+  cacheMaxAgeSeconds?: number;
 }
 
 const FILE_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'originalName', 'filename', 'size']);
 const DEFAULT_FILE_MODULE = 'files';
+const PUBLIC_IMAGE_CACHE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 const STORAGE_OPTION_LABELS: Record<FileStorageType, string> = {
   [FileStorageType.LOCAL]: '本地存储',
   [FileStorageType.OSS]: '阿里云 OSS',
@@ -377,7 +387,7 @@ export class FileService {
    * 根据ID查询文件
    */
   async findById(id: number): Promise<FileEntity> {
-    return this.findByIdOrFail(id);
+    return this.normalizePublicAccessUrl(await this.findByIdOrFail(id));
   }
 
   /**
@@ -446,13 +456,23 @@ export class FileService {
     return storage.getStream(entity.path);
   }
 
-  async getPublicDownload(id: number): Promise<{
-    file: FileEntity;
-    stream: NodeJS.ReadableStream;
-  }> {
+  async getPublicDownload(id: number): Promise<PublicDownloadResult> {
     const file = await this.findById(id);
     if (!file.isPublic) {
       throw BusinessException.notFound('File', id);
+    }
+
+    if (file.storage === FileStorageType.OSS && this.isImageFile(file)) {
+      const oss = this.storageFactory.getOssStrategy();
+      return {
+        file,
+        redirectUrl: oss.createSignedDownloadUrl(file.path, PUBLIC_IMAGE_CACHE_MAX_AGE_SECONDS, {
+          contentDisposition: this.buildContentDisposition(file, 'inline'),
+          process: OSS_IMAGE_DEFAULT_INLINE_PROCESS,
+          cacheControl: this.buildPublicCacheControl(PUBLIC_IMAGE_CACHE_MAX_AGE_SECONDS),
+        }),
+        cacheMaxAgeSeconds: PUBLIC_IMAGE_CACHE_MAX_AGE_SECONDS,
+      };
     }
 
     const storage = this.getStorageStrategy(file.storage);
@@ -460,6 +480,10 @@ export class FileService {
       file,
       stream: await storage.getStream(file.path),
     };
+  }
+
+  async normalizePublicAccessUrl(file: FileEntity): Promise<FileEntity> {
+    return this.ensurePublicDownloadUrl(file);
   }
 
   async createAccessLink(
@@ -474,7 +498,7 @@ export class FileService {
     const file = await this.findById(id);
     this.checkDownloadPermission(file, user);
 
-    return this.createTrustedAccessLink(id, dto);
+    return this.createTrustedAccessLink(id, { ...dto, file });
   }
 
   async createTrustedAccessLink(
@@ -486,16 +510,18 @@ export class FileService {
     expiresAt: string;
     cacheMaxAgeSeconds?: number;
   }> {
+    const file = dto.file ?? (await this.findById(id));
     const cacheMaxAgeSeconds = this.normalizeCacheMaxAgeSeconds(dto.cacheMaxAgeSeconds);
     const expiresAt = cacheMaxAgeSeconds
       ? this.getStableWindowExpiresAt(cacheMaxAgeSeconds)
       : this.getExpiresAt(this.privateLinkTtlSeconds);
     const disposition = dto.disposition ?? 'attachment';
+    const process = this.getTrustedAccessProcess(file, dto.process, disposition);
     const tokenPayload: FileAccessTokenPayload = {
       type: 'file-access',
       fileId: id,
       disposition,
-      process: dto.process,
+      process,
       cacheMaxAgeSeconds,
       exp: expiresAt.unix,
     };
@@ -781,6 +807,38 @@ export class FileService {
     return maxAgeSeconds ? `private, max-age=${maxAgeSeconds}` : undefined;
   }
 
+  private buildPublicCacheControl(maxAgeSeconds?: number): string | undefined {
+    return maxAgeSeconds ? `public, max-age=${maxAgeSeconds}` : undefined;
+  }
+
+  private getTrustedAccessProcess(
+    file: Pick<FileEntity, 'storage' | 'category' | 'mimeType' | 'originalName'>,
+    requestedProcess: string | undefined,
+    disposition: FileAccessDisposition,
+  ): string | undefined {
+    if (file.storage !== FileStorageType.OSS) {
+      return undefined;
+    }
+
+    if (requestedProcess) {
+      return requestedProcess;
+    }
+
+    if (disposition === 'inline' && this.isImageFile(file)) {
+      return OSS_IMAGE_DEFAULT_INLINE_PROCESS;
+    }
+
+    return undefined;
+  }
+
+  private isImageFile(file: Pick<FileEntity, 'category' | 'mimeType' | 'originalName'>): boolean {
+    if (file.category === 'image' || file.mimeType?.startsWith('image/')) {
+      return true;
+    }
+
+    return FileUtil.isImage(file.originalName);
+  }
+
   private signToken(payload: BaseTokenPayload): string {
     const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
     const signature = createHmac('sha256', this.getTokenSecret()).update(body).digest('base64url');
@@ -874,12 +932,15 @@ export class FileService {
     const skip = (page - 1) * limit;
 
     const [items, totalItems] = await qb.skip(skip).take(limit).getManyAndCount();
+    const normalizedItems = await Promise.all(
+      items.map((item) => this.normalizePublicAccessUrl(item)),
+    );
 
     return {
-      items,
+      items: normalizedItems,
       meta: {
         totalItems,
-        itemCount: items.length,
+        itemCount: normalizedItems.length,
         itemsPerPage: limit,
         totalPages: Math.ceil(totalItems / limit),
         currentPage: page,

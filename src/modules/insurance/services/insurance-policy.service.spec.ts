@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BusinessException } from '~/common/exceptions/business.exception';
+import { DEFAULT_INSURANCE_ATTACHMENT_MAX_SIZE } from '~/config/constants';
 import { UserEntity } from '~/modules/user/entities/user.entity';
 import { createMockLogger, createMockRepository } from '~/test-utils';
 import { LoggerService } from '~/shared/logger/logger.service';
@@ -53,7 +54,11 @@ describe('InsurancePolicyService', () => {
         {
           provide: FileService,
           useValue: {
+            upload: jest.fn(),
+            createDirectUpload: jest.fn(),
+            completeDirectUpload: jest.fn(),
             getDownloadStream: jest.fn(),
+            normalizePublicAccessUrl: jest.fn(async (file: FileEntity) => file),
           },
         },
         { provide: LoggerService, useValue: createMockLogger() },
@@ -183,6 +188,36 @@ describe('InsurancePolicyService', () => {
     );
   });
 
+  it('normalizes public attachment file URLs when reading a policy', async () => {
+    const file = Object.assign(new FileEntity(), {
+      id: 21,
+      originalName: 'invoice.jpg',
+      url: 'https://oss.example.com/invoice.jpg',
+    });
+    const normalizedFile = Object.assign(new FileEntity(), {
+      ...file,
+      url: '/api/v1/files/21/public',
+    });
+    const policy = Object.assign(new InsurancePolicyEntity(), {
+      id: 88,
+      name: '家庭百万医疗',
+      attachments: [
+        Object.assign(new InsurancePolicyAttachmentEntity(), {
+          policyId: 88,
+          fileId: 21,
+          file,
+        }),
+      ],
+    });
+    policyRepository.findOne.mockResolvedValue(policy);
+    fileService.normalizePublicAccessUrl.mockResolvedValueOnce(normalizedFile);
+
+    const result = await service.findPolicy(88);
+
+    expect(fileService.normalizePublicAccessUrl).toHaveBeenCalledWith(file);
+    expect(result.attachments?.[0].file?.url).toBe('/api/v1/files/21/public');
+  });
+
   it('stores policy payment metadata when creating a policy', async () => {
     memberRepository.findOne.mockResolvedValue(
       Object.assign(new InsuranceMemberEntity(), { id: 3 }),
@@ -264,6 +299,64 @@ describe('InsurancePolicyService', () => {
       ),
     ).rejects.toThrow(BusinessException);
     expect(policyRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('uploads policy attachments with the insurance attachment size limit', async () => {
+    const file = {
+      originalname: 'policy-contract.pdf',
+      mimetype: 'application/pdf',
+      size: 80 * 1024 * 1024,
+      buffer: Buffer.from('contract'),
+    } as Express.Multer.File;
+    const uploaded = Object.assign(new FileEntity(), { id: 21 });
+    fileService.upload.mockResolvedValueOnce(uploaded);
+
+    await expect(service.uploadAttachment(file, { id: 1 } as any)).resolves.toBe(uploaded);
+
+    expect(fileService.upload).toHaveBeenCalledWith(
+      file,
+      expect.objectContaining({
+        module: 'insurance-policy',
+        tags: 'insurance,policy',
+        isPublic: false,
+        maxSize: DEFAULT_INSURANCE_ATTACHMENT_MAX_SIZE,
+      }),
+      1,
+    );
+  });
+
+  it('creates policy attachment direct uploads with the insurance attachment size limit', async () => {
+    const initResult = {
+      method: 'PUT' as const,
+      uploadUrl: 'https://oss.example.com/policy-contract.pdf',
+      uploadToken: 'token-1',
+      expiresAt: '2026-05-01T00:15:00.000Z',
+      headers: { 'Content-Type': 'application/pdf' },
+    };
+    fileService.createDirectUpload.mockResolvedValueOnce(initResult);
+
+    await expect(
+      service.createAttachmentDirectUpload(
+        {
+          originalName: 'policy-contract.pdf',
+          mimeType: 'application/pdf',
+          size: 80 * 1024 * 1024,
+        },
+        { id: 1 } as any,
+      ),
+    ).resolves.toBe(initResult);
+
+    expect(fileService.createDirectUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        originalName: 'policy-contract.pdf',
+        mimeType: 'application/pdf',
+        module: 'insurance-policy',
+        tags: 'insurance,policy',
+        isPublic: false,
+      }),
+      1,
+      { maxSize: DEFAULT_INSURANCE_ATTACHMENT_MAX_SIZE },
+    );
   });
 
   it('rebuilds pending reminders when the policy owner changes', async () => {

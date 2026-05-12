@@ -17,6 +17,7 @@ export interface FamilyMediaResponseDto {
   originalName?: string;
   size?: number;
   displayUrl: string;
+  previewUrl?: string;
   posterUrl?: string;
   expiresAt: string;
 }

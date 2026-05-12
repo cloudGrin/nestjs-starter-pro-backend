@@ -7,6 +7,10 @@ import { FileUtil } from '~/common/utils';
 import { UserStatus } from '~/common/enums/user.enum';
 import { DEFAULT_FAMILY_MEDIA_MAX_SIZE } from '~/config/constants';
 import { FileEntity, FileStorageType } from '~/modules/file/entities/file.entity';
+import {
+  OSS_IMAGE_FEED_PROCESS,
+  OSS_IMAGE_PREVIEW_PROCESS,
+} from '~/modules/file/image-process.constants';
 import { CompleteDirectUploadDto } from '~/modules/file/dto/direct-upload.dto';
 import { FileService } from '~/modules/file/services/file.service';
 import {
@@ -51,7 +55,6 @@ import {
 import { FAMILY_PRIVATE_MEDIA_CACHE_MAX_AGE_SECONDS } from '../family-media-cache.constants';
 import { FamilyEventService } from './family-event.service';
 
-const FAMILY_IMAGE_WEBP_PROCESS = 'image/format,webp/quality,Q_100';
 const FAMILY_VIDEO_POSTER_PROCESS = 'video/snapshot,t_1000,f_jpg,w_720,m_fast';
 const FAMILY_MEDIA_ALLOWED_TYPES = [
   '.jpg',
@@ -289,11 +292,7 @@ export class FamilyService {
     this.logger.log(`Deleted family post ${postId} by user ${user.id}`);
   }
 
-  async deleteComment(
-    postId: number,
-    commentId: number,
-    user: AuthenticatedUser,
-  ): Promise<void> {
+  async deleteComment(postId: number, commentId: number, user: AuthenticatedUser): Promise<void> {
     const comment = await this.postCommentRepository.findOne({
       where: { id: commentId, postId },
       relations: ['post'],
@@ -452,18 +451,29 @@ export class FamilyService {
         const link = await this.fileService.createTrustedAccessLink(item.fileId, {
           disposition: 'inline',
           cacheMaxAgeSeconds: FAMILY_PRIVATE_MEDIA_CACHE_MAX_AGE_SECONDS,
-          ...(item.mediaType === FamilyMediaType.IMAGE
+          file,
+          ...(item.mediaType === FamilyMediaType.IMAGE && file?.storage === FileStorageType.OSS
             ? {
-                process: FAMILY_IMAGE_WEBP_PROCESS,
+                process: OSS_IMAGE_FEED_PROCESS,
               }
             : {}),
         });
+        const previewLink =
+          item.mediaType === FamilyMediaType.IMAGE && file?.storage === FileStorageType.OSS
+            ? await this.fileService.createTrustedAccessLink(item.fileId, {
+                disposition: 'inline',
+                cacheMaxAgeSeconds: FAMILY_PRIVATE_MEDIA_CACHE_MAX_AGE_SECONDS,
+                process: OSS_IMAGE_PREVIEW_PROCESS,
+                file,
+              })
+            : null;
         const posterLink =
           item.mediaType === FamilyMediaType.VIDEO && file?.storage === FileStorageType.OSS
             ? await this.fileService.createTrustedAccessLink(item.fileId, {
                 disposition: 'inline',
                 cacheMaxAgeSeconds: FAMILY_PRIVATE_MEDIA_CACHE_MAX_AGE_SECONDS,
                 process: FAMILY_VIDEO_POSTER_PROCESS,
+                file,
               })
             : null;
 
@@ -476,6 +486,7 @@ export class FamilyService {
           originalName: file?.originalName,
           size: typeof file?.size === 'number' ? file.size : Number(file?.size ?? 0),
           displayUrl: link.url,
+          ...(previewLink ? { previewUrl: previewLink.url } : {}),
           ...(posterLink ? { posterUrl: posterLink.url } : {}),
           expiresAt: link.expiresAt,
         };

@@ -12,12 +12,19 @@ import {
   Query,
   Res,
   StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { RequirePermissions } from '~/core/decorators';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
+import {
+  CompleteDirectUploadDto,
+  CreateDirectUploadDto,
+} from '~/modules/file/dto/direct-upload.dto';
 import {
   CreateInsurancePolicyDto,
   QueryInsurancePolicyDto,
@@ -67,6 +74,48 @@ export class InsurancePolicyController {
   @ApiOperation({ summary: '更新保单' })
   async updatePolicy(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateInsurancePolicyDto) {
     return this.policyService.updatePolicy(id, dto);
+  }
+
+  @Post('attachments/upload')
+  @RequirePermissions('insurance:create', 'insurance:update')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: '上传保单附件' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: '保单合同附件',
+        },
+      },
+    },
+  })
+  async uploadAttachment(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.policyService.uploadAttachment(file, user);
+  }
+
+  @Post('attachments/direct-upload/initiate')
+  @RequirePermissions('insurance:create', 'insurance:update')
+  @ApiOperation({ summary: '初始化保单附件 OSS 直传' })
+  async createAttachmentDirectUpload(
+    @Body() dto: CreateDirectUploadDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.policyService.createAttachmentDirectUpload(dto, user);
+  }
+
+  @Post('attachments/direct-upload/complete')
+  @RequirePermissions('insurance:create', 'insurance:update')
+  @ApiOperation({ summary: '完成保单附件 OSS 直传' })
+  async completeAttachmentDirectUpload(@Body() dto: CompleteDirectUploadDto) {
+    return this.policyService.completeAttachmentDirectUpload(dto);
   }
 
   @Delete(':id')

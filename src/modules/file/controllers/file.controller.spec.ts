@@ -8,6 +8,7 @@ describe('FileController', () => {
   const createController = () => {
     const fileService = {
       upload: jest.fn().mockResolvedValue({ id: 1 }),
+      getPublicDownload: jest.fn(),
       resolveAccessLink: jest.fn(),
     };
 
@@ -140,5 +141,45 @@ describe('FileController', () => {
 
     expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'private, max-age=120');
     expect(res.redirect).toHaveBeenCalledWith(302, 'https://oss.example.com/family.jpg');
+  });
+
+  it('redirects public downloads when the file service returns a processed OSS URL', async () => {
+    const { controller, fileService } = createController();
+    const res = createResponse();
+    fileService.getPublicDownload.mockResolvedValue({
+      file: {
+        originalName: 'family.jpg',
+        mimeType: 'image/jpeg',
+      },
+      redirectUrl: 'https://oss.example.com/family.webp',
+      cacheMaxAgeSeconds: 300,
+    });
+
+    await controller.publicDownload(5, res as any);
+
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=300');
+    expect(res.redirect).toHaveBeenCalledWith(302, 'https://oss.example.com/family.webp');
+  });
+
+  it('streams public local downloads when no redirect URL is returned', async () => {
+    const { controller, fileService } = createController();
+    const stream = { pipe: jest.fn() };
+    const res = createResponse();
+    fileService.getPublicDownload.mockResolvedValue({
+      file: {
+        originalName: 'local.jpg',
+        mimeType: 'image/jpeg',
+      },
+      stream,
+    });
+
+    await controller.publicDownload(5, res as any);
+
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/jpeg');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Disposition',
+      "inline; filename*=UTF-8''local.jpg",
+    );
+    expect(res.redirect).not.toHaveBeenCalled();
   });
 });

@@ -164,6 +164,7 @@ export interface BabyBirthdayMediaResponseDto {
   mimeType?: string;
   size?: number;
   displayUrl: string;
+  previewUrl?: string;
   expiresAt: string;
   createdAt?: Date;
 }

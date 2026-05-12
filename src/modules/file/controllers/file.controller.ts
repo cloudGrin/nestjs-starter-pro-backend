@@ -61,6 +61,14 @@ function setPrivateCacheHeader(res: Response, maxAgeSeconds?: number): void {
   res.setHeader('Cache-Control', `private, max-age=${Math.floor(maxAgeSeconds)}`);
 }
 
+function setPublicCacheHeader(res: Response, maxAgeSeconds?: number): void {
+  if (!maxAgeSeconds || maxAgeSeconds <= 0) {
+    return;
+  }
+
+  res.setHeader('Cache-Control', `public, max-age=${Math.floor(maxAgeSeconds)}`);
+}
+
 @ApiTags('文件管理')
 @ApiBearerAuth()
 @Controller('files')
@@ -205,15 +213,20 @@ export class FileController {
     @Param('id', ParseIntPipe) id: number,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { file, stream } = await this.fileService.getPublicDownload(id);
+    const result = await this.fileService.getPublicDownload(id);
+    setPublicCacheHeader(res, result.cacheMaxAgeSeconds);
+    if (result.redirectUrl) {
+      res.redirect(302, result.redirectUrl);
+      return;
+    }
 
-    res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Type', result.file.mimeType || 'application/octet-stream');
     res.setHeader(
       'Content-Disposition',
-      `inline; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+      `inline; filename*=UTF-8''${encodeURIComponent(result.file.originalName)}`,
     );
 
-    return new StreamableFile(stream as any);
+    return new StreamableFile(result.stream as any);
   }
 
   @Post(':id/access-link')

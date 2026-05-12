@@ -443,23 +443,26 @@ describe('FamilyService', () => {
     expect(eventService.emitPostCommentDeleted).not.toHaveBeenCalled();
   });
 
-  it('uses WebP image links and OSS snapshot poster links for videos', async () => {
-    fileService.createTrustedAccessLink
-      .mockResolvedValueOnce({
-        url: '/api/v1/files/7/access?token=webp',
-        token: 'webp',
+  it('uses resized WebP image links and OSS snapshot poster links for videos', async () => {
+    fileService.createTrustedAccessLink.mockImplementation(async (fileId, options) => {
+      const process = options.process;
+      const token =
+        fileId === 7 &&
+        process === 'image/resize,l_1080,m_lfit/format,webp/quality,Q_82/interlace,1'
+          ? 'feed'
+          : fileId === 7 &&
+              process === 'image/resize,l_1920,m_lfit/format,webp/quality,Q_86/interlace,1'
+            ? 'preview'
+            : fileId === 8 && process === 'video/snapshot,t_1000,f_jpg,w_720,m_fast'
+              ? 'poster'
+              : 'video';
+
+      return {
+        url: `/api/v1/files/${fileId}/access?token=${token}`,
+        token,
         expiresAt: '2026-05-04T00:00:00.000Z',
-      })
-      .mockResolvedValueOnce({
-        url: '/api/v1/files/8/access?token=video',
-        token: 'video',
-        expiresAt: '2026-05-04T00:00:00.000Z',
-      })
-      .mockResolvedValueOnce({
-        url: '/api/v1/files/8/access?token=poster',
-        token: 'poster',
-        expiresAt: '2026-05-04T00:00:00.000Z',
-      });
+      };
+    });
 
     const result = await service.toMediaResponse([
       Object.assign(new FamilyPostMediaEntity(), {
@@ -471,6 +474,7 @@ describe('FamilyService', () => {
           id: 7,
           mimeType: 'image/jpeg',
           category: 'image',
+          storage: FileStorageType.OSS,
         }),
       }),
       Object.assign(new FamilyPostMediaEntity(), {
@@ -487,22 +491,27 @@ describe('FamilyService', () => {
       }),
     ]);
 
-    expect(fileService.createTrustedAccessLink).toHaveBeenNthCalledWith(
-      1,
+    expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(
       7,
       expect.objectContaining({
         disposition: 'inline',
-        process: 'image/format,webp/quality,Q_100',
+        process: 'image/resize,l_1080,m_lfit/format,webp/quality,Q_82/interlace,1',
         cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
       }),
     );
-    expect(fileService.createTrustedAccessLink).toHaveBeenNthCalledWith(
-      2,
+    expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        disposition: 'inline',
+        process: 'image/resize,l_1920,m_lfit/format,webp/quality,Q_86/interlace,1',
+        cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
+      }),
+    );
+    expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(
       8,
       expect.objectContaining({ disposition: 'inline', cacheMaxAgeSeconds: 30 * 24 * 60 * 60 }),
     );
-    expect(fileService.createTrustedAccessLink).toHaveBeenNthCalledWith(
-      3,
+    expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(
       8,
       expect.objectContaining({
         disposition: 'inline',
@@ -511,7 +520,12 @@ describe('FamilyService', () => {
       }),
     );
     expect(result).toEqual([
-      expect.objectContaining({ fileId: 7, mediaType: 'image', displayUrl: expect.any(String) }),
+      expect.objectContaining({
+        fileId: 7,
+        mediaType: 'image',
+        displayUrl: '/api/v1/files/7/access?token=feed',
+        previewUrl: '/api/v1/files/7/access?token=preview',
+      }),
       expect.objectContaining({
         fileId: 8,
         mediaType: 'video',
@@ -519,6 +533,41 @@ describe('FamilyService', () => {
         posterUrl: '/api/v1/files/8/access?token=poster',
       }),
     ]);
+  });
+
+  it('keeps local family images on original links without OSS image processing', async () => {
+    fileService.createTrustedAccessLink.mockResolvedValue({
+      url: '/api/v1/files/17/access?token=local',
+      token: 'local',
+      expiresAt: '2026-05-04T00:00:00.000Z',
+    });
+
+    const result = await service.toMediaResponse([
+      Object.assign(new FamilyPostMediaEntity(), {
+        id: 17,
+        fileId: 17,
+        mediaType: 'image',
+        sort: 0,
+        file: Object.assign(new FileEntity(), {
+          id: 17,
+          mimeType: 'image/jpeg',
+          category: 'image',
+          storage: FileStorageType.LOCAL,
+        }),
+      }),
+    ]);
+
+    expect(fileService.createTrustedAccessLink).toHaveBeenCalledTimes(1);
+    expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(
+      17,
+      expect.not.objectContaining({ process: expect.any(String) }),
+    );
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        displayUrl: '/api/v1/files/17/access?token=local',
+      }),
+    );
+    expect(result[0]).not.toHaveProperty('previewUrl');
   });
 
   it('returns liked user summaries for family posts', async () => {

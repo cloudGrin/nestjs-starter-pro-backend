@@ -56,21 +56,10 @@ import { FAMILY_PRIVATE_MEDIA_CACHE_MAX_AGE_SECONDS } from '../family-media-cach
 import { FamilyEventService } from './family-event.service';
 
 const FAMILY_VIDEO_POSTER_PROCESS = 'video/snapshot,t_1000,f_jpg,w_720,m_fast';
-const FAMILY_MEDIA_ALLOWED_TYPES = [
-  '.jpg',
-  '.jpeg',
-  '.png',
-  '.gif',
-  '.webp',
-  '.heic',
-  '.heif',
-  '.mp4',
-  '.mov',
-  '.webm',
-  '.mkv',
-  '.avi',
-  '.wmv',
-];
+const FAMILY_IMAGE_ALLOWED_TYPES = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'];
+const FAMILY_VIDEO_ALLOWED_TYPES = ['.mp4', '.mov', '.webm'];
+const FAMILY_CHAT_VIDEO_MAX_SIZE = 100 * 1024 * 1024;
+const FAMILY_CIRCLE_VIDEO_MAX_SIZE = 200 * 1024 * 1024;
 const FAMILY_POST_RESPONSE_RELATIONS = [
   'author',
   'media',
@@ -398,7 +387,12 @@ export class FamilyService {
   }
 
   async createMediaDirectUpload(dto: CreateFamilyMediaDirectUploadDto, user: AuthenticatedUser) {
-    this.ensureFamilyMediaMetadata(dto.originalName, dto.mimeType);
+    const mediaType = this.ensureFamilyMediaMetadata(dto.originalName, dto.mimeType);
+    const uploadOptions = this.getFamilyMediaUploadOptions(mediaType, dto.target);
+    if (dto.size > uploadOptions.maxSize) {
+      throw BusinessException.validationFailed('家庭媒体文件过大');
+    }
+
     const module = this.getFileModule(dto.target);
     return this.fileService.createDirectUpload(
       {
@@ -408,10 +402,7 @@ export class FamilyService {
         isPublic: false,
       },
       user.id,
-      {
-        maxSize: DEFAULT_FAMILY_MEDIA_MAX_SIZE,
-        allowedTypes: FAMILY_MEDIA_ALLOWED_TYPES,
-      },
+      uploadOptions,
     );
   }
 
@@ -424,7 +415,14 @@ export class FamilyService {
       throw BusinessException.validationFailed('请选择要上传的文件');
     }
 
-    this.ensureFamilyMediaMetadata(file.originalname, file.mimetype || 'application/octet-stream');
+    const mediaType = this.ensureFamilyMediaMetadata(
+      file.originalname,
+      file.mimetype || 'application/octet-stream',
+    );
+    if (mediaType === FamilyMediaType.VIDEO) {
+      throw BusinessException.validationFailed('本地上传暂不支持家庭视频，请启用 OSS 直传');
+    }
+
     return this.fileService.upload(
       file,
       {
@@ -432,8 +430,7 @@ export class FamilyService {
         tags: 'family,media',
         isPublic: false,
         storage: FileStorageType.LOCAL,
-        maxSize: DEFAULT_FAMILY_MEDIA_MAX_SIZE,
-        allowedTypes: FAMILY_MEDIA_ALLOWED_TYPES,
+        ...this.getFamilyMediaUploadOptions(mediaType, dto.target),
       },
       user.id,
     );
@@ -714,12 +711,45 @@ export class FamilyService {
     throw BusinessException.validationFailed('家庭媒体仅支持图片和视频');
   }
 
-  private ensureFamilyMediaMetadata(originalName: string, mimeType: string): void {
+  private ensureFamilyMediaMetadata(originalName: string, mimeType: string): FamilyMediaType {
     const isImage = mimeType.startsWith('image/') || FileUtil.isImage(originalName);
     const isVideo = mimeType.startsWith('video/') || FileUtil.isVideo(originalName);
     if (!isImage && !isVideo) {
       throw BusinessException.validationFailed('家庭媒体仅支持图片和视频');
     }
+
+    if (isVideo) {
+      const extension = FileUtil.getExtension(originalName);
+      if (!FAMILY_VIDEO_ALLOWED_TYPES.includes(extension)) {
+        throw BusinessException.validationFailed('家庭视频仅支持 MP4、MOV、WEBM');
+      }
+      return FamilyMediaType.VIDEO;
+    }
+
+    return FamilyMediaType.IMAGE;
+  }
+
+  private getFamilyMediaUploadOptions(
+    mediaType: FamilyMediaType,
+    target: FamilyMediaTarget,
+  ): {
+    maxSize: number;
+    allowedTypes: string[];
+  } {
+    if (mediaType === FamilyMediaType.VIDEO) {
+      return {
+        maxSize:
+          target === FamilyMediaTarget.CHAT
+            ? FAMILY_CHAT_VIDEO_MAX_SIZE
+            : FAMILY_CIRCLE_VIDEO_MAX_SIZE,
+        allowedTypes: FAMILY_VIDEO_ALLOWED_TYPES,
+      };
+    }
+
+    return {
+      maxSize: DEFAULT_FAMILY_MEDIA_MAX_SIZE,
+      allowedTypes: FAMILY_IMAGE_ALLOWED_TYPES,
+    };
   }
 
   private getFileModule(target: FamilyMediaTarget): string {

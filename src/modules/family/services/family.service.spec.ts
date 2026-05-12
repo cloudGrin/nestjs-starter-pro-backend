@@ -764,7 +764,7 @@ describe('FamilyService', () => {
     expect(eventService.emitPostLikeChanged).not.toHaveBeenCalled();
   });
 
-  it('keeps family direct uploads on OSS with a 500MB media limit', async () => {
+  it('limits chat video direct uploads to 100MB', async () => {
     fileService.createDirectUpload.mockResolvedValue({
       method: 'PUT',
       uploadUrl: 'https://oss.example.com/upload',
@@ -778,7 +778,7 @@ describe('FamilyService', () => {
         target: FamilyMediaTarget.CHAT,
         originalName: 'family-video.mp4',
         mimeType: 'video/mp4',
-        size: 500 * 1024 * 1024,
+        size: 100 * 1024 * 1024,
       },
       { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
     );
@@ -791,10 +791,71 @@ describe('FamilyService', () => {
       }),
       1,
       {
-        maxSize: 500 * 1024 * 1024,
-        allowedTypes: expect.arrayContaining(['.jpg', '.webp', '.mp4', '.mov', '.webm']),
+        maxSize: 100 * 1024 * 1024,
+        allowedTypes: expect.arrayContaining(['.mp4', '.mov', '.webm']),
       },
     );
+  });
+
+  it('limits circle video direct uploads to 200MB', async () => {
+    fileService.createDirectUpload.mockResolvedValue({
+      method: 'PUT',
+      uploadUrl: 'https://oss.example.com/upload',
+      uploadToken: 'token',
+      expiresAt: '2026-05-04T00:00:00.000Z',
+      headers: {},
+    });
+
+    await service.createMediaDirectUpload(
+      {
+        target: FamilyMediaTarget.CIRCLE,
+        originalName: 'family-video.mp4',
+        mimeType: 'video/mp4',
+        size: 200 * 1024 * 1024,
+      },
+      { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+    );
+
+    expect(fileService.createDirectUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        module: 'family-circle',
+        isPublic: false,
+        originalName: 'family-video.mp4',
+      }),
+      1,
+      {
+        maxSize: 200 * 1024 * 1024,
+        allowedTypes: expect.arrayContaining(['.mp4', '.mov', '.webm']),
+      },
+    );
+  });
+
+  it('rejects oversized and unsupported family video direct uploads before creating OSS URLs', async () => {
+    await expect(
+      service.createMediaDirectUpload(
+        {
+          target: FamilyMediaTarget.CHAT,
+          originalName: 'too-large.mp4',
+          mimeType: 'video/mp4',
+          size: 100 * 1024 * 1024 + 1,
+        },
+        { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+      ),
+    ).rejects.toThrow(BusinessException);
+
+    await expect(
+      service.createMediaDirectUpload(
+        {
+          target: FamilyMediaTarget.CIRCLE,
+          originalName: 'archive.mkv',
+          mimeType: 'video/x-matroska',
+          size: 10 * 1024 * 1024,
+        },
+        { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+      ),
+    ).rejects.toThrow(BusinessException);
+
+    expect(fileService.createDirectUpload).not.toHaveBeenCalled();
   });
 
   it('uploads family media to local storage for temporary non-OSS testing', async () => {
@@ -829,10 +890,25 @@ describe('FamilyService', () => {
         isPublic: false,
         storage: FileStorageType.LOCAL,
         maxSize: 500 * 1024 * 1024,
-        allowedTypes: expect.arrayContaining(['.jpg', '.webp', '.mp4', '.mov', '.webm']),
+        allowedTypes: expect.arrayContaining(['.jpg', '.webp']),
       }),
       1,
     );
+  });
+
+  it('rejects local family video uploads to avoid large multipart memory pressure', async () => {
+    await expect(
+      service.uploadLocalMedia(
+        {
+          originalname: 'family-video.mp4',
+          mimetype: 'video/mp4',
+        } as Express.Multer.File,
+        { target: FamilyMediaTarget.CIRCLE },
+        { id: 1, username: 'dad', email: 'dad@example.com', roles: [], sessionId: 's1' },
+      ),
+    ).rejects.toThrow(BusinessException);
+
+    expect(fileService.upload).not.toHaveBeenCalled();
   });
 
   it('accepts locally uploaded media when creating family posts', async () => {

@@ -251,6 +251,7 @@ export class TaskService {
     return this.dataSource.transaction(async (manager) => {
       const taskRepository = manager.getRepository(TaskEntity);
       const completionRepository = manager.getRepository(TaskCompletionEntity);
+      const checkItemRepository = manager.getRepository(TaskCheckItemEntity);
       const task = await this.findByIdOrFail(id, user, taskRepository, { lock: true });
 
       if (task.status === TaskStatus.COMPLETED) {
@@ -282,8 +283,10 @@ export class TaskService {
       );
 
       if (this.isRecurring(task) && nextOccurrence) {
+        await this.resetCheckItemsForNextOccurrence(task, checkItemRepository);
         this.rollRecurringTask(task, nextOccurrence);
       } else {
+        await this.markCheckItemsCompleted(task, checkItemRepository, completedAt);
         task.status = TaskStatus.COMPLETED;
         task.completedAt = completedAt;
         task.nextReminderAt = null;
@@ -294,16 +297,19 @@ export class TaskService {
   }
 
   async reopenTask(id: number, user: CurrentUserLike): Promise<TaskEntity> {
-    const task = await this.findByIdOrFail(id, user);
-    if (task.status !== TaskStatus.COMPLETED) {
-      throw BusinessException.validationFailed('只有已完成任务可以重开');
-    }
+    return this.dataSource.transaction(async (manager) => {
+      const taskRepository = manager.getRepository(TaskEntity);
+      const task = await this.findByIdOrFail(id, user, taskRepository, { lock: true });
+      if (task.status !== TaskStatus.COMPLETED) {
+        throw BusinessException.validationFailed('只有已完成任务可以重开');
+      }
 
-    task.status = TaskStatus.PENDING;
-    task.completedAt = null;
-    task.remindedAt = null;
-    task.nextReminderAt = this.getReopenedNextReminderAt(task, new Date());
-    return this.taskRepository.save(task);
+      task.status = TaskStatus.PENDING;
+      task.completedAt = null;
+      task.remindedAt = null;
+      task.nextReminderAt = this.getReopenedNextReminderAt(task, new Date());
+      return taskRepository.save(task);
+    });
   }
 
   async snoozeTaskReminder(
@@ -457,6 +463,41 @@ export class TaskService {
         });
       }),
     );
+  }
+
+  private async markCheckItemsCompleted(
+    task: TaskEntity,
+    repository: Repository<TaskCheckItemEntity>,
+    completedAt: Date,
+  ): Promise<void> {
+    const itemsToSave = (task.checkItems ?? []).filter(
+      (item) => !item.completed || !item.completedAt,
+    );
+    if (itemsToSave.length === 0) {
+      return;
+    }
+
+    itemsToSave.forEach((item) => {
+      item.completed = true;
+      item.completedAt = item.completedAt ?? completedAt;
+    });
+    await repository.save(itemsToSave);
+  }
+
+  private async resetCheckItemsForNextOccurrence(
+    task: TaskEntity,
+    repository: Repository<TaskCheckItemEntity>,
+  ): Promise<void> {
+    const itemsToSave = (task.checkItems ?? []).filter((item) => item.completed || item.completedAt);
+    if (itemsToSave.length === 0) {
+      return;
+    }
+
+    itemsToSave.forEach((item) => {
+      item.completed = false;
+      item.completedAt = null;
+    });
+    await repository.save(itemsToSave);
   }
 
   private uniqueIds(ids?: number[]): number[] {

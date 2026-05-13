@@ -75,6 +75,10 @@ describe('TaskService', () => {
                     return completionRepository;
                   }
 
+                  if (entity === TaskCheckItemEntity) {
+                    return checkItemRepository;
+                  }
+
                   return null;
                 },
               }),
@@ -628,6 +632,55 @@ describe('TaskService', () => {
     expect(userRepository.findOne).not.toHaveBeenCalled();
   });
 
+  it('does not complete the task when all check items are marked completed through update', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 24,
+      title: '检查项全完成不自动完成主任务',
+      status: TaskStatus.PENDING,
+      recurrenceType: TaskRecurrenceType.NONE,
+      list: Object.assign(new TaskListEntity(), {
+        scope: TaskListScope.FAMILY,
+      }),
+      checkItems: [
+        Object.assign(new TaskCheckItemEntity(), {
+          id: 301,
+          taskId: 24,
+          title: '第一项',
+          completed: false,
+          sort: 0,
+        }),
+      ],
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+    checkItemRepository.create.mockImplementation((data) => data as TaskCheckItemEntity);
+    checkItemRepository.save.mockImplementation(async (data) => data as TaskCheckItemEntity[]);
+
+    const result = await service.updateTask(
+      24,
+      {
+        checkItems: [
+          {
+            id: 301,
+            title: '第一项',
+            completed: true,
+            sort: 0,
+          },
+        ],
+      } as any,
+      { id: 1 } as any,
+    );
+
+    expect(result.status).toBe(TaskStatus.PENDING);
+    expect(result.completedAt).toBeUndefined();
+    expect(result.checkItems?.[0]).toEqual(
+      expect.objectContaining({
+        completed: true,
+      }),
+    );
+  });
+
   it('resets reminder delivery state when reminder time changes', async () => {
     const task = Object.assign(new TaskEntity(), {
       id: 13,
@@ -1026,6 +1079,103 @@ describe('TaskService', () => {
     );
   });
 
+  it('marks unfinished check items completed when completing a non-recurring task', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-01T10:30:00.000Z'));
+    const task = Object.assign(new TaskEntity(), {
+      id: 22,
+      title: '带检查项的一次性任务',
+      status: TaskStatus.PENDING,
+      recurrenceType: TaskRecurrenceType.NONE,
+      checkItems: [
+        Object.assign(new TaskCheckItemEntity(), {
+          id: 101,
+          taskId: 22,
+          title: '准备材料',
+          completed: false,
+          completedAt: null,
+          sort: 0,
+        }),
+        Object.assign(new TaskCheckItemEntity(), {
+          id: 102,
+          taskId: 22,
+          title: '拍照',
+          completed: true,
+          completedAt: new Date('2026-05-01T09:00:00.000Z'),
+          sort: 1,
+        }),
+      ],
+    });
+
+    mockTaskLookup(task);
+    completionRepository.create.mockImplementation((data) => data as TaskCompletionEntity);
+    completionRepository.save.mockImplementation(async (data) => data as TaskCompletionEntity);
+    checkItemRepository.save.mockImplementation(async (data) => data as TaskCheckItemEntity[]);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+
+    const result = await service.completeTask(22, 7);
+
+    expect(result.status).toBe(TaskStatus.COMPLETED);
+    expect(result.checkItems?.map((item) => item.completed)).toEqual([true, true]);
+    expect(result.checkItems?.[0].completedAt?.toISOString()).toBe('2026-05-01T10:30:00.000Z');
+    expect(result.checkItems?.[1].completedAt?.toISOString()).toBe('2026-05-01T09:00:00.000Z');
+    expect(checkItemRepository.save).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 101,
+        completed: true,
+        completedAt: new Date('2026-05-01T10:30:00.000Z'),
+      }),
+    ]);
+  });
+
+  it('resets check items when a recurring task rolls to the next occurrence', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 23,
+      title: '带检查项的重复任务',
+      status: TaskStatus.PENDING,
+      dueAt: new Date('2026-05-01T10:00:00.000Z'),
+      recurrenceType: TaskRecurrenceType.WEEKLY,
+      recurrenceInterval: 1,
+      checkItems: [
+        Object.assign(new TaskCheckItemEntity(), {
+          id: 201,
+          taskId: 23,
+          title: '第一项',
+          completed: true,
+          completedAt: new Date('2026-05-01T09:00:00.000Z'),
+          sort: 0,
+        }),
+        Object.assign(new TaskCheckItemEntity(), {
+          id: 202,
+          taskId: 23,
+          title: '第二项',
+          completed: false,
+          completedAt: null,
+          sort: 1,
+        }),
+      ],
+    });
+
+    mockTaskLookup(task);
+    completionRepository.create.mockImplementation((data) => data as TaskCompletionEntity);
+    completionRepository.save.mockImplementation(async (data) => data as TaskCompletionEntity);
+    checkItemRepository.save.mockImplementation(async (data) => data as TaskCheckItemEntity[]);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+
+    const result = await service.completeTask(23, 7);
+
+    expect(result.status).toBe(TaskStatus.PENDING);
+    expect(result.dueAt?.toISOString()).toBe('2026-05-08T10:00:00.000Z');
+    expect(result.checkItems?.map((item) => item.completed)).toEqual([false, false]);
+    expect(result.checkItems?.map((item) => item.completedAt)).toEqual([null, null]);
+    expect(checkItemRepository.save).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 201,
+        completed: false,
+        completedAt: null,
+      }),
+    ]);
+  });
+
   it('rejects reopening a task that is not completed', async () => {
     const task = Object.assign(new TaskEntity(), {
       id: 15,
@@ -1037,7 +1187,7 @@ describe('TaskService', () => {
       }),
     });
 
-    taskRepository.findOne.mockResolvedValue(task);
+    mockTaskLookup(task);
 
     await expect(service.reopenTask(15, { id: 1 } as any)).rejects.toThrow(BusinessException);
     expect(taskRepository.save).not.toHaveBeenCalled();
@@ -1059,7 +1209,7 @@ describe('TaskService', () => {
       }),
     });
 
-    taskRepository.findOne.mockResolvedValue(task);
+    mockTaskLookup(task);
     taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
 
     const result = await service.reopenTask(16, { id: 1 } as any);
@@ -1112,6 +1262,28 @@ describe('TaskService', () => {
 
     await service.completeTask(6, 7);
 
+    const qb = taskRepository.createQueryBuilder.mock.results[0].value;
+    expect(qb.setLock).toHaveBeenCalledWith('pessimistic_write');
+  });
+
+  it('locks the task row before reopening it', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 21,
+      title: '并发重开任务',
+      status: TaskStatus.COMPLETED,
+      completedAt: new Date('2026-05-01T10:00:00.000Z'),
+      recurrenceType: TaskRecurrenceType.NONE,
+      list: Object.assign(new TaskListEntity(), {
+        scope: TaskListScope.FAMILY,
+      }),
+    });
+
+    mockTaskLookup(task);
+    taskRepository.save.mockImplementation(async (data) => data as TaskEntity);
+
+    await service.reopenTask(21, { id: 7 } as any);
+
+    expect(dataSource.transaction).toHaveBeenCalled();
     const qb = taskRepository.createQueryBuilder.mock.results[0].value;
     expect(qb.setLock).toHaveBeenCalledWith('pessimistic_write');
   });

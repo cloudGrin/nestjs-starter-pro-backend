@@ -102,6 +102,29 @@ export class BabyService {
     };
   }
 
+  async findPublicOverviewPreview(): Promise<BabyOverviewResponseDto> {
+    const [profile, latestGrowthRecord] = await Promise.all([
+      this.profileRepository.findOne({
+        where: {},
+        relations: ['avatarFile'],
+        order: { id: 'ASC' },
+      }),
+      this.growthRepository.findOne({
+        where: {},
+        order: { measuredAt: 'DESC', id: 'DESC' },
+      }),
+    ]);
+
+    return {
+      profile: profile ? await this.toProfileResponse(profile) : null,
+      latestGrowthRecord: latestGrowthRecord
+        ? this.toGrowthRecordResponse(latestGrowthRecord)
+        : null,
+      growthRecords: [],
+      birthdays: [],
+    };
+  }
+
   async saveProfile(dto: SaveBabyProfileDto): Promise<BabyProfileResponseDto> {
     const existing = await this.profileRepository.findOne({ where: {}, order: { id: 'ASC' } });
     const payload = {

@@ -624,6 +624,51 @@ describe('FamilyService', () => {
     );
   });
 
+  it('returns a five-item public post preview without marking any post as liked by the visitor', async () => {
+    const posts = Array.from({ length: 5 }, (_, index) =>
+      Object.assign(new FamilyPostEntity(), {
+        id: 20 - index,
+        content: `公开预览动态 ${index + 1}`,
+        authorId: 1,
+        author: Object.assign(new UserEntity(), { id: 1, username: 'dad', nickname: '爸爸' }),
+        media: [],
+        comments: [],
+        likes: [
+          Object.assign(new FamilyPostLikeEntity(), {
+            postId: 20 - index,
+            userId: 4,
+            user: Object.assign(new UserEntity(), { id: 4, username: 'mom', nickname: '妈妈' }),
+          }),
+        ],
+        createdAt: new Date(`2026-05-0${index + 1}T07:00:00.000Z`),
+        updatedAt: new Date(`2026-05-0${index + 1}T07:00:00.000Z`),
+      }),
+    );
+    postRepository.findAndCount.mockResolvedValue([posts, 8]);
+
+    const result = await service.findPublicPreviewPosts();
+
+    expect(postRepository.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relations: expect.arrayContaining(['comments.author', 'likes.user']),
+        order: { createdAt: 'DESC' },
+        skip: 0,
+        take: 5,
+      }),
+    );
+    expect(result.items).toHaveLength(5);
+    expect(result.meta.totalItems).toBe(8);
+    expect(result.meta.itemsPerPage).toBe(5);
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        content: '公开预览动态 1',
+        likeCount: 1,
+        likedByMe: false,
+        likedUsers: [expect.objectContaining({ nickname: '妈妈' })],
+      }),
+    );
+  });
+
   it('returns only newer family posts when afterId is provided', async () => {
     postRepository.findAndCount.mockResolvedValue([[], 0]);
 

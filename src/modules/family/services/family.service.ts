@@ -60,6 +60,7 @@ const FAMILY_IMAGE_ALLOWED_TYPES = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.
 const FAMILY_VIDEO_ALLOWED_TYPES = ['.mp4', '.mov', '.webm'];
 const FAMILY_CHAT_VIDEO_MAX_SIZE = 100 * 1024 * 1024;
 const FAMILY_CIRCLE_VIDEO_MAX_SIZE = 200 * 1024 * 1024;
+const FAMILY_PUBLIC_POST_PREVIEW_LIMIT = 5;
 const FAMILY_POST_RESPONSE_RELATIONS = [
   'author',
   'media',
@@ -160,6 +161,18 @@ export class FamilyService {
     );
 
     return this.paginate(responseItems, totalItems, page, limit);
+  }
+
+  async findPublicPreviewPosts(): Promise<PaginationResult<FamilyPostResponseDto>> {
+    const [items, totalItems] = await this.postRepository.findAndCount({
+      relations: FAMILY_POST_RESPONSE_RELATIONS,
+      order: { createdAt: 'DESC' },
+      skip: 0,
+      take: FAMILY_PUBLIC_POST_PREVIEW_LIMIT,
+    });
+    const responseItems = await Promise.all(items.map((post) => this.toPostResponse(post, null)));
+
+    return this.paginate(responseItems, totalItems, 1, FAMILY_PUBLIC_POST_PREVIEW_LIMIT);
   }
 
   async findPost(postId: number, user: AuthenticatedUser): Promise<FamilyPostResponseDto> {
@@ -493,7 +506,7 @@ export class FamilyService {
 
   private async toPostResponse(
     post: FamilyPostEntity,
-    currentUserId: number,
+    currentUserId: number | null,
   ): Promise<FamilyPostResponseDto> {
     const comments = [...(post.comments ?? [])].sort(
       (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
@@ -507,7 +520,9 @@ export class FamilyService {
       media: await this.toMediaResponse(post.media ?? []),
       comments: await Promise.all(comments.map((comment) => this.toCommentResponse(comment))),
       likeCount: post.likes?.length ?? 0,
-      likedByMe: (post.likes ?? []).some((like) => like.userId === currentUserId),
+      likedByMe: currentUserId
+        ? (post.likes ?? []).some((like) => like.userId === currentUserId)
+        : false,
       likedUsers: (
         await Promise.all((post.likes ?? []).map((like) => this.toUserSummary(like.user)))
       ).filter((user): user is FamilyUserSummaryDto => Boolean(user)),

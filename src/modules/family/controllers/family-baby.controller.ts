@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AllowAuthenticated, RequirePermissions } from '~/core/decorators';
+import { AllowAuthenticated, Public, RequirePermissions } from '~/core/decorators';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
 import {
@@ -32,6 +32,13 @@ import { BabyService } from '../services/baby.service';
 @Controller('family/baby')
 export class FamilyBabyController {
   constructor(private readonly babyService: BabyService) {}
+
+  @Get('preview')
+  @Public()
+  @ApiOperation({ summary: '公开预览宝宝概览卡' })
+  async findPublicPreview() {
+    return this.babyService.findPublicOverviewPreview();
+  }
 
   @Get()
   @AllowAuthenticated()
@@ -107,10 +114,7 @@ export class FamilyBabyController {
   @Put('birthdays/:id')
   @RequirePermissions('baby:update')
   @ApiOperation({ summary: '后台更新宝宝年度生日合辑' })
-  async updateBirthday(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateBabyBirthdayDto,
-  ) {
+  async updateBirthday(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateBabyBirthdayDto) {
     return this.babyService.updateBirthday(id, dto);
   }
 

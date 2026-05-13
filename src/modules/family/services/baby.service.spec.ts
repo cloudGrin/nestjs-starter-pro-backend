@@ -140,6 +140,45 @@ describe('BabyService', () => {
     );
   });
 
+  it('returns a public baby summary without birthday albums or full growth history', async () => {
+    profileRepository.findOne.mockResolvedValue(
+      Object.assign(new BabyProfileEntity(), {
+        id: 1,
+        nickname: '小葡萄',
+        birthDate: '2026-02-01',
+        avatarFileId: 10,
+      }),
+    );
+    growthRepository.findOne.mockResolvedValue(
+      Object.assign(new BabyGrowthRecordEntity(), {
+        id: 12,
+        measuredAt: '2026-05-01',
+        heightCm: '61.5',
+        weightKg: '6.80',
+      }),
+    );
+
+    const overview = await service.findPublicOverviewPreview();
+
+    expect(profileRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relations: ['avatarFile'],
+      }),
+    );
+    expect(growthRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        order: { measuredAt: 'DESC', id: 'DESC' },
+      }),
+    );
+    expect(birthdayRepository.find).not.toHaveBeenCalled();
+    expect(overview.profile?.nickname).toBe('小葡萄');
+    expect(overview.latestGrowthRecord).toEqual(
+      expect.objectContaining({ id: 12, heightCm: 61.5, weightKg: 6.8 }),
+    );
+    expect(overview.growthRecords).toEqual([]);
+    expect(overview.birthdays).toEqual([]);
+  });
+
   it('keeps birthday media ordering stable when multiple contributions reuse the same sort values', async () => {
     profileRepository.findOne.mockResolvedValue(
       Object.assign(new BabyProfileEntity(), {

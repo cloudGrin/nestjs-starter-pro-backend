@@ -11,7 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AllowAuthenticated } from '~/core/decorators';
+import { AllowAuthenticated, Public } from '~/core/decorators';
 import { CurrentUser } from '~/modules/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '~/modules/auth/strategies/jwt.strategy';
 import { CreateFamilyPostCommentDto, CreateFamilyPostDto, QueryFamilyPostDto } from '../dto';
@@ -23,6 +23,13 @@ import { FamilyService } from '../services/family.service';
 @Controller('family/posts')
 export class FamilyPostController {
   constructor(private readonly familyService: FamilyService) {}
+
+  @Public()
+  @Get('preview')
+  @ApiOperation({ summary: '公开预览家庭圈最新动态' })
+  async findPublicPreviewPosts() {
+    return this.familyService.findPublicPreviewPosts();
+  }
 
   @Get()
   @ApiOperation({ summary: '获取家庭圈动态' })

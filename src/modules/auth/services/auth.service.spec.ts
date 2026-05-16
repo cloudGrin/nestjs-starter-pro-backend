@@ -400,6 +400,40 @@ describe('AuthService', () => {
       });
     });
 
+    it('truncates long mini-program user agents before saving refresh tokens', async () => {
+      const longUserAgent = [
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)',
+        'AppleWebKit/605.1.15 (KHTML, like Gecko)',
+        'Version/15.0 Mobile/15E148 Safari/604.1',
+        'wechatdevtools/2.01.2510290 MicroMessenger/8.0.5 Language/zh_CN webview/',
+        `hash/${'1'.repeat(64)}`,
+        `sid/${'2'.repeat(64)}`,
+        `token/${'3'.repeat(64)}`,
+      ].join(' ');
+      const mockUser = createMockUser({
+        username: 'family-user',
+        status: UserStatus.ACTIVE,
+        weappOpenid: 'openid-1',
+      } as Partial<UserEntity>);
+      const refreshTokenEntity = createMockRefreshToken();
+
+      userRepository.findOne.mockResolvedValue(mockUser);
+      userRepository.update.mockResolvedValue(undefined);
+      jwtService.signAsync
+        .mockResolvedValueOnce('mock-access-token')
+        .mockResolvedValueOnce('mock-refresh-token');
+      refreshTokenRepository.create.mockReturnValue(refreshTokenEntity);
+      refreshTokenRepository.save.mockResolvedValue(refreshTokenEntity);
+
+      await service.loginWithWeappCode({ code: 'wx-code' }, mockIp, longUserAgent);
+
+      expect(refreshTokenRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAgent: longUserAgent.slice(0, 255),
+        }),
+      );
+    });
+
     it('rejects silent login when the WeChat openid is not bound', async () => {
       userRepository.findOne.mockResolvedValue(null);
 

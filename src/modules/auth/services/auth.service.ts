@@ -19,6 +19,8 @@ import { UserStatus } from '~/common/enums/user.enum';
 import { StringUtil } from '~/common/utils';
 import { getExpiresInSeconds, hashRefreshToken } from './token-revocation.util';
 
+const REFRESH_TOKEN_USER_AGENT_MAX_LENGTH = 255;
+
 export interface JwtPayload {
   sub: number;
   username: string;
@@ -488,7 +490,7 @@ export class AuthService {
       tokenHash: hashRefreshToken(token),
       userId,
       ipAddress,
-      userAgent,
+      userAgent: this.normalizeUserAgent(userAgent),
       deviceId,
       expiresAt,
     });
@@ -497,6 +499,10 @@ export class AuthService {
 
     // 限制每个用户最多保留5个有效的刷新令牌
     await this.limitUserRefreshTokens(userId, 5);
+  }
+
+  private normalizeUserAgent(userAgent?: string): string | undefined {
+    return userAgent?.slice(0, REFRESH_TOKEN_USER_AGENT_MAX_LENGTH);
   }
 
   /**

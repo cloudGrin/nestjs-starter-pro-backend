@@ -9,9 +9,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
+import { BusinessException } from '~/common/exceptions/business.exception';
 import { PaginationResult } from '~/common/types/pagination.types';
 import { RefreshTokenEntity } from '~/modules/auth/entities/refresh-token.entity';
 import { UserNotificationSettingEntity } from '~/modules/notification/entities/user-notification-setting.entity';
+import { FileEntity } from '~/modules/file/entities/file.entity';
 import { OSS_IMAGE_AVATAR_PROCESS } from '~/modules/file/image-process.constants';
 import { FileService } from '~/modules/file/services/file.service';
 import { UserEntity } from '../entities/user.entity';
@@ -26,6 +28,17 @@ import { UserStatus } from '~/common/enums/user.enum';
 const USER_SORT_FIELDS = new Set(['createdAt', 'updatedAt', 'username', 'email', 'lastLoginAt']);
 const USER_PERMISSION_CACHE_TTL_SECONDS = 1800;
 const USER_AVATAR_CACHE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+const USER_AVATAR_FILE_MODULE = 'user-avatar';
+const USER_AVATAR_MAX_SIZE = 5 * 1024 * 1024;
+const USER_AVATAR_ALLOWED_IMAGE_TYPES = [
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+  '.heic',
+  '.heif',
+];
 const userPermissionsCacheKey = (userId: number) => `user:permissions:${userId}`;
 const SUPER_ADMIN_ROLE_CODE = 'super_admin';
 
@@ -235,6 +248,27 @@ export class UserService {
 
   async findUserProfileById(id: number): Promise<UserEntity> {
     return this.withTrustedAvatarUrl(await this.findUserById(id));
+  }
+
+  async uploadProfileAvatar(
+    file: Express.Multer.File,
+    user: Pick<UserActionActor, 'id'>,
+  ): Promise<FileEntity> {
+    if (!file) {
+      throw BusinessException.validationFailed('请选择要上传的头像');
+    }
+
+    return this.fileService.upload(
+      file,
+      {
+        module: USER_AVATAR_FILE_MODULE,
+        tags: 'avatar,profile',
+        isPublic: false,
+        maxSize: USER_AVATAR_MAX_SIZE,
+        allowedTypes: USER_AVATAR_ALLOWED_IMAGE_TYPES,
+      },
+      user.id,
+    );
   }
 
   async withTrustedAvatarUrl<T extends { avatar?: string | null }>(user: T): Promise<T> {

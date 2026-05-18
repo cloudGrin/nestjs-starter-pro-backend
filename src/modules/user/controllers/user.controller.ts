@@ -8,11 +8,16 @@ import {
   Param,
   Query,
   ParseIntPipe,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiParam,
   ApiCreatedResponse,
   ApiOkResponse,
@@ -89,6 +94,31 @@ export class UserController {
     return this.userService.withTrustedAvatarUrl(
       await this.userService.updateUser(user.id, dto, user),
     );
+  }
+
+  @Post('profile/avatar/upload')
+  @AllowAuthenticated()
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: '上传当前用户头像' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: '头像图片文件',
+        },
+      },
+    },
+  })
+  async uploadProfileAvatar(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.userService.uploadProfileAvatar(file, user);
   }
 
   @Put('password')

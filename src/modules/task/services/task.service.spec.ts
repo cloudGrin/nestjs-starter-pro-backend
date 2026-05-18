@@ -187,6 +187,32 @@ describe('TaskService', () => {
     );
   });
 
+  it('rejects assigning a task in a personal list', async () => {
+    const list = Object.assign(new TaskListEntity(), {
+      id: 6,
+      name: '个人事项',
+      scope: TaskListScope.PERSONAL,
+      ownerId: 1,
+      isArchived: false,
+    });
+
+    listRepository.findOne.mockResolvedValue(list);
+
+    await expect(
+      service.createTask(
+        {
+          title: '个人任务',
+          listId: 6,
+          assigneeId: 5,
+          dueAt: '2026-05-01T10:00:00.000Z',
+        },
+        { id: 1 } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(userRepository.findOne).not.toHaveBeenCalled();
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
   it('rejects creating a task in another user personal list', async () => {
     const list = Object.assign(new TaskListEntity(), {
       id: 3,
@@ -697,6 +723,32 @@ describe('TaskService', () => {
     expect(result.dueAt?.toISOString()).toBe('2026-05-01T10:00:00.000Z');
     expect(result.remindAt).toBeNull();
     expect(userRepository.findOne).not.toHaveBeenCalled();
+  });
+
+  it('rejects setting an assignee on an existing personal-list task', async () => {
+    const task = Object.assign(new TaskEntity(), {
+      id: 13,
+      title: '个人任务',
+      dueAt: new Date('2026-05-01T10:00:00.000Z'),
+      list: Object.assign(new TaskListEntity(), {
+        scope: TaskListScope.PERSONAL,
+        ownerId: 1,
+      }),
+    });
+
+    taskRepository.findOne.mockResolvedValue(task);
+
+    await expect(
+      service.updateTask(
+        13,
+        {
+          assigneeId: 5,
+        } as any,
+        { id: 1 } as any,
+      ),
+    ).rejects.toThrow(BusinessException);
+    expect(userRepository.findOne).not.toHaveBeenCalled();
+    expect(taskRepository.save).not.toHaveBeenCalled();
   });
 
   it('does not complete the task when all check items are marked completed through update', async () => {

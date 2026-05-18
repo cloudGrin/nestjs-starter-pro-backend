@@ -13,6 +13,7 @@ import { RefreshTokenEntity } from '~/modules/auth/entities/refresh-token.entity
 import { UserNotificationSettingEntity } from '~/modules/notification/entities/user-notification-setting.entity';
 import { LoggerService } from '~/shared/logger/logger.service';
 import { CacheService } from '~/shared/cache/cache.service';
+import { FileEntity } from '~/modules/file/entities/file.entity';
 import { FileService } from '~/modules/file/services/file.service';
 import {
   UserMockFactory,
@@ -47,7 +48,7 @@ describe('UserService', () => {
   let roleRepository: jest.Mocked<any>;
   let refreshTokenRepository: jest.Mocked<any>;
   let notificationSettingRepository: jest.Mocked<any>;
-  let fileService: jest.Mocked<Pick<FileService, 'createTrustedAccessLink'>>;
+  let fileService: jest.Mocked<Pick<FileService, 'createTrustedAccessLink' | 'upload'>>;
   let cache: jest.Mocked<CacheService>;
   let logger: jest.Mocked<LoggerService>;
 
@@ -58,6 +59,7 @@ describe('UserService', () => {
     const mockNotificationSettingRepository = createMockRepository<UserNotificationSettingEntity>();
     const mockFileService = {
       createTrustedAccessLink: jest.fn(),
+      upload: jest.fn(),
     };
     const mockCache = createMockCacheService();
     const mockLogger = createMockLogger();
@@ -102,7 +104,7 @@ describe('UserService', () => {
     refreshTokenRepository = module.get(getRepositoryToken(RefreshTokenEntity));
     notificationSettingRepository = module.get(getRepositoryToken(UserNotificationSettingEntity));
     fileService = module.get(FileService) as jest.Mocked<
-      Pick<FileService, 'createTrustedAccessLink'>
+      Pick<FileService, 'createTrustedAccessLink' | 'upload'>
     >;
     cache = module.get(CacheService);
     logger = module.get(LoggerService);
@@ -370,6 +372,41 @@ describe('UserService', () => {
         cacheMaxAgeSeconds: 30 * 24 * 60 * 60,
       });
       expect(result.avatar).toBe('/api/v1/files/9/access?token=avatar');
+    });
+  });
+
+  describe('uploadProfileAvatar', () => {
+    it('uploads a private profile avatar through FileService for the current user', async () => {
+      const uploadProfileAvatar = (service as any).uploadProfileAvatar;
+      const avatarFile = {
+        originalname: 'avatar.jpg',
+        mimetype: 'image/jpeg',
+        size: 1024,
+        buffer: Buffer.from('avatar'),
+      } as Express.Multer.File;
+      const uploaded = Object.assign(new FileEntity(), {
+        id: 88,
+        module: 'user-avatar',
+        isPublic: false,
+      });
+
+      expect(typeof uploadProfileAvatar).toBe('function');
+      fileService.upload.mockResolvedValue(uploaded);
+
+      await expect(uploadProfileAvatar.call(service, avatarFile, { id: 7 })).resolves.toBe(
+        uploaded,
+      );
+      expect(fileService.upload).toHaveBeenCalledWith(
+        avatarFile,
+        expect.objectContaining({
+          module: 'user-avatar',
+          tags: 'avatar,profile',
+          isPublic: false,
+          maxSize: 5 * 1024 * 1024,
+          allowedTypes: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'],
+        }),
+        7,
+      );
     });
   });
 

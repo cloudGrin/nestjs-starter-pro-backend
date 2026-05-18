@@ -92,6 +92,7 @@ export class TaskService {
   async createTask(dto: CreateTaskDto, user: CurrentUserLike): Promise<TaskEntity> {
     const list = await this.ensureListExists(dto.listId);
     this.ensureCanUseList(list, user);
+    this.ensureAssigneeAllowedForList(list, dto.assigneeId);
     await this.ensureAssigneeExists(dto.assigneeId);
     await this.ensureAttachmentFilesAccessible(dto.attachmentFileIds, user);
 
@@ -200,6 +201,9 @@ export class TaskService {
       this.ensureCanMoveTaskToList(entity, targetList, user);
     }
 
+    const nextList = targetList ?? entity.list;
+    const nextAssigneeId = dto.assigneeId !== undefined ? dto.assigneeId : entity.assigneeId;
+    this.ensureAssigneeAllowedForList(nextList, nextAssigneeId);
     if (dto.assigneeId !== undefined) {
       await this.ensureAssigneeExists(dto.assigneeId);
     }
@@ -837,6 +841,19 @@ export class TaskService {
     }
 
     throw BusinessException.notFound('Task list', list.id);
+  }
+
+  private ensureAssigneeAllowedForList(
+    list: TaskListEntity | undefined,
+    assigneeId?: number | null,
+  ): void {
+    if (!assigneeId) {
+      return;
+    }
+
+    if (list?.scope === TaskListScope.PERSONAL) {
+      throw BusinessException.validationFailed('个人清单任务不能设置负责人');
+    }
   }
 
   private ensureCanMoveTaskToList(

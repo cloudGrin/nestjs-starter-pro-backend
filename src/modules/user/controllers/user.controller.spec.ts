@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { IS_PUBLIC_KEY } from '~/core/decorators/public.decorator';
+import { PERMISSIONS_KEY } from '~/core/decorators/require-permissions.decorator';
 import { UserController } from './user.controller';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { DeleteUsersDto } from '../dto/delete-users.dto';
@@ -49,5 +51,17 @@ describe('UserController', () => {
 
     expect(source).toContain('@CurrentUser() user: AuthenticatedUser');
     expect(source).toContain('return this.userService.updateNotificationSettings(id, dto, user);');
+  });
+
+  it('exposes profile avatar upload to authenticated users without file-admin permission', () => {
+    const uploadProfileAvatar = (UserController.prototype as any).uploadProfileAvatar;
+    const source = readFileSync(join(__dirname, 'user.controller.ts'), 'utf8');
+
+    expect(typeof uploadProfileAvatar).toBe('function');
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, uploadProfileAvatar)).toBeUndefined();
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, uploadProfileAvatar)).toBeUndefined();
+    expect(source).toContain("@Post('profile/avatar/upload')");
+    expect(source).toContain('@AllowAuthenticated()');
+    expect(source).toContain('return this.userService.uploadProfileAvatar(file, user);');
   });
 });

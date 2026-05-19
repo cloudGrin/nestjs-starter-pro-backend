@@ -25,6 +25,7 @@ import {
   CompleteDirectUploadDto,
   CreateDirectUploadDto,
 } from '~/modules/file/dto/direct-upload.dto';
+import { CreateFileAccessLinkDto } from '~/modules/file/dto/file-access-link.dto';
 import {
   CreateInsurancePolicyDto,
   QueryInsurancePolicyDto,
@@ -124,6 +125,17 @@ export class InsurancePolicyController {
   @ApiOperation({ summary: '删除保单' })
   async removePolicy(@Param('id', ParseIntPipe) id: number) {
     await this.policyService.removePolicy(id);
+  }
+
+  @Post(':id/attachments/:fileId/access-link')
+  @RequirePermissions('insurance:read')
+  @ApiOperation({ summary: '创建保单附件临时访问链接' })
+  async createAttachmentAccessLink(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('fileId', ParseIntPipe) fileId: number,
+    @Body() dto: CreateFileAccessLinkDto,
+  ) {
+    return this.policyService.createAttachmentAccessLink(id, fileId, dto);
   }
 
   @Get(':id/attachments/:fileId/download')

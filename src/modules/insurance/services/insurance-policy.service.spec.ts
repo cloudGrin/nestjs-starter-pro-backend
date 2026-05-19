@@ -58,6 +58,7 @@ describe('InsurancePolicyService', () => {
             createDirectUpload: jest.fn(),
             completeDirectUpload: jest.fn(),
             getDownloadResult: jest.fn(),
+            createTrustedAccessLink: jest.fn(),
             normalizePublicAccessUrl: jest.fn(async (file: FileEntity) => file),
           },
         },
@@ -517,6 +518,36 @@ describe('InsurancePolicyService', () => {
 
     await expect(service.getAttachmentDownload(88, 21)).resolves.toBe(download);
     expect(fileService.getDownloadResult).toHaveBeenCalledWith(21, 'attachment');
+  });
+
+  it('creates signed attachment access links after confirming the attachment belongs to the policy', async () => {
+    const policy = Object.assign(new InsurancePolicyEntity(), { id: 88 });
+    const file = Object.assign(new FileEntity(), {
+      id: 21,
+      originalName: 'policy.pdf',
+      mimeType: 'application/pdf',
+    });
+    const link = {
+      url: '/api/v1/files/21/access?token=abc',
+      token: 'abc',
+      expiresAt: '2026-05-04T00:00:00.000Z',
+    };
+    policyRepository.findOne.mockResolvedValue(policy);
+    attachmentRepository.findOne.mockResolvedValue(
+      Object.assign(new InsurancePolicyAttachmentEntity(), {
+        policyId: 88,
+        fileId: 21,
+        file,
+      }),
+    );
+    fileService.createTrustedAccessLink.mockResolvedValue(link);
+
+    await expect(
+      service.createAttachmentAccessLink(88, 21, { disposition: 'inline' }),
+    ).resolves.toEqual(link);
+    expect(fileService.createTrustedAccessLink).toHaveBeenCalledWith(21, {
+      disposition: 'inline',
+    });
   });
 
   it('removes pending reminders when deleting a policy', async () => {

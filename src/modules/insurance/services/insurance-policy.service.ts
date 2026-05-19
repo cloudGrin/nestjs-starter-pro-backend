@@ -10,6 +10,7 @@ import {
   CompleteDirectUploadDto,
   CreateDirectUploadDto,
 } from '~/modules/file/dto/direct-upload.dto';
+import { CreateFileAccessLinkDto } from '~/modules/file/dto/file-access-link.dto';
 import { FileEntity } from '~/modules/file/entities/file.entity';
 import { FileDownloadResult, FileService } from '~/modules/file/services/file.service';
 import { UserEntity } from '~/modules/user/entities/user.entity';
@@ -266,6 +267,26 @@ export class InsurancePolicyService {
     }
 
     return this.fileService.getDownloadResult(fileId, 'attachment');
+  }
+
+  async createAttachmentAccessLink(
+    policyId: number,
+    fileId: number,
+    dto: CreateFileAccessLinkDto,
+  ): ReturnType<FileService['createTrustedAccessLink']> {
+    await this.findByIdOrFail(policyId);
+
+    const attachment = await this.attachmentRepository.findOne({
+      where: { policyId, fileId },
+      relations: ['file'],
+    });
+    if (!attachment?.file) {
+      throw BusinessException.notFound('Insurance policy attachment', fileId);
+    }
+
+    return this.fileService.createTrustedAccessLink(fileId, {
+      disposition: dto.disposition ?? 'attachment',
+    });
   }
 
   private async findByIdOrFail(id: number): Promise<InsurancePolicyEntity> {
